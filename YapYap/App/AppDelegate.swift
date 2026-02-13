@@ -21,8 +21,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup hotkeys
         HotkeyManager.shared.configure(pipeline: pipeline!, appState: appState)
 
-        // Setup floating bar
-        setupFloatingBar()
+        // Setup floating bar on main actor
+        Task { @MainActor in
+            setupFloatingBar()
+        }
 
         // Check for first launch
         if !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
@@ -32,19 +34,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func setupFloatingBar() {
-        floatingBarPanel = FloatingBarPanel()
+        do {
+            floatingBarPanel = FloatingBarPanel()
 
-        // Set content view with FloatingBarView
-        let floatingView = FloatingBarView(appState: appState)
-        floatingBarPanel?.contentView = NSHostingView(rootView: floatingView)
+            // Set content view with FloatingBarView
+            let floatingView = FloatingBarView(appState: appState)
+            floatingBarPanel?.contentView = NSHostingView(rootView: floatingView)
 
-        // Position the bar
-        floatingBarPanel?.positionOnScreen(position: .bottomCenter)
+            // Position the bar
+            floatingBarPanel?.positionOnScreen(position: .bottomCenter)
 
-        // Show if enabled in settings
-        let settings = DataManager.shared.fetchSettings()
-        if settings.showFloatingBar {
-            floatingBarPanel?.showBar()
+            // Show if enabled in settings
+            let settings = DataManager.shared.fetchSettings()
+            if settings.showFloatingBar {
+                floatingBarPanel?.showBar()
+            }
+        } catch {
+            print("⚠️ Failed to setup floating bar: \(error)")
+            // Continue without floating bar - not critical for app functionality
         }
     }
 
