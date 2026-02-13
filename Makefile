@@ -8,7 +8,13 @@ build:
 	xcodebuild -project YapYap.xcodeproj -scheme YapYap -configuration Debug build
 
 run: build
-	open build/Debug/YapYap.app
+	@APP_PATH=$$(find ~/Library/Developer/Xcode/DerivedData/YapYap-*/Build/Products/Debug/YapYap.app -type d 2>/dev/null | head -1); \
+	if [ -z "$$APP_PATH" ]; then \
+		echo "Error: YapYap.app not found in DerivedData"; \
+		exit 1; \
+	fi; \
+	echo "Opening $$APP_PATH"; \
+	open "$$APP_PATH"
 
 test:
 	xcodebuild -project YapYap.xcodeproj -scheme YapYap -configuration Debug test
