@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YapYap — macOS App UX</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#1e1e24;--bg2:rgba(30,28,38,.96);--bg3:rgba(36,33,46,.97);--bg4:rgba(24,22,32,.98);--card:rgba(255,255,255,.03);--card2:rgba(255,255,255,.05);--inp:rgba(255,255,255,.05);--b:rgba(255,255,255,.06);--bl:rgba(255,255,255,.04);--bf:rgba(196,184,232,.3);--c:#c4b8e8;--cd:rgba(196,184,232,.15);--w:#f4a261;--wd:rgba(244,162,97,.12);--m:#7ec8a0;--md:rgba(126,200,160,.1);--z:#8b8fc7;--r:#e85d5d;--rd:rgba(232,93,93,.1);--ch:#e8a0b4;--t1:rgba(255,255,255,.88);--t2:rgba(255,255,255,.55);--t3:rgba(255,255,255,.3);--t4:rgba(255,255,255,.12);--f:'DM Sans',-apple-system,sans-serif;--h:'Caveat',cursive;--mo:'SF Mono','Fira Code',monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#111115;font-family:var(--f);color:var(--t2);min-height:100vh}
+.view{display:none;min-height:calc(100vh - 60px)}.view.on{display:block}
+.wrap{padding:40px 32px 80px;max-width:900px;margin:0 auto}
+
+/* View headers */
+.vl{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px}
+.vt{font-size:28px;font-weight:700;color:var(--t1);margin-bottom:6px}
+.vd{font-size:14px;color:var(--t3);margin-bottom:48px;line-height:1.6}
+.sec{font-size:10px;font-weight:600;color:var(--t4);text-transform:uppercase;letter-spacing:1px;margin:40px 0 16px}
+.sec:first-of-type{margin-top:0}
+
+/* Menu bar closeup */
+.mclose{background:rgba(18,16,24,.95);border-radius:12px;border:1px solid var(--b);overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.mstrip{height:32px;display:flex;align-items:center;justify-content:flex-end;padding:0 16px;gap:14px;border-bottom:1px solid rgba(255,255,255,.03)}
+.mico{width:16px;height:16px;border-radius:3px;background:rgba(255,255,255,.06)}
+.mtime{font-size:12px;color:var(--t3);font-weight:500}
+
+.states{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(255,255,255,.03)}
+.scard{background:var(--bg);padding:32px 20px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.sico{width:72px;height:72px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--bl);display:flex;align-items:center;justify-content:center;position:relative}
+.sico svg{width:40px;height:40px}
+
+/* Animations */
+.abr{transform-origin:50% 75%;animation:br 3.5s ease-in-out infinite}
+.ahd{transform-origin:45% 43%;animation:hd 3.5s ease-in-out infinite}
+.az1{animation:zf 2.8s ease-in-out infinite}
+.az2{animation:zf 2.8s ease-in-out .6s infinite}
+.ring{position:absolute;inset:-4px;border-radius:22px;border:1.5px solid var(--w);opacity:0;animation:pr 1.5s ease-out infinite}
+.ring2{animation-delay:.75s}
+.spin{position:absolute;inset:-3px;border-radius:21px;border:1.5px solid transparent;border-top-color:var(--c);animation:sp .8s linear infinite}
+@keyframes br{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.04) translateY(-.5px)}}
+@keyframes hd{0%,100%{transform:rotate(0)}35%{transform:rotate(3deg) translateY(.5px)}75%{transform:rotate(-1.5deg)}}
+@keyframes zf{0%,100%{opacity:.2;transform:translateY(0)}50%{opacity:.75;transform:translateY(-3px)}}
+@keyframes pr{0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(1.3)}}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.slbl{font-size:12px;font-weight:600;color:var(--t1)}
+.ssub{font-size:11px;color:var(--t3);text-align:center;line-height:1.45}
+.tag{display:inline-block;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.ti{background:rgba(139,143,199,.12);color:var(--z)}
+.tr2{background:var(--wd);color:var(--w)}
+.tp{background:var(--cd);color:var(--c)}
+
+/* Floating bar */
+.fbwrap{display:flex;gap:32px;margin-top:16px}
+.fbc{flex:1;background:var(--bg);border-radius:12px;border:1px solid var(--b);padding:40px 24px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.fbar{display:flex;align-items:center;padding:5px;border-radius:50px;background:rgba(20,18,28,.92);border:1px solid var(--b);box-shadow:0 6px 28px rgba(0,0,0,.5)}
+.fbar.act{padding:5px 12px 5px 5px;border-color:rgba(244,162,97,.12);box-shadow:0 6px 28px rgba(0,0,0,.5),0 0 20px rgba(244,162,97,.04)}
+.fcr{width:42px;height:42px;flex-shrink:0}
+.fcr svg{width:100%;height:100%}
+.wf{display:flex;align-items:center;gap:2.5px;height:18px;width:0;opacity:0;margin-left:0;transition:all .4s cubic-bezier(.34,1.56,.64,1)}
+.fbar.act .wf{width:36px;opacity:1;margin-left:6px}
+.wf span{display:block;width:2.5px;border-radius:2px;background:var(--w);height:4px;flex-shrink:0}
+.fbl{font-size:12px;font-weight:600;color:var(--t1)}
+.fbs{font-size:11px;color:var(--t3);text-align:center;line-height:1.4}
+
+/* Notes card */
+.note{background:rgba(255,255,255,.02);border:1px solid var(--bl);border-radius:10px;padding:16px 20px;margin-top:24px}
+.notet{font-size:11px;font-weight:600;color:var(--t1);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.notet::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--w)}
+.noteb{font-size:12px;color:var(--t3);line-height:1.6}
+.noteb code{padding:1px 6px;border-radius:3px;background:rgba(255,255,255,.05);font-family:var(--mo);font-size:11px;color:var(--t2)}
+
+/* ═══ POPOVER ═══ */
+.pfr{display:flex;gap:40px;align-items:flex-start}
+.pop{width:300px;background:var(--bg3);border:1px solid var(--b);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);overflow:hidden;flex-shrink:0}
+.phd{padding:16px 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bl)}
+.pcr{width:32px;height:32px;flex-shrink:0}.pcr svg{width:100%;height:100%}
+.pht{flex:1}.phn{font-size:13px;font-weight:600;color:var(--t1)}.phs{font-size:11px;color:var(--t3);display:flex;align-items:center;gap:5px;margin-top:2px}
+.sdot{width:5px;height:5px;border-radius:50%;background:var(--z);opacity:.5}
+.ptg{position:relative;width:36px;height:20px;border-radius:10px;background:var(--m);border:none;cursor:pointer;flex-shrink:0}
+.ptg::after{content:'';position:absolute;top:2px;left:18px;width:16px;height:16px;border-radius:50%;background:white;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.plt{padding:10px 16px 12px;border-bottom:1px solid var(--bl)}
+.pltl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;font-weight:600}
+.pltt{font-size:12px;color:var(--t2);line-height:1.5;padding:8px 10px;border-radius:6px;background:var(--card);border:1px solid var(--bl);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pst{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;border-bottom:1px solid var(--bl)}
+.psv{text-align:center}.psn{font-size:16px;font-weight:700;color:var(--t1)}.psl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-top:3px}
+.pqs{padding:8px}
+.prw{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;cursor:pointer;transition:background .15s}
+.prw:hover{background:var(--card2)}
+.prwl{display:flex;align-items:center;gap:8px;font-size:12.5px}.prwi{font-size:12px;opacity:.5;width:16px;text-align:center}
+.prwr{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t3)}
+.pill{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600}
+.pill-s{background:var(--cd);color:var(--c)}.pill-l{background:var(--wd);color:var(--w)}
+.pdiv{height:1px;background:var(--bl);margin:4px 10px}
+.pfoo{padding:8px;border-top:1px solid var(--bl)}
+.psh{font-size:10px;color:var(--t4);font-family:var(--mo)}
+.chev{font-size:10px;opacity:.3}
+.mtog{width:28px;height:16px;border-radius:8px;background:var(--m);position:relative;flex-shrink:0}
+.mtog::after{content:'';position:absolute;top:2px;left:14px;width:12px;height:12px;border-radius:50%;background:white;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+
+/* Annotations */
+.annos{flex:1;padding-top:8px}
+.anno{padding:14px 18px;border-radius:10px;background:rgba(255,255,255,.02);border:1px solid var(--bl);margin-bottom:12px}
+.annot{font-size:11px;font-weight:600;color:var(--t1);margin-bottom:6px}
+.annob{font-size:12px;color:var(--t3);line-height:1.55}
+
+/* ═══ SETTINGS ═══ */
+.sw{width:100%;max-width:780px;height:540px;margin:0 auto;background:var(--bg2);border:1px solid var(--b);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.04);overflow:hidden;display:flex}
+.ssb{width:200px;background:var(--bg4);border-right:1px solid var(--bl);display:flex;flex-direction:column;flex-shrink:0}
+.stbar{height:52px;display:flex;align-items:center;padding:0 16px;gap:6px}
+.dot{width:12px;height:12px;border-radius:50%}.dr{background:#e85d5d}.dy{background:#e8b44d}.dg{background:#5cc460}
+.sbrand{display:flex;align-items:center;gap:8px;padding:8px 16px 16px}
+.sbcr{width:28px;height:28px}.sbcr svg{width:100%;height:100%}
+.sbname{font-size:14px;font-weight:700;color:var(--t1)}.sbver{font-size:10px;color:var(--t3);margin-left:4px}
+.snav{flex:1;padding:0 8px}
+.slab{font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:1px;padding:12px 10px 6px}
+.sit{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;font-size:12.5px;color:var(--t2);cursor:pointer;transition:background .15s,color .15s}
+.sit:hover{background:var(--card2)}.sit.on{background:var(--cd);color:var(--t1)}
+.sii{width:16px;text-align:center;font-size:13px;opacity:.6}.sit.on .sii{opacity:1}
+.sfoo{padding:12px 16px;border-top:1px solid var(--bl);font-family:var(--h);font-size:13px;color:var(--t4)}
+.scon{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.sctit{height:52px;display:flex;align-items:center;padding:0 24px;border-bottom:1px solid var(--bl);font-size:14px;font-weight:600;color:var(--t1)}
+.sbod{flex:1;overflow-y:auto;padding:24px}
+.tab{display:none}.tab.on{display:block}
+
+/* Forms */
+.fg{margin-bottom:24px}
+.fl{font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:block}
+.fd{font-size:12px;color:var(--t3);margin-bottom:10px;line-height:1.5}
+.fi{width:100%;padding:9px 12px;border-radius:6px;background:var(--inp);border:1px solid var(--b);color:var(--t1);font-family:var(--f);font-size:13px;outline:none}
+.fi:focus{border-color:var(--bf)}.fi::placeholder{color:var(--t3)}
+textarea.fi{resize:vertical;min-height:80px;line-height:1.5}
+.fs{appearance:none;width:100%;padding:9px 32px 9px 12px;border-radius:6px;background:var(--inp) url("data:image/svg+xml,%3Csvg width='10' height='6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='rgba(255,255,255,.3)' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center;border:1px solid var(--b);color:var(--t1);font-family:var(--f);font-size:13px;outline:none;cursor:pointer}
+.trow{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bl)}.trow:last-child{border-bottom:none}
+.trl{font-size:13px;color:var(--t2)}.trsu{font-size:11px;color:var(--t3);margin-top:2px}
+.tog{width:36px;height:20px;border-radius:10px;background:rgba(255,255,255,.12);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.tog.on{background:var(--m)}.tog::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:white;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}.tog.on::after{left:18px}
+.hkb{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:6px;background:var(--inp);border:1px solid var(--b)}
+.hk{padding:2px 8px;border-radius:4px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);font-size:11px;font-weight:600;color:var(--t1)}
+.hkp{font-size:10px;color:var(--t3)}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mopt{padding:14px;border-radius:10px;background:var(--card);border:1.5px solid var(--b);cursor:pointer;transition:border-color .2s,background .2s;position:relative}
+.mopt:hover{background:var(--card2)}.mopt.sel{border-color:var(--c);background:var(--cd)}
+.mopt.sel::after{content:'✓';position:absolute;top:10px;right:12px;font-size:12px;color:var(--c);font-weight:700}
+.moname{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:2px}.modesc{font-size:11px;color:var(--t3);line-height:1.4}.mosize{margin-top:8px;font-size:10px;color:var(--t4);font-family:var(--mo)}
+.divd{height:1px;background:var(--bl);margin:24px 0}
+.sh{font-size:16px;font-weight:600;color:var(--t1);margin-bottom:4px}.ssh{font-size:12px;color:var(--t3);margin-bottom:20px}
+/* Analytics */
+.agr{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+.acd{padding:16px;border-radius:10px;background:var(--card);border:1px solid var(--bl);text-align:center}
+.aval{font-size:28px;font-weight:700;line-height:1}.alab{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-top:6px}
+.achart{padding:16px;border-radius:10px;background:var(--card);border:1px solid var(--bl)}
+.acht{font-size:11px;font-weight:600;color:var(--t2);margin-bottom:12px}
+.abars{display:flex;align-items:flex-end;gap:6px;height:100px}
+.abar{flex:1;border-radius:3px 3px 0 0;background:var(--c);opacity:.6;min-height:4px}
+.alabs{display:flex;gap:6px;margin-top:6px}.albl{flex:1;text-align:center;font-size:8px;color:var(--t4);text-transform:uppercase}
+/* Style preview */
+.sprev{padding:14px;border-radius:10px;background:var(--card);border:1px solid var(--bl);margin-top:16px}
+.spl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.spb{font-size:12px;color:var(--t3);line-height:1.6;padding:8px 10px;border-radius:6px;background:var(--rd);border-left:2px solid var(--r);margin-bottom:8px;text-decoration:line-through;text-decoration-color:rgba(232,93,93,.3)}
+.sparr{text-align:center;font-size:10px;color:var(--t4);margin:4px 0}
+.spaf{font-size:12px;color:var(--t2);line-height:1.6;padding:8px 10px;border-radius:6px;background:var(--md);border-left:2px solid var(--m)}
+
+/* Bottom nav */
+.bnav{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:600;padding:4px;border-radius:12px;background:rgba(20,18,28,.92);border:1px solid var(--b);backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.nbtn{padding:8px 20px;border-radius:8px;border:none;font-family:var(--f);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;background:transparent;color:var(--t3)}
+.nbtn:hover{background:var(--card2);color:var(--t2)}.nbtn.on{background:var(--cd);color:var(--c)}
+
+@media(max-width:768px){.states{grid-template-columns:1fr}.fbwrap,.pfr{flex-direction:column}.sw{flex-direction:column;height:auto}.ssb{width:100%;border-right:none;border-bottom:1px solid var(--bl)}}
+</style>
+</head>
+<body>
+
+<!-- ═══ VIEW 1: MENU BAR ═══ -->
+<div class="view on" id="v-mb">
+<div class="wrap">
+<div class="vl">Layer 1 &amp; 4</div>
+<div class="vt">Menu Bar Icon &amp; Floating Bar</div>
+<div class="vd">The creature lives in your menu bar as an NSStatusItem. During recording, the floating bar (NSPanel) appears at the bottom of the screen.</div>
+
+<div class="sec">Menu Bar Icon — 3 States</div>
+<div class="mclose">
+<div class="mstrip">
+<div class="mico"></div><div class="mico"></div>
+<div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center">
+<svg viewBox="0 0 24 24" fill="none" width="20" height="20"><ellipse cx="12" cy="17" rx="6.5" ry="4" fill="var(--c)"/><circle cx="11" cy="11" r="5.5" fill="var(--c)"/><ellipse cx="7.5" cy="7" rx="1.4" ry="2" fill="var(--c)"/><ellipse cx="14.5" cy="7" rx="1.4" ry="2" fill="var(--c)"/><path d="M8.5 11Q9.5 12.2 10.5 11" stroke="#6b5e8a" stroke-width=".8" stroke-linecap="round" fill="none"/><path d="M12 11Q13 12.2 14 11" stroke="#6b5e8a" stroke-width=".8" stroke-linecap="round" fill="none"/></svg>
+</div>
+<span class="mtime">Thu 3:42 PM</span>
+</div>
+<div class="states">
+
+<div class="scard">
+<div class="sico">
+<svg viewBox="0 0 42 42" fill="none"><g class="abr"><ellipse cx="21" cy="30" rx="11" ry="7" fill="var(--c)"/><g class="ahd"><circle cx="19" cy="18" r="9" fill="var(--c)"/><ellipse cx="13" cy="11" rx="2.2" ry="3" fill="var(--c)"/><ellipse cx="25" cy="11" rx="2.2" ry="3" fill="var(--c)"/><path d="M14.5 18.5Q16 20.2 17.5 18.5" stroke="#6b5e8a" stroke-width="1.1" stroke-linecap="round" fill="none"/><path d="M21 18.5Q22.5 20.2 24 18.5" stroke="#6b5e8a" stroke-width="1.1" stroke-linecap="round" fill="none"/><ellipse cx="19" cy="22" rx="1.2" ry=".5" fill="#6b5e8a" opacity=".35"/></g></g><text x="28" y="14" font-family="Caveat,cursive" font-size="6" fill="var(--z)" opacity=".45" class="az1">z</text><text x="32" y="9" font-family="Caveat,cursive" font-size="8" fill="var(--z)" opacity=".3" class="az2">z</text></svg>
+</div>
+<span class="tag ti">Idle</span>
+<span class="slbl">Sleeping</span>
+<span class="ssub">Eyes closed, breathing anim.<br>Opacity pulse 0.85→1.0, 3.5s</span>
+</div>
+
+<div class="scard">
+<div class="sico">
+<div class="ring"></div><div class="ring ring2"></div>
+<svg viewBox="0 0 42 42" fill="none"><ellipse cx="21" cy="30" rx="11" ry="7" fill="var(--c)"/><circle cx="19" cy="18" r="9" fill="var(--c)"/><ellipse cx="13" cy="11" rx="2.2" ry="3" fill="var(--c)"/><ellipse cx="25" cy="11" rx="2.2" ry="3" fill="var(--c)"/><circle cx="16" cy="18.5" r="2" fill="#2a2040"/><circle cx="22.5" cy="18.5" r="2" fill="#2a2040"/><circle cx="16.5" cy="17.8" r=".7" fill="white"/><circle cx="23" cy="17.8" r=".7" fill="white"/><ellipse cx="12.5" cy="21" rx="2.2" ry="1" fill="var(--ch)" opacity=".4"/><ellipse cx="26" cy="21" rx="2.2" ry="1" fill="var(--ch)" opacity=".4"/></svg>
+</div>
+<span class="tag tr2">Recording</span>
+<span class="slbl">Listening</span>
+<span class="ssub">Eyes open, blush visible.<br>Warm pulse ring radiates outward.</span>
+</div>
+
+<div class="scard">
+<div class="sico">
+<div class="spin"></div>
+<svg viewBox="0 0 42 42" fill="none"><ellipse cx="21" cy="30" rx="11" ry="7" fill="var(--c)"/><circle cx="19" cy="18" r="9" fill="var(--c)"/><ellipse cx="13" cy="11" rx="2.2" ry="3" fill="var(--c)"/><ellipse cx="25" cy="11" rx="2.2" ry="3" fill="var(--c)"/><circle cx="16" cy="17.5" r="2" fill="#2a2040"/><circle cx="22.5" cy="17.5" r="2" fill="#2a2040"/><circle cx="16.5" cy="16.8" r=".7" fill="white"/><circle cx="23" cy="16.8" r=".7" fill="white"/><ellipse cx="12.5" cy="21" rx="2.2" ry="1" fill="var(--ch)" opacity=".3"/><ellipse cx="26" cy="21" rx="2.2" ry="1" fill="var(--ch)" opacity=".3"/><ellipse cx="19" cy="22" rx="1" ry=".6" fill="#6b5e8a" opacity=".3"/></svg>
+</div>
+<span class="tag tp">Processing</span>
+<span class="slbl">Cleaning up</span>
+<span class="ssub">Eyes look up slightly.<br>Lavender spinner ring around icon.</span>
+</div>
+
+</div>
+</div>
+
+<div class="sec">Floating Bar — NSPanel (non-activating)</div>
+<div class="fbwrap">
+<div class="fbc">
+<div class="fbar">
+<div class="fcr"><svg viewBox="0 0 42 42" fill="none"><g class="abr"><ellipse cx="21" cy="30" rx="11" ry="7" fill="var(--c)"/><g class="ahd"><circle cx="19" cy="18" r="9" fill="var(--c)"/><ellipse cx="13" cy="11" rx="2.2" ry="3" fill="var(--c)"/><ellipse cx="25" cy="11" rx="2.2" ry="3" fill="var(--c)"/><path d="M14.5 18.5Q16 20.2 17.5 18.5" stroke="#6b5e8a" stroke-width="1.1" stroke-linecap="round" fill="none"/><path d="M21 18.5Q22.5 20.2 24 18.5" stroke="#6b5e8a" stroke-width="1.1" stroke-linecap="round" fill="none"/></g></g><text x="28" y="14" font-family="Caveat,cursive" font-size="6" fill="var(--z)" opacity=".45" class="az1">z</text><text x="32" y="9" font-family="Caveat,cursive" font-size="8" fill="var(--z)" opacity=".3" class="az2">z</text></svg></div>
+<div class="wf"></div>
+</div>
+<span class="fbl">Resting</span>
+<span class="fbs">Just the creature. ~48pt circle.</span>
+</div>
+<div class="fbc">
+<div class="fbar act">
+<div class="fcr"><svg viewBox="0 0 42 42" fill="none"><ellipse cx="21" cy="30" rx="11" ry="7" fill="var(--c)"/><circle cx="19" cy="18" r="9" fill="var(--c)"/><ellipse cx="13" cy="11" rx="2.2" ry="3" fill="var(--c)"/><ellipse cx="25" cy="11" rx="2.2" ry="3" fill="var(--c)"/><circle cx="16" cy="18.5" r="2" fill="#2a2040"/><circle cx="22.5" cy="18.5" r="2" fill="#2a2040"/><circle cx="16.5" cy="17.8" r=".7" fill="white"/><circle cx="23" cy="17.8" r=".7" fill="white"/><ellipse cx="12.5" cy="21" rx="2.2" ry="1" fill="var(--ch)" opacity=".4"/><ellipse cx="26" cy="21" rx="2.2" ry="1" fill="var(--ch)" opacity=".4"/></svg></div>
+<div class="wf" id="wfA"></div>
+</div>
+<span class="fbl">Recording</span>
+<span class="fbs">Awake + waveform. Pill expands with spring.</span>
+</div>
+</div>
+
+<div class="note">
+<div class="notet">Implementation Notes</div>
+<div class="noteb">
+Floating bar: <code>NSPanel</code> with <code>.nonactivatingPanel</code> — must never steal focus. Set <code>level = .floating</code> and <code>collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]</code>. Waveform driven by mic RMS via <code>AVAudioEngine.installTap(onBus:)</code>. Pill expansion uses spring <code>response: 0.35, dampingFraction: 0.7</code>.
+</div>
+</div>
+</div>
+</div>
+
+<!-- ═══ VIEW 2: POPOVER ═══ -->
+<div class="view" id="v-pop">
+<div class="wrap">
+<div class="vl">Layer 2</div>
+<div class="vt">Menu Bar Popover</div>
+<div class="vd">Click the creature to open this NSPopover. Quick controls, stats, and access to settings.</div>
+
+<div class="pfr">
+<div class="pop">
+<div class="phd">
+<div class="pcr"><svg viewBox="0 0 32 32" fill="none"><ellipse cx="16" cy="23" rx="8" ry="5" fill="var(--c)"/><circle cx="15" cy="15" r="7" fill="var(--c)"/><ellipse cx="10.5" cy="10" rx="1.7" ry="2.3" fill="var(--c)"/><ellipse cx="19.5" cy="10" rx="1.7" ry="2.3" fill="var(--c)"/><path d="M12 15.5Q13.2 17 14.4 15.5" stroke="#6b5e8a" stroke-width=".9" stroke-linecap="round" fill="none"/><path d="M16 15.5Q17.2 17 18.4 15.5" stroke="#6b5e8a" stroke-width=".9" stroke-linecap="round" fill="none"/></svg></div>
+<div class="pht"><div class="phn">YapYap</div><div class="phs"><span class="sdot"></span> Sleeping · ⌥Space to wake</div></div>
+<button class="ptg"></button>
+</div>
+<div class="plt"><div class="pltl">Last transcription</div><div class="pltt">I think we should revisit the onboarding flow for new users. The current setup has too many steps and the drop-off rate is…</div></div>
+<div class="pst">
+<div class="psv"><div class="psn">47</div><div class="psl">Today</div></div>
+<div class="psv"><div class="psn">12m</div><div class="psl">Saved</div></div>
+<div class="psv"><div class="psn">2.1k</div><div class="psl">Words</div></div>
+</div>
+<div class="pqs">
+<div class="prw"><div class="prwl"><span class="prwi">🎙</span> STT Model</div><div class="prwr"><span class="pill pill-s">Whisper</span> <span class="chev">›</span></div></div>
+<div class="prw"><div class="prwl"><span class="prwi">✨</span> Cleanup Model</div><div class="prwr"><span class="pill pill-l">Qwen 2.5</span> <span class="chev">›</span></div></div>
+<div class="prw"><div class="prwl"><span class="prwi">🌐</span> Language</div><div class="prwr">English <span class="chev">›</span></div></div>
+<div class="pdiv"></div>
+<div class="prw"><div class="prwl"><span class="prwi">📋</span> Paste to clipboard</div><div class="prwr"><div class="mtog"></div></div></div>
+</div>
+<div class="pfoo">
+<div class="prw"><div class="prwl"><span class="prwi">⚙️</span> Settings…</div><div class="prwr"><span class="psh">⌘ ,</span></div></div>
+<div class="prw"><div class="prwl" style="color:var(--t3)"><span class="prwi">🚪</span> Quit YapYap</div><div class="prwr"><span class="psh">⌘ Q</span></div></div>
+</div>
+</div>
+
+<div class="annos">
+<div class="anno"><div class="annot">Header</div><div class="annob">Creature (32×32), app name, status with colored dot (sleeping=zzz@50%, active=mint+glow), master toggle.</div></div>
+<div class="anno"><div class="annot">Last Transcription</div><div class="annob">Most recent result in a subtle card. 2-line clamp. Click to copy full text to clipboard.</div></div>
+<div class="anno"><div class="annot">Quick Stats</div><div class="annob">3-column grid: transcriptions today, estimated time saved, total words. From local SQLite.</div></div>
+<div class="anno"><div class="annot">Quick Settings</div><div class="annob">Switch models and language without full settings. Lavender pills = STT, orange = LLM. Chevrons indicate submenus.</div></div>
+<div class="anno"><div class="annot">Footer</div><div class="annob">Settings opens NSWindow (Layer 3). Quit terminates app. Both show keyboard shortcuts in mono.</div></div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ═══ VIEW 3: SETTINGS ═══ -->
+<div class="view" id="v-set">
+<div class="wrap" style="max-width:960px">
+<div class="vl">Layer 3</div>
+<div class="vt">Settings Window</div>
+<div class="vd">Full admin panel. NSWindow (780×540pt) with sidebar. Click tabs to explore all screens.</div>
+
+<div class="sw">
+<div class="ssb">
+<div class="stbar"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div></div>
+<div class="sbrand">
+<div class="sbcr"><svg viewBox="0 0 28 28" fill="none"><ellipse cx="14" cy="20" rx="7.5" ry="4.5" fill="var(--c)"/><circle cx="13" cy="13" r="6.5" fill="var(--c)"/><ellipse cx="9" cy="8.5" rx="1.6" ry="2.2" fill="var(--c)"/><ellipse cx="17" cy="8.5" rx="1.6" ry="2.2" fill="var(--c)"/><circle cx="11" cy="13" r="1.5" fill="#2a2040"/><circle cx="15.5" cy="13" r="1.5" fill="#2a2040"/><circle cx="11.4" cy="12.4" r=".5" fill="white"/><circle cx="15.9" cy="12.4" r=".5" fill="white"/><ellipse cx="8" cy="15.5" rx="1.8" ry=".7" fill="var(--ch)" opacity=".3"/><ellipse cx="18.5" cy="15.5" rx="1.8" ry=".7" fill="var(--ch)" opacity=".3"/></svg></div>
+<div><span class="sbname">yapyap</span><span class="sbver">v0.1.0</span></div>
+</div>
+<nav class="snav">
+<div class="slab">Configuration</div>
+<div class="sit on" onclick="stab('writing',this)"><span class="sii">✍️</span> Writing Style</div>
+<div class="sit" onclick="stab('models',this)"><span class="sii">🧠</span> Models</div>
+<div class="sit" onclick="stab('hotkeys',this)"><span class="sii">⌨️</span> Hotkeys</div>
+<div class="sit" onclick="stab('general',this)"><span class="sii">⚙️</span> General</div>
+<div class="slab">Insights</div>
+<div class="sit" onclick="stab('analytics',this)"><span class="sii">📊</span> Analytics</div>
+<div class="slab">App</div>
+<div class="sit" onclick="stab('about',this)"><span class="sii">💜</span> About</div>
+</nav>
+<div class="sfoo">~ the little one is listening ~</div>
+</div>
+
+<div class="scon">
+<div class="sctit" id="ptit">Writing Style</div>
+<div class="sbod">
+
+<div class="tab on" id="t-writing">
+<div class="sh">How should YapYap write for you?</div>
+<div class="ssh">Configure how your speech gets cleaned up and formatted.</div>
+<div class="fg"><label class="fl">Writing Language</label><select class="fs"><option>English (US)</option><option>English (UK)</option><option>Spanish</option><option>French</option><option>German</option><option>Hindi</option><option>Japanese</option></select></div>
+<div class="fg"><label class="fl">Formality</label><select class="fs"><option>Casual — like texting a friend</option><option>Neutral — everyday professional</option><option>Formal — polished and precise</option></select></div>
+<div class="fg"><label class="fl">Custom Style Prompt</label><div class="fd">Give YapYap instructions about your writing voice. Passed to the cleanup model.</div><textarea class="fi" placeholder="e.g. Concise, direct, no fluff...">Write like a senior engineer — concise, direct, no fluff. Prefer short sentences. Skip pleasantries.</textarea></div>
+<div class="fg"><label class="fl">Cleanup Level</label><select class="fs"><option>Light — fix grammar, keep my words</option><option>Medium — restructure sentences, improve clarity</option><option>Heavy — full rewrite matching my style</option></select></div>
+<div class="sprev"><div class="spl">Preview</div><div class="spb">so basically I was thinking that maybe we should like revisit the whole onboarding thing because um the drop off is pretty bad</div><div class="sparr">↓ YapYap cleanup ↓</div><div class="spaf">We should revisit the onboarding flow. Drop-off rate is too high — the current setup has too many steps before users reach value.</div></div>
+</div>
+
+<div class="tab" id="t-models">
+<div class="sh">Speech-to-Text Model</div>
+<div class="ssh">Choose which model transcribes your voice. Runs locally.</div>
+<div class="mgrid">
+<div class="mopt sel" onclick="smod(this)"><div class="moname">Whisper Large v3</div><div class="modesc">Best accuracy across accents and languages.</div><div class="mosize">~1.5 GB · Apple Silicon optimized</div></div>
+<div class="mopt" onclick="smod(this)"><div class="moname">Whisper Medium</div><div class="modesc">Good balance of speed and accuracy.</div><div class="mosize">~769 MB · Faster inference</div></div>
+<div class="mopt" onclick="smod(this)"><div class="moname">Whisper Small</div><div class="modesc">Lightweight, best for older hardware.</div><div class="mosize">~244 MB · Low resource</div></div>
+<div class="mopt" onclick="smod(this)"><div class="moname">Voqstral</div><div class="modesc">Mistral's STT. Ultra-low latency.</div><div class="mosize">~650 MB · Experimental</div></div>
+</div>
+<div class="divd"></div>
+<div class="sh">Cleanup &amp; Rewrite Model</div>
+<div class="ssh">Choose which LLM cleans up your transcription.</div>
+<div class="mgrid">
+<div class="mopt sel" onclick="smod(this)"><div class="moname">Qwen 2.5 3B</div><div class="modesc">Fast, efficient, great multilingual.</div><div class="mosize">~2.0 GB · Recommended</div></div>
+<div class="mopt" onclick="smod(this)"><div class="moname">Qwen 2.5 7B</div><div class="modesc">More nuanced rewrites. 16GB+ RAM.</div><div class="mosize">~4.7 GB · Higher quality</div></div>
+<div class="mopt" onclick="smod(this)"><div class="moname">Llama 3.2 3B</div><div class="modesc">Great at tone-matching and style.</div><div class="mosize">~2.0 GB · Good all-rounder</div></div>
+<div class="mopt" onclick="smod(this)"><div class="moname">Llama 3.1 8B</div><div class="modesc">Best rewrite quality. 16GB+ RAM.</div><div class="mosize">~4.7 GB · Power users</div></div>
+</div>
+<div class="divd"></div>
+<div class="trow"><div><div class="trl">Auto-download models</div><div class="trsu">Download selected models on first use</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+<div class="trow"><div><div class="trl">GPU acceleration</div><div class="trsu">Use Metal for faster inference</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+</div>
+
+<div class="tab" id="t-hotkeys">
+<div class="sh">Keyboard Shortcuts</div>
+<div class="ssh">Customize how you interact with YapYap.</div>
+<div class="fg"><label class="fl">Push-to-Talk (hold)</label><div class="fd">Hold to record. Release to transcribe and paste.</div><div class="hkb"><span class="hk">⌥</span><span class="hkp">+</span><span class="hk">Space</span></div></div>
+<div class="fg"><label class="fl">Hands-Free Mode (toggle)</label><div class="fd">Press once to start, again to stop.</div><div class="hkb"><span class="hk">⌥</span><span class="hkp">+</span><span class="hk">⇧</span><span class="hkp">+</span><span class="hk">Space</span></div></div>
+<div class="fg"><label class="fl">Cancel Recording</label><div class="fd">Abort without pasting.</div><div class="hkb"><span class="hk">Esc</span></div></div>
+<div class="divd"></div>
+<div class="trow"><div><div class="trl">Double-tap activation</div><div class="trsu">Double-tap ⌥ for hands-free</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
+<div class="trow"><div><div class="trl">Sound feedback</div><div class="trsu">Subtle sound on start/stop</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+<div class="trow"><div><div class="trl">Haptic feedback</div><div class="trsu">Trackpad vibration (MacBook only)</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+</div>
+
+<div class="tab" id="t-general">
+<div class="sh">General Settings</div>
+<div class="ssh">Configure app behavior and appearance.</div>
+<div class="trow"><div><div class="trl">Launch at login</div><div class="trsu">Start YapYap when you log in</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+<div class="trow"><div><div class="trl">Show floating bar</div><div class="trsu">Display creature bar while recording</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+<div class="trow"><div><div class="trl">Auto-paste after transcription</div><div class="trsu">Paste into active text field</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+<div class="trow"><div><div class="trl">Copy to clipboard</div><div class="trsu">Also copy result to clipboard</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
+<div class="trow"><div><div class="trl">Notification on complete</div><div class="trsu">macOS notification when done</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
+<div class="divd"></div>
+<div class="fg"><label class="fl">Microphone</label><select class="fs"><option>MacBook Pro Microphone (Built-in)</option><option>AirPods Pro</option></select></div>
+<div class="fg"><label class="fl">Floating bar position</label><select class="fs"><option>Bottom center</option><option>Bottom left</option><option>Bottom right</option><option>Top center</option></select></div>
+<div class="fg"><label class="fl">Transcription history</label><select class="fs"><option>Last 50</option><option>Last 100</option><option>Last 500</option><option>Keep all</option><option>Don't save</option></select></div>
+</div>
+
+<div class="tab" id="t-analytics">
+<div class="sh">Your Yapping Stats</div>
+<div class="ssh">All data stays on your Mac. Always.</div>
+<div class="agr">
+<div class="acd"><div class="aval" style="color:var(--c)">1,247</div><div class="alab">Transcriptions</div></div>
+<div class="acd"><div class="aval" style="color:var(--w)">38.2k</div><div class="alab">Words</div></div>
+<div class="acd"><div class="aval" style="color:var(--m)">4.2 hrs</div><div class="alab">Time Saved</div></div>
+</div>
+<div class="achart"><div class="acht">Transcriptions This Week</div><div class="abars"><div class="abar" style="height:35%"></div><div class="abar" style="height:60%"></div><div class="abar" style="height:45%"></div><div class="abar" style="height:80%"></div><div class="abar" style="height:95%"></div><div class="abar" style="height:55%"></div><div class="abar" style="height:25%;opacity:.3"></div></div><div class="alabs"><div class="albl">Mon</div><div class="albl">Tue</div><div class="albl">Wed</div><div class="albl">Thu</div><div class="albl">Fri</div><div class="albl">Sat</div><div class="albl">Sun</div></div></div>
+</div>
+
+<div class="tab" id="t-about">
+<div style="text-align:center;padding:16px 0">
+<div style="width:72px;height:72px;margin:0 auto 14px"><svg viewBox="0 0 42 42" fill="none" width="72" height="72"><ellipse cx="21" cy="30" rx="11" ry="7" fill="var(--c)"/><circle cx="19" cy="18" r="9" fill="var(--c)"/><ellipse cx="13" cy="11" rx="2.2" ry="3" fill="var(--c)"/><ellipse cx="25" cy="11" rx="2.2" ry="3" fill="var(--c)"/><circle cx="16" cy="18.5" r="2" fill="#2a2040"/><circle cx="22.5" cy="18.5" r="2" fill="#2a2040"/><circle cx="16.5" cy="17.8" r=".7" fill="white"/><circle cx="23" cy="17.8" r=".7" fill="white"/><ellipse cx="12.5" cy="21" rx="2.2" ry="1" fill="var(--ch)" opacity=".4"/><ellipse cx="26" cy="21" rx="2.2" ry="1" fill="var(--ch)" opacity=".4"/><path d="M17 22.5Q19 24.5 21 22.5" stroke="#6b5e8a" stroke-width=".8" stroke-linecap="round" fill="none"/></svg></div>
+<div style="font-size:20px;font-weight:700;color:var(--t1)">yapyap</div>
+<div style="font-size:12px;color:var(--t3);margin:2px 0 4px">Version 0.1.0 (Build 42)</div>
+<div style="font-family:var(--h);font-size:16px;color:var(--z);margin-bottom:20px">you yap. it writes.</div>
+<div style="font-size:13px;color:var(--t3);line-height:1.7;max-width:340px;margin:0 auto 20px">An open-source voice-to-text companion that lives in your menu bar. Completely offline, completely free, completely yours.</div>
+<div style="display:flex;gap:10px;justify-content:center;margin-bottom:20px"><span style="padding:7px 18px;border-radius:8px;background:var(--card);border:1px solid var(--b);font-size:12px;color:var(--t2);cursor:pointer">GitHub</span><span style="padding:7px 18px;border-radius:8px;background:var(--card);border:1px solid var(--b);font-size:12px;color:var(--t2);cursor:pointer">Website</span><span style="padding:7px 18px;border-radius:8px;background:var(--card);border:1px solid var(--b);font-size:12px;color:var(--t2);cursor:pointer">License</span></div>
+<div style="font-size:11px;color:var(--t4)">MIT Licensed · Made with 💜 and too much coffee</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Bottom nav -->
+<div class="bnav">
+<button class="nbtn on" onclick="sv('mb',this)">Menu Bar</button>
+<button class="nbtn" onclick="sv('pop',this)">Popover</button>
+<button class="nbtn" onclick="sv('set',this)">Settings</button>
+</div>
+
+<script>
+function sv(id,b){document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));document.querySelectorAll('.nbtn').forEach(n=>n.classList.remove('on'));document.getElementById('v-'+id).classList.add('on');b.classList.add('on')}
+function stab(t,el){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.sit').forEach(x=>x.classList.remove('on'));document.getElementById('t-'+t).classList.add('on');el.classList.add('on');var n={writing:'Writing Style',models:'Models',hotkeys:'Hotkeys',general:'General',analytics:'Analytics',about:'About'};document.getElementById('ptit').textContent=n[t]}
+function smod(el){el.parentElement.querySelectorAll('.mopt').forEach(m=>m.classList.remove('sel'));el.classList.add('sel')}
+// Waveform
+var wf=document.getElementById('wfA');for(var i=0;i<5;i++){var s=document.createElement('span');wf.appendChild(s)}
+var bars=wf.querySelectorAll('span');
+(function aw(){var t=Date.now()/1000;bars.forEach(function(b,i){b.style.height=(4+Math.abs(Math.sin(t*3.5+i*.9))*11)+'px'});requestAnimationFrame(aw)})();
+</script>
+</body>
+</html>
