@@ -1,0 +1,123 @@
+/* Localizable.strings — YapYap */
+
+/* General */
+"app.name" = "YapYap";
+"app.tagline" = "You yap. It writes.";
+"app.version" = "Version %@ (Build %@)";
+
+/* Creature States */
+"creature.sleeping" = "Sleeping";
+"creature.recording" = "Recording";
+"creature.processing" = "Processing";
+
+/* Popover */
+"popover.status.sleeping" = "Sleeping · ⌥Space to wake";
+"popover.status.recording" = "Recording · release to stop";
+"popover.status.processing" = "Processing...";
+"popover.lastTranscription" = "LAST TRANSCRIPTION";
+"popover.tapToCopy" = "Tap to copy";
+"popover.noTranscriptions" = "No transcriptions yet";
+"popover.stats.today" = "TODAY";
+"popover.stats.timeSaved" = "TIME SAVED";
+"popover.stats.words" = "WORDS";
+"popover.settings" = "Settings…";
+"popover.quit" = "Quit YapYap";
+
+/* Settings - Navigation */
+"settings.title" = "Settings";
+"settings.section.configuration" = "CONFIGURATION";
+"settings.section.insights" = "INSIGHTS";
+"settings.section.app" = "APP";
+"settings.tab.writingStyle" = "Writing Style";
+"settings.tab.models" = "Models";
+"settings.tab.hotkeys" = "Hotkeys";
+"settings.tab.general" = "General";
+"settings.tab.style" = "Style";
+"settings.tab.analytics" = "Analytics";
+"settings.tab.about" = "About";
+
+/* Settings - Writing Style */
+"writingStyle.title" = "How should YapYap write for you?";
+"writingStyle.subtitle" = "Configure how your speech gets cleaned up and formatted.";
+"writingStyle.language" = "Language";
+"writingStyle.formality" = "Formality";
+"writingStyle.customPrompt" = "Custom Style Prompt";
+"writingStyle.customPromptPlaceholder" = "e.g. Concise, direct, no fluff...";
+"writingStyle.cleanupLevel" = "Cleanup Level";
+"writingStyle.preview" = "Preview";
+"writingStyle.before" = "Before";
+"writingStyle.after" = "After";
+
+/* Settings - Models */
+"models.sttTitle" = "Speech-to-Text Models";
+"models.llmTitle" = "Text Cleanup Models";
+"models.download" = "Download";
+"models.delete" = "Delete";
+"models.selected" = "Selected";
+"models.autoDownload" = "Auto-download models";
+"models.gpuAcceleration" = "GPU acceleration";
+"models.deleteConfirm" = "Delete this model? You can re-download it later.";
+
+/* Settings - Hotkeys */
+"hotkeys.pushToTalk" = "Push-to-Talk";
+"hotkeys.pushToTalkDesc" = "Hold to record, release to transcribe";
+"hotkeys.handsFree" = "Hands-Free Mode";
+"hotkeys.handsFreeDesc" = "Toggle recording on/off";
+"hotkeys.commandMode" = "Command Mode";
+"hotkeys.commandModeDesc" = "Voice commands on selected text";
+"hotkeys.cancel" = "Cancel Recording";
+"hotkeys.cancelDesc" = "Stop and discard current recording";
+"hotkeys.doubleTap" = "Double-tap activation";
+"hotkeys.soundFeedback" = "Sound feedback";
+"hotkeys.hapticFeedback" = "Haptic feedback";
+
+/* Settings - General */
+"general.launchAtLogin" = "Launch at login";
+"general.showFloatingBar" = "Show floating bar";
+"general.autoPaste" = "Auto-paste after transcription";
+"general.copyToClipboard" = "Copy to clipboard";
+"general.notifyOnComplete" = "Notification on complete";
+"general.microphone" = "Microphone";
+"general.floatingBarPosition" = "Floating bar position";
+"general.historyLimit" = "Transcription history";
+
+/* Settings - Analytics */
+"analytics.title" = "Your Yapping Stats";
+"analytics.subtitle" = "All data stays on your Mac. Always.";
+"analytics.transcriptions" = "Transcriptions";
+"analytics.words" = "Words";
+"analytics.timeSaved" = "Time Saved";
+"analytics.thisWeek" = "Transcriptions This Week";
+
+/* Settings - About */
+"about.tagline" = "you yap. it writes.";
+"about.description" = "An open-source, offline, macOS voice-to-text app with AI-powered cleanup. A cozy creature lives in your menu bar, listens when you speak, and pastes clean, formatted text into any app.";
+"about.github" = "GitHub";
+"about.website" = "Website";
+"about.license" = "License";
+"about.footer" = "MIT Licensed · Made with 💜 and too much coffee";
+
+/* Onboarding */
+"onboarding.welcome" = "Welcome to YapYap";
+"onboarding.permissions" = "Permissions";
+"onboarding.models" = "Choose Your Models";
+"onboarding.hotkeys" = "Try It Out";
+"onboarding.done" = "You're all set!";
+"onboarding.doneMessage" = "I'll be sleeping in your menu bar.\nJust press ⌥ Space when you need me!";
+"onboarding.startYapping" = "Start Yapping";
+"onboarding.getStarted" = "Get Started";
+"onboarding.continue" = "Continue";
+"onboarding.back" = "Back";
+
+/* Permissions */
+"permissions.microphone.title" = "Microphone Access Required";
+"permissions.microphone.message" = "YapYap needs microphone access to transcribe your voice into text.";
+"permissions.accessibility.title" = "Accessibility Access Required";
+"permissions.accessibility.message" = "YapYap needs accessibility access to paste transcribed text into your apps.";
+"permissions.openSettings" = "Open System Settings";
+"permissions.later" = "Later";
+
+/* Errors */
+"error.modelNotLoaded" = "AI model is not loaded. Go to Settings → Models to download one.";
+"error.noAudioRecorded" = "No speech was detected. Try speaking louder or closer to the mic.";
+"error.recordingTimeout" = "Recording exceeded the maximum duration.";

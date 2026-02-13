@@ -1,0 +1,82 @@
+name: YapYap
+options:
+  bundleIdPrefix: dev.yapyap
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit.git
+    from: "0.9.0"
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio.git
+    from: "0.7.9"
+  mlx-swift:
+    url: https://github.com/ml-explore/mlx-swift.git
+    from: "0.21.0"
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm.git
+    from: "0.2.0"
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts.git
+    from: "2.0.0"
+  LaunchAtLogin:
+    url: https://github.com/sindresorhus/LaunchAtLogin-Modern.git
+    from: "1.0.0"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle.git
+    from: "2.0.0"
+  SelectedTextKit:
+    url: https://github.com/tisfeng/SelectedTextKit.git
+    from: "0.3.0"
+
+targets:
+  YapYap:
+    type: application
+    platform: macOS
+    sources:
+      - path: YapYap
+    resources:
+      - path: YapYap/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.yapyap.app
+        INFOPLIST_FILE: YapYap/Info.plist
+        CODE_SIGN_ENTITLEMENTS: YapYap/YapYap.entitlements
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        ENABLE_HARDENED_RUNTIME: true
+    dependencies:
+      - package: WhisperKit
+      - package: FluidAudio
+      - package: mlx-swift
+        product: MLX
+      - package: mlx-swift-lm
+        product: MLXLM
+      - package: KeyboardShortcuts
+      - package: LaunchAtLogin
+      - package: Sparkle
+      - package: SelectedTextKit
+    entitlements:
+      path: YapYap/YapYap.entitlements
+
+  YapYapTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: YapYapTests
+    dependencies:
+      - target: YapYap
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.yapyap.app.tests
