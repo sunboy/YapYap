@@ -24,10 +24,10 @@ packages:
     from: "0.7.9"
   mlx-swift:
     url: https://github.com/ml-explore/mlx-swift.git
-    from: "0.21.0"
+    from: "0.30.0"
   mlx-swift-lm:
     url: https://github.com/ml-explore/mlx-swift-lm.git
-    from: "0.2.0"
+    from: "2.29.0"
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts.git
     from: "2.0.0"
@@ -39,7 +39,7 @@ packages:
     from: "2.0.0"
   SelectedTextKit:
     url: https://github.com/tisfeng/SelectedTextKit.git
-    from: "0.3.0"
+    from: "2.6.0"
 
 targets:
   YapYap:
@@ -62,7 +62,9 @@ targets:
       - package: mlx-swift
         product: MLX
       - package: mlx-swift-lm
-        product: MLXLM
+        product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
       - package: KeyboardShortcuts
       - package: LaunchAtLogin
       - package: Sparkle

@@ -56,7 +56,7 @@ struct PopoverView: View {
                 get: { appState.masterToggle },
                 set: { appState.masterToggle = $0 }
             ))
-            .toggleStyle(YPToggleStyle(width: 36, height: 20))
+            .toggleStyle(YPToggleStyle())
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -207,7 +207,7 @@ struct PopoverView: View {
 
             settingsRow(icon: "📋", label: "Paste to clipboard") {
                 Toggle("", isOn: .constant(true))
-                    .toggleStyle(YPToggleStyle(width: 28, height: 16))
+                    .toggleStyle(YPToggleStyle())
             }
         }
         .padding(8)
@@ -280,27 +280,4 @@ struct PopoverView: View {
     }
 }
 
-// MARK: - Custom Toggle Style
-
-struct YPToggleStyle: ToggleStyle {
-    var width: CGFloat = 36
-    var height: CGFloat = 20
-
-    func makeBody(configuration: Configuration) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: height / 2)
-                .fill(configuration.isOn ? Color.ypMint : Color.white.opacity(0.12))
-                .frame(width: width, height: height)
-
-            Circle()
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.3), radius: 1, y: 1)
-                .frame(width: height - 4, height: height - 4)
-                .offset(x: configuration.isOn ? (width / 2 - height / 2) : -(width / 2 - height / 2))
-        }
-        .animation(.easeInOut(duration: 0.2), value: configuration.isOn)
-        .onTapGesture {
-            configuration.isOn.toggle()
-        }
-    }
-}
+// YPToggleStyle is now defined in DesignTokens.swift

@@ -40,33 +40,26 @@ class WhisperKitEngine: STTEngine {
             task: .transcribe,
             temperature: 0.0,
             temperatureFallbackCount: 3,
+            usePrefillPrompt: true,
+            usePrefillCache: true,
+            detectLanguage: true,
+            withoutTimestamps: true,
+            wordTimestamps: false,
+            suppressBlank: true,
             compressionRatioThreshold: 2.4,
             logProbThreshold: -0.8,
             firstTokenLogProbThreshold: -1.0,
-            noSpeechThreshold: 0.5,
-            suppressBlank: true,
-            withoutTimestamps: true,
-            wordTimestamps: false,
-            usePrefillPrompt: true,
-            usePrefillCache: true,
-            detectLanguage: true
+            noSpeechThreshold: 0.5
         )
 
         let result = try await pipe.transcribe(audioArray: floatArray, decodeOptions: options)
         let processingTime = Date().timeIntervalSince(startTime)
 
+        // For now, return simple transcription without detailed segments
         return TranscriptionResult(
             text: result.map { $0.text }.joined(separator: " "),
-            language: result.first?.language,
-            segments: result.flatMap { segment in
-                segment.tokens.map { token in
-                    TranscriptionSegment(
-                        text: token.text,
-                        start: token.start,
-                        end: token.end
-                    )
-                }
-            },
+            language: result.first?.language ?? "en",
+            segments: [],
             processingTime: processingTime
         )
     }

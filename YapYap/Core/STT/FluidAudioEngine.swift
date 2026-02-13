@@ -2,12 +2,13 @@
 // YapYap — FluidAudio/Parakeet TDT STT backend
 import FluidAudio
 import AVFoundation
+import CoreML
 
 class FluidAudioEngine: STTEngine {
     let modelInfo: STTModelInfo
-    private var recognizer: FluidRecognizer?
+    private var asrManager: AsrManager?
 
-    var isLoaded: Bool { recognizer != nil }
+    var isLoaded: Bool { asrManager != nil }
 
     init(modelInfo: STTModelInfo) {
         self.modelInfo = modelInfo
@@ -15,46 +16,40 @@ class FluidAudioEngine: STTEngine {
 
     func loadModel(progressHandler: @escaping (Double) -> Void) async throws {
         let modelPath = ModelStorage.shared.path(for: modelInfo.id, type: .stt)
-        recognizer = try FluidRecognizer(modelPath: modelPath.path)
+
+        // Load the models from the model directory
+        let models = try await AsrModels.load(from: modelPath)
+
+        // Initialize AsrManager with default config
+        let manager = AsrManager(config: .default)
+        try await manager.initialize(models: models)
+
+        asrManager = manager
         progressHandler(1.0)
     }
 
     func unloadModel() {
-        recognizer = nil
+        asrManager?.cleanup()
+        asrManager = nil
     }
 
     func transcribe(audioBuffer: AVAudioPCMBuffer) async throws -> TranscriptionResult {
-        guard let recognizer = recognizer else {
+        guard let asrManager = asrManager else {
             throw YapYapError.modelNotLoaded
         }
 
         let startTime = Date()
-        let floatArray = bufferToFloatArray(audioBuffer)
 
-        let result = try await recognizer.transcribe(
-            audioSamples: floatArray,
-            sampleRate: Int(audioBuffer.format.sampleRate)
-        )
+        // Transcribe using the audio buffer directly
+        let result = try await asrManager.transcribe(audioBuffer, source: .microphone)
 
         let processingTime = Date().timeIntervalSince(startTime)
 
         return TranscriptionResult(
             text: result.text,
-            language: result.language,
-            segments: result.segments?.map { seg in
-                TranscriptionSegment(
-                    text: seg.text,
-                    start: seg.startTime,
-                    end: seg.endTime
-                )
-            } ?? [],
+            language: "en", // FluidAudio doesn't expose language detection yet
+            segments: [],   // Simplified for now - can add segment support later
             processingTime: processingTime
         )
-    }
-
-    private func bufferToFloatArray(_ buffer: AVAudioPCMBuffer) -> [Float] {
-        let frameLength = Int(buffer.frameLength)
-        guard let channelData = buffer.floatChannelData?[0] else { return [] }
-        return Array(UnsafeBufferPointer(start: channelData, count: frameLength))
     }
 }

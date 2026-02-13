@@ -2,6 +2,8 @@
 // YapYap — Orchestrates audio → VAD → STT → cleanup → paste
 import SwiftData
 import AppKit
+import AVFoundation
+import Foundation
 
 @Observable
 class TranscriptionPipeline {
@@ -93,7 +95,7 @@ class TranscriptionPipeline {
 
             // STT transcription
             let transcription = try await sttEngine!.transcribe(audioBuffer: processBuffer)
-            let rawText = transcription.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let rawText = transcription.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
 
             guard !rawText.isEmpty else {
                 appState.creatureState = .sleeping
@@ -159,8 +161,7 @@ class TranscriptionPipeline {
             )
 
             // Update analytics
-            let analyticsTracker = AnalyticsTracker(container: container)
-            try analyticsTracker.recordTranscription(
+            try await AnalyticsTracker.shared.recordTranscription(
                 wordCount: cleanedText.split(separator: " ").count,
                 duration: transcription.processingTime
             )

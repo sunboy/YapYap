@@ -1,5 +1,6 @@
 import AppKit
 import SwiftData
+import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusBarController: StatusBarController?
@@ -29,11 +30,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @MainActor
     private func setupFloatingBar() {
         floatingBarPanel = FloatingBarPanel()
         let settings = DataManager.shared.fetchSettings()
         if settings.showFloatingBar {
-            floatingBarPanel?.showBar(appState: appState)
+            floatingBarPanel?.showBar()
         }
     }
 
@@ -48,7 +50,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         onboardingWindow.isMovableByWindowBackground = true
         onboardingWindow.center()
         onboardingWindow.contentView = NSHostingView(
-            rootView: OnboardingView(appState: appState)
+            rootView: OnboardingView {
+                UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+                onboardingWindow.close()
+            }
         )
         onboardingWindow.makeKeyAndOrderFront(nil)
     }
