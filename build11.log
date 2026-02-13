@@ -1,0 +1,473 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -scheme YapYap -configuration Debug build
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  FluidAudio: https://github.com/FluidInference/FluidAudio.git @ 0.10.1
+  whisperkit: https://github.com/argmaxinc/WhisperKit.git @ 0.15.0
+  mlx-swift: https://github.com/ml-explore/mlx-swift.git @ 0.30.6
+  Sparkle: https://github.com/sparkle-project/Sparkle.git @ 2.8.1
+  SelectedTextKit: https://github.com/tisfeng/SelectedTextKit.git @ 2.6.4
+  swift-transformers: https://github.com/huggingface/swift-transformers @ 1.1.6
+  LaunchAtLogin: https://github.com/sindresorhus/LaunchAtLogin-Modern.git @ 1.1.0
+  KeySender: https://github.com/jordanbaird/KeySender @ 0.0.5
+  swift-numerics: https://github.com/apple/swift-numerics @ 1.1.1
+  swift-collections: https://github.com/apple/swift-collections.git @ 1.3.0
+  KeyboardShortcuts: https://github.com/sindresorhus/KeyboardShortcuts.git @ 2.4.0
+  AXSwift: https://github.com/tisfeng/AXSwift.git @ 0.3.7
+  mlx-swift-lm: https://github.com/ml-explore/mlx-swift-lm.git @ 2.30.3
+  swift-argument-parser: https://github.com/apple/swift-argument-parser.git @ 1.7.0
+  Jinja: https://github.com/huggingface/swift-jinja.git @ 2.3.1
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00008103-000838690AF1001E, name:My Mac }
+{ platform:macOS, arch:x86_64, id:00008103-000838690AF1001E, name:My Mac }
+{ platform:macOS, name:Any Mac }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (49 targets)
+    Target 'YapYap' in project 'YapYap'
+        ➜ Explicit dependency on target 'WhisperKit' in project 'whisperkit'
+        ➜ Explicit dependency on target 'FluidAudio' in project 'FluidAudio'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXLLM' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'KeyboardShortcuts' in project 'KeyboardShortcuts'
+        ➜ Explicit dependency on target 'LaunchAtLogin' in project 'LaunchAtLogin'
+        ➜ Explicit dependency on target 'Sparkle' in project 'Sparkle'
+        ➜ Explicit dependency on target 'SelectedTextKit' in project 'SelectedTextKit'
+    Target 'SelectedTextKit' in project 'SelectedTextKit'
+        ➜ Explicit dependency on target 'SelectedTextKit' in project 'SelectedTextKit'
+        ➜ Explicit dependency on target 'AXSwift' in project 'AXSwift'
+        ➜ Explicit dependency on target 'KeySender' in project 'KeySender'
+    Target 'SelectedTextKit' in project 'SelectedTextKit'
+        ➜ Explicit dependency on target 'AXSwift' in project 'AXSwift'
+        ➜ Explicit dependency on target 'KeySender' in project 'KeySender'
+    Target 'KeySender' in project 'KeySender'
+        ➜ Explicit dependency on target 'KeySender' in project 'KeySender'
+    Target 'KeySender' in project 'KeySender' (no dependencies)
+    Target 'AXSwift' in project 'AXSwift'
+        ➜ Explicit dependency on target 'AXSwift' in project 'AXSwift'
+    Target 'AXSwift' in project 'AXSwift' (no dependencies)
+    Target 'Sparkle' in project 'Sparkle' (no dependencies)
+    Target 'LaunchAtLogin' in project 'LaunchAtLogin'
+        ➜ Explicit dependency on target 'LaunchAtLogin' in project 'LaunchAtLogin'
+    Target 'LaunchAtLogin' in project 'LaunchAtLogin' (no dependencies)
+    Target 'KeyboardShortcuts' in project 'KeyboardShortcuts'
+        ➜ Explicit dependency on target 'KeyboardShortcuts' in project 'KeyboardShortcuts'
+        ➜ Explicit dependency on target 'KeyboardShortcuts_KeyboardShortcuts' in project 'KeyboardShortcuts'
+    Target 'KeyboardShortcuts' in project 'KeyboardShortcuts'
+        ➜ Explicit dependency on target 'KeyboardShortcuts_KeyboardShortcuts' in project 'KeyboardShortcuts'
+    Target 'KeyboardShortcuts_KeyboardShortcuts' in project 'KeyboardShortcuts' (no dependencies)
+    Target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Transformers' in project 'swift-transformers'
+    Target 'MLXLLM' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLLM' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Transformers' in project 'swift-transformers'
+    Target 'MLXLLM' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Transformers' in project 'swift-transformers'
+    Target 'MLXLMCommon' in project 'mlx-swift-lm'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Transformers' in project 'swift-transformers'
+    Target 'Transformers' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Generation' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Models' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+    Target 'Models' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Generation' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+    Target 'Generation' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+    Target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLXOptimizers' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLXNN' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'MLX' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+    Target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'ComplexModule' in project 'swift-numerics'
+    Target 'Numerics' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'ComplexModule' in project 'swift-numerics'
+    Target 'ComplexModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+        ➜ Explicit dependency on target 'RealModule' in project 'swift-numerics'
+    Target 'RealModule' in project 'swift-numerics'
+        ➜ Explicit dependency on target '_NumericsShims' in project 'swift-numerics'
+    Target '_NumericsShims' in project 'swift-numerics' (no dependencies)
+    Target 'Cmlx' in project 'mlx-swift'
+        ➜ Explicit dependency on target 'mlx-swift_Cmlx' in project 'mlx-swift'
+    Target 'mlx-swift_Cmlx' in project 'mlx-swift' (no dependencies)
+    Target 'FluidAudio' in project 'FluidAudio'
+        ➜ Explicit dependency on target 'FluidAudio' in project 'FluidAudio'
+        ➜ Explicit dependency on target 'FastClusterWrapper' in project 'FluidAudio'
+        ➜ Explicit dependency on target 'MachTaskSelfWrapper' in project 'FluidAudio'
+    Target 'FluidAudio' in project 'FluidAudio'
+        ➜ Explicit dependency on target 'FastClusterWrapper' in project 'FluidAudio'
+        ➜ Explicit dependency on target 'MachTaskSelfWrapper' in project 'FluidAudio'
+    Target 'MachTaskSelfWrapper' in project 'FluidAudio' (no dependencies)
+    Target 'FastClusterWrapper' in project 'FluidAudio' (no dependencies)
+    Target 'WhisperKit' in project 'whisperkit'
+        ➜ Explicit dependency on target 'WhisperKit' in project 'whisperkit'
+        ➜ Explicit dependency on target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-transformers'
+    Target 'WhisperKit' in project 'whisperkit'
+        ➜ Explicit dependency on target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-transformers'
+    Target 'Tokenizers' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Tokenizers' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+    Target 'Tokenizers' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+    Target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'swift-transformers_Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+    Target 'Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'swift-transformers_Hub' in project 'swift-transformers'
+        ➜ Explicit dependency on target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+    Target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+    Target 'Jinja' in project 'Jinja'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+    Target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'OrderedCollections' in project 'swift-collections'
+        ➜ Explicit dependency on target 'InternalCollectionsUtilities' in project 'swift-collections'
+    Target 'InternalCollectionsUtilities' in project 'swift-collections' (no dependencies)
+    Target 'swift-transformers_Hub' in project 'swift-transformers' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk /Users/sandeep/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.2-25C57-3885c01c3e6b6a337905948deab2002e00fa09913b459cbbc988d1f6730289ae.sdkstatcache
+    cd /Users/sandeep/Projects/yapyap/YapYap/YapYap.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -o /Users/sandeep/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.2-25C57-3885c01c3e6b6a337905948deab2002e00fa09913b459cbbc988d1f6730289ae.sdkstatcache
+
+note: Disabling hardened runtime with ad-hoc codesigning. (in target 'YapYap' from project 'YapYap')
+SwiftDriver YapYap normal arm64 com.apple.xcode.tools.swift.compiler (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name YapYap -Onone -enforce-exclusivity\=checked @/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/YapYap.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -target arm64-apple-macos14.0 -g -module-cache-path /Users/sandeep/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -profile-coverage-mapping -profile-generate -enable-testing -index-store-path /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug -c -j8 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/sandeep/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.2-25C57-3885c01c3e6b6a337905948deab2002e00fa09913b459cbbc988d1f6730289ae.sdkstatcache -output-file-map /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/YapYap-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/sandeep/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/sandeep/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/YapYap.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/sandeep/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/YapYap_const_extract_protocols.json -Xcc -iquote -Xcc /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/YapYap-generated-files.hmap -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/YapYap-own-target-headers.hmap -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/YapYap-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap-a91a685146c11350f3ac768c70f9521c-VFS/all-product-headers.yaml -Xcc -iquote -Xcc /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/YapYap-project-headers.hmap -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/SourcePackages/checkouts/FluidAudio/Sources/MachTaskSelfWrapper/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/SourcePackages/checkouts/FluidAudio/Sources/FastClusterWrapper/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/SourcePackages/checkouts/swift-numerics/Sources/_NumericsShims/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/SourcePackages/checkouts/mlx-swift/Source/Cmlx/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/DerivedSources-normal/arm64 -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/DerivedSources/arm64 -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/YapYap-Swift.h -working-directory /Users/sandeep/Projects/yapyap/YapYap -experimental-emit-module-separately -disable-cmo
+
+SwiftCompile normal arm64 Compiling\ AboutTab.swift,\ AnalyticsTab.swift,\ AnalyticsTracker.swift,\ AppCategory.swift,\ AppContext.swift,\ AppContextDetector.swift,\ AppDelegate.swift,\ AppSettings.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/AboutTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/AnalyticsTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/AnalyticsTracker.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/AppCategory.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/AppContext.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/AppContextDetector.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/App/AppDelegate.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/AppSettings.swift (in target 'YapYap' from project 'YapYap')
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/AboutTab.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/AnalyticsTab.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/AnalyticsTracker.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/AppCategory.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/AppContext.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/AppContextDetector.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/App/AppDelegate.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/AppSettings.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 Compiling\ AppState.swift,\ AudioCaptureManager.swift,\ AudioSegment.swift,\ CleanupPromptBuilder.swift,\ CommandMode.swift,\ CreatureState.swift,\ CreatureView.swift,\ CustomDictionaryEntry.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/App/AppState.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/AudioCaptureManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/AudioSegment.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/CleanupPromptBuilder.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/CommandMode.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Creature/CreatureState.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Creature/CreatureView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/CustomDictionaryEntry.swift (in target 'YapYap' from project 'YapYap')
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/App/AppState.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/AudioCaptureManager.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/AudioSegment.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/CleanupPromptBuilder.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/CommandMode.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Creature/CreatureState.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Creature/CreatureView.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/CustomDictionaryEntry.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 Compiling\ DailyStats.swift,\ DataManager.swift,\ DesignTokens.swift,\ FillerFilter.swift,\ FloatingBarPanel.swift,\ FloatingBarPosition.swift,\ FloatingBarView.swift,\ FluidAudioEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/DailyStats.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/DataManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/DesignTokens.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/FillerFilter.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/FloatingBarPanel.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/FloatingBarPosition.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/FloatingBarView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/FluidAudioEngine.swift (in target 'YapYap' from project 'YapYap')
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/DailyStats.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/DataManager.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/DesignTokens.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/FillerFilter.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/FloatingBarPanel.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/FloatingBarPosition.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/FloatingBarView.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/FluidAudioEngine.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 Compiling\ GeneralTab.swift,\ HapticManager.swift,\ HotkeyManager.swift,\ HotkeysTab.swift,\ LLMEngine.swift,\ LLMModelRegistry.swift,\ MLXEngine.swift,\ ModelStorage.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/GeneralTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/HapticManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/HotkeyManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/HotkeysTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/LLMEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/LLMModelRegistry.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/MLXEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Models/ModelStorage.swift (in target 'YapYap' from project 'YapYap')
+Failed frontend command:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/AboutTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/AnalyticsTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/AnalyticsTracker.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/AppCategory.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/AppContext.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/AppContextDetector.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/App/AppDelegate.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/AppSettings.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/App/AppState.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/AudioCaptureManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/AudioSegment.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/CleanupPromptBuilder.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/CommandMode.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Creature/CreatureState.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Creature/CreatureView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/CustomDictionaryEntry.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/DailyStats.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/DataManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/DesignTokens.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/FillerFilter.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/FloatingBarPanel.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/FloatingBarPosition.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/FloatingBarView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/FluidAudioEngine.swift -primary-file /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/GeneralTab.swift -primary-file /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/HapticManager.swift -primary-file /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/HotkeyManager.swift -primary-file /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/HotkeysTab.swift -primary-file /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/LLMEngine.swift -primary-file /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/LLMModelRegistry.swift -primary-file /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/MLXEngine.swift -primary-file /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Models/ModelStorage.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/ModelsTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Onboarding/OnboardingView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/OutputFormatter.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/OutputStyle.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/PasteManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/Permissions.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/PersonalDictionary.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/MenuBar/PopoverView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/PowerModeRule.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/STTEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/STTEngineFactory.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/STTModelRegistry.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/SettingsView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/SettingsWindowController.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/SnippetManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/SoundManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/MenuBar/StatusBarController.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/StyleSettings.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/StyleTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/Transcription.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/TranscriptionPipeline.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/VADConfig.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/VADManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/WaveformView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/WhisperCppEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/WhisperKitEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/WritingStyleTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/App/YapYapApp.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/YapYapError.swift /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/DerivedSources/GeneratedAssetSymbols.swift -supplementary-output-file-map /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/supplementaryOutputs-4 -target arm64-apple-macos14.0 -module-can-import-version DeveloperToolsSupport 23.0.4 23.0.4 -disable-cross-import-overlay-search -swift-module-cross-import SwiftData /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/System/Library/Frameworks/SwiftData.framework/Modules/SwiftData.swiftcrossimport/CoreData.swiftoverlay -swift-module-cross-import SwiftData /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/System/Library/Frameworks/SwiftData.framework/Modules/SwiftData.swiftcrossimport/SwiftUI.swiftoverlay -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftDataMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftDataMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/YapYap-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -I /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/PackageFrameworks -F /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=4 -module-cache-path /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -profile-generate -profile-coverage-mapping -swift-version 5 -enforce-exclusivity\=checked -Onone -D DEBUG -serialize-debugging-options -const-gather-protocols-file /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/YapYap_const_extract_protocols.json -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/sandeep/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/sandeep/Projects/yapyap/YapYap -enable-anonymous-context-mangled-names -file-compilation-dir /Users/sandeep/Projects/yapyap/YapYap -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -Xcc -ivfsstatcache -Xcc /Users/sandeep/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.2-25C57-3885c01c3e6b6a337905948deab2002e00fa09913b459cbbc988d1f6730289ae.sdkstatcache -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/YapYap-generated-files.hmap -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/YapYap-own-target-headers.hmap -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/YapYap-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap-a91a685146c11350f3ac768c70f9521c-VFS/all-product-headers.yaml -Xcc -iquote -Xcc /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/YapYap-project-headers.hmap -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/SourcePackages/checkouts/FluidAudio/Sources/MachTaskSelfWrapper/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/SourcePackages/checkouts/FluidAudio/Sources/FastClusterWrapper/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/SourcePackages/checkouts/swift-numerics/Sources/_NumericsShims/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/SourcePackages/checkouts/mlx-swift/Source/Cmlx/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/include -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/DerivedSources-normal/arm64 -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/DerivedSources/arm64 -Xcc -I/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/DerivedSources -Xcc -DDEBUG\=1 -no-auto-bridging-header-chaining -module-name YapYap -frontend-parseable-output -disable-clang-spi -target-sdk-version 26.2 -target-sdk-name macosx26.2 -clang-target arm64-apple-macos26.2 -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -o /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/GeneralTab.o -o /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/HapticManager.o -o /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/HotkeyManager.o -o /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/HotkeysTab.o -o /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/LLMEngine.o -o /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/LLMModelRegistry.o -o /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/MLXEngine.o -o /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/Objects-normal/arm64/ModelStorage.o -index-unit-output-path /YapYap.build/Debug/YapYap.build/Objects-normal/arm64/GeneralTab.o -index-unit-output-path /YapYap.build/Debug/YapYap.build/Objects-normal/arm64/HapticManager.o -index-unit-output-path /YapYap.build/Debug/YapYap.build/Objects-normal/arm64/HotkeyManager.o -index-unit-output-path /YapYap.build/Debug/YapYap.build/Objects-normal/arm64/HotkeysTab.o -index-unit-output-path /YapYap.build/Debug/YapYap.build/Objects-normal/arm64/LLMEngine.o -index-unit-output-path /YapYap.build/Debug/YapYap.build/Objects-normal/arm64/LLMModelRegistry.o -index-unit-output-path /YapYap.build/Debug/YapYap.build/Objects-normal/arm64/MLXEngine.o -index-unit-output-path /YapYap.build/Debug/YapYap.build/Objects-normal/arm64/ModelStorage.o -index-store-path /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Index.noindex/DataStore -index-system-modules
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/GeneralTab.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/HapticManager.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/HotkeyManager.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/HotkeysTab.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/LLMEngine.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/LLMModelRegistry.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/MLXEngine.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+/Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/MLXEngine.swift:51:13: error: argument 'maxTokens' must precede argument 'temperature'
+            maxTokens: 512
+~~~~~~~~~~~~^~~~~~~~~~~~~~
+/Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/MLXEngine.swift:69:54: error: cannot infer contextual base in reference to member 'whitespacesAndNewlines'
+        return result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                                                    ~^~~~~~~~~~~~~~~~~~~~~~
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Models/ModelStorage.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 Compiling\ StatusBarController.swift,\ StyleSettings.swift,\ StyleTab.swift,\ Transcription.swift,\ TranscriptionPipeline.swift,\ VADConfig.swift,\ VADManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/MenuBar/StatusBarController.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/StyleSettings.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/StyleTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/Transcription.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/TranscriptionPipeline.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/VADConfig.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/VADManager.swift (in target 'YapYap' from project 'YapYap')
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/MenuBar/StatusBarController.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/StyleSettings.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/StyleTab.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/Transcription.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/TranscriptionPipeline.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/VADConfig.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/VADManager.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 Compiling\ ModelsTab.swift,\ OnboardingView.swift,\ OutputFormatter.swift,\ OutputStyle.swift,\ PasteManager.swift,\ Permissions.swift,\ PersonalDictionary.swift,\ PopoverView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/ModelsTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Onboarding/OnboardingView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/OutputFormatter.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/OutputStyle.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/PasteManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/Permissions.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/PersonalDictionary.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/MenuBar/PopoverView.swift (in target 'YapYap' from project 'YapYap')
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/ModelsTab.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Onboarding/OnboardingView.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/OutputFormatter.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Context/OutputStyle.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/PasteManager.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/Permissions.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/PersonalDictionary.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/MenuBar/PopoverView.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 Compiling\ WaveformView.swift,\ WhisperCppEngine.swift,\ WhisperKitEngine.swift,\ WritingStyleTab.swift,\ YapYapApp.swift,\ YapYapError.swift,\ GeneratedAssetSymbols.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/WaveformView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/WhisperCppEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/WhisperKitEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/WritingStyleTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/App/YapYapApp.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/YapYapError.swift /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'YapYap' from project 'YapYap')
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/FloatingBar/WaveformView.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/WhisperCppEngine.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/WhisperKitEngine.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/WritingStyleTab.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/App/YapYapApp.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/YapYapError.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 /Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Intermediates.noindex/YapYap.build/Debug/YapYap.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ YapYap (in target 'YapYap' from project 'YapYap')
+EmitSwiftModule normal arm64 (in target 'YapYap' from project 'YapYap')
+    cd /Users/sandeep/Projects/yapyap/YapYap
+    
+
+SwiftCompile normal arm64 Compiling\ PowerModeRule.swift,\ STTEngine.swift,\ STTEngineFactory.swift,\ STTModelRegistry.swift,\ SettingsView.swift,\ SettingsWindowController.swift,\ SnippetManager.swift,\ SoundManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Data/PowerModeRule.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/STTEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/STTEngineFactory.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/STT/STTModelRegistry.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/SettingsView.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/SettingsWindowController.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/SnippetManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/SoundManager.swift (in target 'YapYap' from project 'YapYap')
+
+** BUILD FAILED **
+
+
+The following build commands failed:
+	SwiftCompile normal arm64 Compiling\ GeneralTab.swift,\ HapticManager.swift,\ HotkeyManager.swift,\ HotkeysTab.swift,\ LLMEngine.swift,\ LLMModelRegistry.swift,\ MLXEngine.swift,\ ModelStorage.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/GeneralTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Utilities/HapticManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Pipeline/HotkeyManager.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/UI/Settings/HotkeysTab.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/LLMEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/LLMModelRegistry.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/MLXEngine.swift /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/Models/ModelStorage.swift (in target 'YapYap' from project 'YapYap')
+	SwiftCompile normal arm64 /Users/sandeep/Projects/yapyap/YapYap/YapYap/Core/LLM/MLXEngine.swift (in target 'YapYap' from project 'YapYap')
+	Building project YapYap with scheme YapYap and configuration Debug
+(3 failures)

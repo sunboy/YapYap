@@ -26,7 +26,14 @@ class SnippetManager: ObservableObject {
         return dir.appendingPathComponent("snippets.json")
     }()
 
-    init() { load() }
+    private let shouldPersist: Bool
+
+    init(shouldPersist: Bool = true) {
+        self.shouldPersist = shouldPersist
+        if shouldPersist {
+            load()
+        }
+    }
 
     /// Check if transcribed text matches a snippet trigger
     func matchSnippet(from text: String) -> VoiceSnippet? {
@@ -51,11 +58,13 @@ class SnippetManager: ObservableObject {
     // MARK: - Persistence
 
     private func save() {
+        guard shouldPersist else { return }
         guard let data = try? JSONEncoder().encode(snippets) else { return }
         try? data.write(to: fileURL)
     }
 
     private func load() {
+        guard shouldPersist else { return }
         guard let data = try? Data(contentsOf: fileURL),
               let decoded = try? JSONDecoder().decode([VoiceSnippet].self, from: data)
         else { return }

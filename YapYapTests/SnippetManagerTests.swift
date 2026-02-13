@@ -6,7 +6,7 @@ import XCTest
 final class SnippetManagerTests: XCTestCase {
 
     func testMatchExactTrigger() {
-        let manager = SnippetManager()
+        let manager = SnippetManager(shouldPersist: false)
         manager.snippets = [
             VoiceSnippet(trigger: "my email", expansion: "john@example.com")
         ]
@@ -16,7 +16,7 @@ final class SnippetManagerTests: XCTestCase {
     }
 
     func testMatchWithInsertPrefix() {
-        let manager = SnippetManager()
+        let manager = SnippetManager(shouldPersist: false)
         manager.snippets = [
             VoiceSnippet(trigger: "my email", expansion: "john@example.com")
         ]
@@ -25,7 +25,7 @@ final class SnippetManagerTests: XCTestCase {
     }
 
     func testCaseInsensitiveMatch() {
-        let manager = SnippetManager()
+        let manager = SnippetManager(shouldPersist: false)
         manager.snippets = [
             VoiceSnippet(trigger: "My Email", expansion: "john@example.com")
         ]
@@ -34,7 +34,7 @@ final class SnippetManagerTests: XCTestCase {
     }
 
     func testNoMatch() {
-        let manager = SnippetManager()
+        let manager = SnippetManager(shouldPersist: false)
         manager.snippets = [
             VoiceSnippet(trigger: "my email", expansion: "john@example.com")
         ]
@@ -43,7 +43,7 @@ final class SnippetManagerTests: XCTestCase {
     }
 
     func testTrimsWhitespace() {
-        let manager = SnippetManager()
+        let manager = SnippetManager(shouldPersist: false)
         manager.snippets = [
             VoiceSnippet(trigger: "my email", expansion: "john@example.com")
         ]
@@ -52,14 +52,14 @@ final class SnippetManagerTests: XCTestCase {
     }
 
     func testAddSnippet() {
-        let manager = SnippetManager()
+        let manager = SnippetManager(shouldPersist: false)
         manager.addSnippet(trigger: "test", expansion: "Test expansion")
         XCTAssertEqual(manager.snippets.count, 1)
         XCTAssertEqual(manager.snippets.first?.trigger, "test")
     }
 
     func testRemoveSnippet() {
-        let manager = SnippetManager()
+        let manager = SnippetManager(shouldPersist: false)
         manager.addSnippet(trigger: "test", expansion: "expansion")
         let id = manager.snippets.first!.id
         manager.removeSnippet(id: id)

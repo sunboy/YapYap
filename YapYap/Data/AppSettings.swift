@@ -28,15 +28,15 @@ final class AppSettings {
         sttModelId: String = "whisper-large-v3-turbo",
         llmModelId: String = "qwen-1.5b",
         stylePrompt: String = "",
-        formality: String = "casual",
+        formality: String = "neutral",
         cleanupLevel: String = "medium",
         language: String = "en",
         pushToTalkHotkey: Data? = nil,
         handsFreeHotkey: Data? = nil,
-        launchAtLogin: Bool = false,
+        launchAtLogin: Bool = true,
         showFloatingBar: Bool = true,
         autoPaste: Bool = true,
-        copyToClipboard: Bool = false,
+        copyToClipboard: Bool = true,
         notifyOnComplete: Bool = false,
         floatingBarPosition: String = "center",
         historyLimit: Int = 100,
@@ -44,7 +44,7 @@ final class AppSettings {
         hapticFeedback: Bool = true,
         microphoneId: String? = nil,
         gpuAcceleration: Bool = true,
-        autoDownloadModels: Bool = false
+        autoDownloadModels: Bool = true
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
