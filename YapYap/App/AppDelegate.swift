@@ -33,6 +33,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func setupFloatingBar() {
         floatingBarPanel = FloatingBarPanel()
+
+        // Set content view with FloatingBarView
+        let floatingView = FloatingBarView(appState: appState)
+        floatingBarPanel?.contentView = NSHostingView(rootView: floatingView)
+
+        // Position the bar
+        floatingBarPanel?.positionOnScreen(position: .bottomCenter)
+
+        // Show if enabled in settings
         let settings = DataManager.shared.fetchSettings()
         if settings.showFloatingBar {
             floatingBarPanel?.showBar()
@@ -40,21 +49,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showOnboarding() {
-        let onboardingWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 580),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        onboardingWindow.titlebarAppearsTransparent = true
-        onboardingWindow.isMovableByWindowBackground = true
-        onboardingWindow.center()
-        onboardingWindow.contentView = NSHostingView(
-            rootView: OnboardingView {
-                UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
-                onboardingWindow.close()
-            }
-        )
-        onboardingWindow.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async {
+            let onboardingWindow = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 520, height: 580),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            onboardingWindow.title = "Welcome to YapYap"
+            onboardingWindow.titlebarAppearsTransparent = true
+            onboardingWindow.isMovableByWindowBackground = true
+            onboardingWindow.level = .floating
+            onboardingWindow.center()
+            onboardingWindow.contentView = NSHostingView(
+                rootView: OnboardingView {
+                    UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+                    onboardingWindow.close()
+                }
+            )
+            onboardingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 }

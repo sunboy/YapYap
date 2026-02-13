@@ -161,7 +161,7 @@ class TranscriptionPipeline {
             )
 
             // Update analytics
-            try await AnalyticsTracker.shared.recordTranscription(
+            await AnalyticsTracker.shared.recordTranscription(
                 wordCount: cleanedText.split(separator: " ").count,
                 duration: transcription.processingTime
             )
@@ -170,6 +170,9 @@ class TranscriptionPipeline {
             appState.creatureState = .sleeping
             appState.isProcessing = false
             appState.lastTranscription = cleanedText
+
+            // Update stats in popover
+            appState.updateStats()
 
             return cleanedText
 

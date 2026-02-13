@@ -23,6 +23,9 @@ struct PopoverView: View {
             footerSection
         }
         .background(Color.ypBg3)
+        .onAppear {
+            appState.updateStats()
+        }
     }
 
     // MARK: - Header

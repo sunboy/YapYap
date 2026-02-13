@@ -77,6 +77,7 @@
 		D4C1C8E3AF78968DA5354792 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 029FCA6062AD9B55C5D01401 /* Assets.xcassets */; };
 		D60ECFEF1A7FAD8D7B6689A5 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F1937620FA84E9940A1C0FF /* SettingsWindowController.swift */; };
 		D89E5C03254A27B0C3C92477 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E3EE15439E73348CB02353 /* AppSettings.swift */; };
+		D9F0C578C16E6453A058752A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 540FB8F336CF88447F434A96 /* PrivacyInfo.xcprivacy */; };
 		DB42C349AD45D2CCA867813B /* AppContextDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7ECB96F73F6E946484F7045 /* AppContextDetectorTests.swift */; };
 		E0DE4D626E0270553D2B5311 /* AnalyticsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB402BE050E16C34E2652F4 /* AnalyticsTab.swift */; };
 		E50EEAAD8DE5C361158F9633 /* FloatingBarPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E68B5460F37DD9C29C03E88 /* FloatingBarPanel.swift */; };
@@ -136,6 +137,7 @@
 		45964BF91DC2B34D1B82D702 /* WritingStyleTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingStyleTab.swift; sourceTree = "<group>"; };
 		4E3FDFB8D2A3A6137B7E9E33 /* PasteManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteManager.swift; sourceTree = "<group>"; };
 		4E68B5460F37DD9C29C03E88 /* FloatingBarPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingBarPanel.swift; sourceTree = "<group>"; };
+		540FB8F336CF88447F434A96 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		545004FE2DCCA737DB9DC8BF /* PersonalDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalDictionary.swift; sourceTree = "<group>"; };
 		5820E3AB4E46240FD73C41DB /* TranscriptionPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionPipeline.swift; sourceTree = "<group>"; };
 		5D9D8DA8E155D84E87E29EC8 /* DataModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataModelTests.swift; sourceTree = "<group>"; };
@@ -244,6 +246,7 @@
 			children = (
 				029FCA6062AD9B55C5D01401 /* Assets.xcassets */,
 				7D3CA0202F52BB293D5D3977 /* Localizable.strings */,
+				540FB8F336CF88447F434A96 /* PrivacyInfo.xcprivacy */,
 				3D2C5179CF7EC45C21CF56D1 /* Sounds */,
 			);
 			path = Resources;
@@ -558,6 +561,7 @@
 			files = (
 				D4C1C8E3AF78968DA5354792 /* Assets.xcassets in Resources */,
 				3A62B5D65BFDFF186F8F5A9F /* Localizable.strings in Resources */,
+				D9F0C578C16E6453A058752A /* PrivacyInfo.xcprivacy in Resources */,
 				91489BFA97E2CE973C06782C /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
