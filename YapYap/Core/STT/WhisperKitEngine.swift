@@ -14,13 +14,52 @@ class WhisperKitEngine: STTEngine {
     }
 
     func loadModel(progressHandler: @escaping (Double) -> Void) async throws {
-        let modelPath = ModelStorage.shared.path(for: modelInfo.id, type: .stt)
-        let config = WhisperKitConfig(
-            model: modelInfo.id,
-            modelFolder: modelPath.path
+        print("[WhisperKitEngine] Loading model '\(modelInfo.id)'")
+
+        // Convert our model ID to WhisperKit's expected format
+        // "whisper-small" -> "small", "whisper-large-v3-turbo" -> "large-v3-turbo"
+        let whisperKitModel = modelInfo.id.replacingOccurrences(of: "whisper-", with: "")
+
+        // Ensure the download cache directory exists
+        let cacheURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("huggingface/models/argmaxinc/whisperkit-coreml", isDirectory: true)
+        try? FileManager.default.createDirectory(at: cacheURL, withIntermediateDirectories: true)
+
+        // Use ANE for encoder/decoder — fastest inference on Apple Silicon.
+        // First launch triggers ANE compilation (~2 min), but the ANE cache
+        // persists across launches via CoreML's internal cache.
+        // prewarm: true ensures compilation happens during load, not first transcribe.
+        let computeOptions = ModelComputeOptions(
+            melCompute: .cpuAndGPU,
+            audioEncoderCompute: .cpuAndNeuralEngine,
+            textDecoderCompute: .cpuAndNeuralEngine,
+            prefillCompute: .cpuOnly
         )
-        pipe = try await WhisperKit(config)
+
+        let config = WhisperKitConfig(
+            model: whisperKitModel,
+            computeOptions: computeOptions,
+            verbose: false,
+            prewarm: true,
+            load: true,
+            download: true
+        )
+
+        // WhisperKit will auto-download the model if it doesn't exist
+        // Retry once if download fails
+        do {
+            pipe = try await WhisperKit(config)
+        } catch {
+            print("[WhisperKitEngine] First attempt failed: \(error). Retrying after cleaning cache...")
+            // Clean incomplete downloads
+            let incompletePath = cacheURL.appendingPathComponent(".cache", isDirectory: true)
+            try? FileManager.default.removeItem(at: incompletePath)
+            // Retry
+            pipe = try await WhisperKit(config)
+        }
+
         progressHandler(1.0)
+        print("[WhisperKitEngine] Model '\(whisperKitModel)' loaded successfully")
     }
 
     func unloadModel() {
@@ -35,21 +74,23 @@ class WhisperKitEngine: STTEngine {
         let startTime = Date()
         let floatArray = bufferToFloatArray(audioBuffer)
 
-        // YapYap-optimized decoding options for robust dictation
+        // Speed-optimized decoding options — no temperature fallback retries
+        // language: "en" forces English-only decoding, preventing noise → foreign language hallucinations
         let options = DecodingOptions(
             task: .transcribe,
+            language: "en",
             temperature: 0.0,
-            temperatureFallbackCount: 3,
+            temperatureFallbackCount: 2,
             usePrefillPrompt: true,
             usePrefillCache: true,
-            detectLanguage: true,
+            detectLanguage: false,
             withoutTimestamps: true,
             wordTimestamps: false,
             suppressBlank: true,
             compressionRatioThreshold: 2.4,
-            logProbThreshold: -0.8,
-            firstTokenLogProbThreshold: -1.0,
-            noSpeechThreshold: 0.5
+            logProbThreshold: -1.0,
+            firstTokenLogProbThreshold: -1.5,
+            noSpeechThreshold: 0.6
         )
 
         let result = try await pipe.transcribe(audioArray: floatArray, decodeOptions: options)

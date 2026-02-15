@@ -5,6 +5,8 @@ struct StyleTab: View {
     @State private var ideVariableRecognition = true
     @State private var ideFileTagging = true
 
+    private let styleSettingsKey = "yapyap.styleSettings"
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Context-Aware Formatting")
@@ -39,6 +41,44 @@ struct StyleTab: View {
                 .font(.system(size: 11))
                 .foregroundColor(.ypText3)
                 .padding(.top, 8)
+        }
+        .onAppear {
+            loadSettings()
+        }
+        .onChange(of: styleSettings.personalMessaging) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.workMessaging) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.email) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.codeEditor) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.documents) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.aiChat) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.browser) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.other) { _, _ in saveStyleSettings() }
+        .onChange(of: ideVariableRecognition) { _, newValue in
+            styleSettings.ideVariableRecognition = newValue
+            saveStyleSettings()
+        }
+        .onChange(of: ideFileTagging) { _, newValue in
+            styleSettings.ideFileTagging = newValue
+            saveStyleSettings()
+        }
+    }
+
+    private func loadSettings() {
+        if let data = UserDefaults.standard.data(forKey: styleSettingsKey),
+           let decoded = try? JSONDecoder().decode(StyleSettingsData.self, from: data) {
+            styleSettings = decoded
+            ideVariableRecognition = decoded.ideVariableRecognition
+            ideFileTagging = decoded.ideFileTagging
+        }
+    }
+
+    private func saveStyleSettings() {
+        var settings = styleSettings
+        settings.ideVariableRecognition = ideVariableRecognition
+        settings.ideFileTagging = ideFileTagging
+
+        if let encoded = try? JSONEncoder().encode(settings) {
+            UserDefaults.standard.set(encoded, forKey: styleSettingsKey)
         }
     }
 
@@ -97,7 +137,7 @@ struct StyleTab: View {
 }
 
 // Helper for tab-local state
-struct StyleSettingsData {
+struct StyleSettingsData: Codable {
     var personalMessaging: OutputStyle = .casual
     var workMessaging: OutputStyle = .casual
     var email: OutputStyle = .formal
@@ -106,6 +146,8 @@ struct StyleSettingsData {
     var aiChat: OutputStyle = .casual
     var browser: OutputStyle = .casual
     var other: OutputStyle = .casual
+    var ideVariableRecognition: Bool = true
+    var ideFileTagging: Bool = true
 
     func style(for category: AppCategory) -> OutputStyle {
         switch category {

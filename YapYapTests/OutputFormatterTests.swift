@@ -120,4 +120,22 @@ final class OutputFormatterTests: XCTestCase {
         XCTAssertTrue(result.hasPrefix("H"))
         XCTAssertTrue(result.hasSuffix("."))
     }
+
+    // MARK: - IDE Feature Toggles
+
+    func testFileTaggingDisabledBySettings() {
+        let ctx = AppContext(bundleId: "", appName: "Cursor", category: .codeEditor, style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: true)
+        var settings = StyleSettings()
+        settings.ideFileTagging = false
+        let result = OutputFormatter.format("Look at main.swift", for: ctx, styleSettings: settings)
+        XCTAssertFalse(result.contains("@main.swift"))
+    }
+
+    func testVariableRecognitionDisabledBySettings() {
+        let ctx = AppContext(bundleId: "", appName: "VS Code", category: .codeEditor, style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        var settings = StyleSettings()
+        settings.ideVariableRecognition = false
+        let result = OutputFormatter.format("Update getUserName function", for: ctx, styleSettings: settings)
+        XCTAssertFalse(result.contains("`getUserName`"))
+    }
 }

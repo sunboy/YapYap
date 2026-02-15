@@ -35,12 +35,6 @@ final class YapYapErrorTests: XCTestCase {
         XCTAssertTrue(error.errorDescription!.lowercased().contains("speech") || error.errorDescription!.lowercased().contains("detected"))
     }
 
-    func testRecordingTimeoutDescription() {
-        let error = YapYapError.recordingTimeout
-        XCTAssertNotNil(error.errorDescription)
-        XCTAssertTrue(error.errorDescription!.lowercased().contains("duration") || error.errorDescription!.lowercased().contains("timeout"))
-    }
-
     func testAllErrorsHaveDescriptions() {
         let errors: [YapYapError] = [
             .modelNotLoaded,
@@ -52,7 +46,6 @@ final class YapYapErrorTests: XCTestCase {
             .cleanupFailed(NSError(domain: "", code: 0)),
             .pasteFailed(NSError(domain: "", code: 0)),
             .noAudioRecorded,
-            .recordingTimeout,
         ]
 
         for error in errors {

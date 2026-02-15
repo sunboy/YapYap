@@ -26,11 +26,10 @@ final class ModelRegistryTests: XCTestCase {
         let parakeet = STTModelRegistry.model(for: "parakeet-tdt-v3")
         XCTAssertNotNil(parakeet)
         XCTAssertEqual(parakeet?.backend, .fluidAudio)
-        XCTAssertTrue(parakeet?.isRecommended ?? false)
     }
 
     func testSTTModelLookupVoxtral() {
-        let voxtral = STTModelRegistry.model(for: "voxtral")
+        let voxtral = STTModelRegistry.model(for: "voxtral-mini-3b")
         XCTAssertNotNil(voxtral)
         XCTAssertEqual(voxtral?.backend, .whisperCpp)
     }
@@ -43,7 +42,7 @@ final class ModelRegistryTests: XCTestCase {
     func testSTTRecommendedModel() {
         let recommended = STTModelRegistry.recommendedModel
         XCTAssertTrue(recommended.isRecommended)
-        XCTAssertEqual(recommended.id, "parakeet-tdt-v3")
+        XCTAssertEqual(recommended.id, "whisper-small")
     }
 
     func testSTTModelUniqueIds() {
@@ -70,14 +69,13 @@ final class ModelRegistryTests: XCTestCase {
     }
 
     func testLLMModelCount() {
-        XCTAssertEqual(LLMModelRegistry.allModels.count, 4)
+        XCTAssertEqual(LLMModelRegistry.allModels.count, 6)
     }
 
     func testLLMModelLookup() {
         let qwen3b = LLMModelRegistry.model(for: "qwen-2.5-3b")
         XCTAssertNotNil(qwen3b)
         XCTAssertEqual(qwen3b?.name, "Qwen 2.5 3B")
-        XCTAssertTrue(qwen3b?.isRecommended ?? false)
     }
 
     func testLLMModelLookupLlama() {
@@ -94,7 +92,7 @@ final class ModelRegistryTests: XCTestCase {
     func testLLMRecommendedModel() {
         let recommended = LLMModelRegistry.recommendedModel
         XCTAssertTrue(recommended.isRecommended)
-        XCTAssertEqual(recommended.id, "qwen-2.5-3b")
+        XCTAssertEqual(recommended.id, "qwen-2.5-1.5b")
     }
 
     func testLLMModelUniqueIds() {
@@ -113,5 +111,36 @@ final class ModelRegistryTests: XCTestCase {
             XCTAssertFalse(model.huggingFaceId.isEmpty, "\(model.name) should have HuggingFace ID")
             XCTAssertTrue(model.huggingFaceId.contains("/"), "\(model.name) HuggingFace ID should contain /")
         }
+    }
+
+    func testLLMModelFamilies() {
+        let llama1b = LLMModelRegistry.model(for: "llama-3.2-1b")
+        XCTAssertEqual(llama1b?.family, .llama)
+
+        let llama3b = LLMModelRegistry.model(for: "llama-3.2-3b")
+        XCTAssertEqual(llama3b?.family, .llama)
+
+        let llama8b = LLMModelRegistry.model(for: "llama-3.1-8b")
+        XCTAssertEqual(llama8b?.family, .llama)
+
+        let qwen1_5b = LLMModelRegistry.model(for: "qwen-2.5-1.5b")
+        XCTAssertEqual(qwen1_5b?.family, .qwen)
+
+        let qwen3b = LLMModelRegistry.model(for: "qwen-2.5-3b")
+        XCTAssertEqual(qwen3b?.family, .qwen)
+
+        let qwen7b = LLMModelRegistry.model(for: "qwen-2.5-7b")
+        XCTAssertEqual(qwen7b?.family, .qwen)
+    }
+
+    func testLLMModelFamilyInferenceParams() {
+        // All families should use temperature 0.0 for deterministic cleanup
+        XCTAssertEqual(LLMModelFamily.llama.temperature, 0.0)
+        XCTAssertEqual(LLMModelFamily.qwen.temperature, 0.0)
+        XCTAssertEqual(LLMModelFamily.gemma.temperature, 0.0)
+
+        // All should have repetition penalty
+        XCTAssertGreaterThan(LLMModelFamily.llama.repetitionPenalty, 1.0)
+        XCTAssertGreaterThan(LLMModelFamily.qwen.repetitionPenalty, 1.0)
     }
 }

@@ -7,7 +7,7 @@ struct OnboardingView: View {
     @State private var micPermissionGranted = false
     @State private var accessibilityGranted = false
     @State private var selectedSTTModel = "parakeet-tdt-v3"
-    @State private var selectedLLMModel = "qwen-2.5-3b"
+    @State private var selectedLLMModel = "qwen-2.5-1.5b"
     @State private var isDownloading = false
     var onComplete: () -> Void
 
@@ -24,6 +24,9 @@ struct OnboardingView: View {
                 }
             }
             .padding(.top, 24)
+            .onAppear {
+                checkPermissions()
+            }
 
             Spacer()
 
@@ -125,9 +128,13 @@ struct OnboardingView: View {
                     isGranted: accessibilityGranted,
                     action: {
                         Permissions.requestAccessibilityPermission()
-                        // Check after a delay since the system dialog is async
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            accessibilityGranted = Permissions.hasAccessibilityPermission
+                        // Check immediately and then poll
+                        checkPermissions()
+                        // Keep checking every second for 5 seconds
+                        for i in 1...5 {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i)) {
+                                checkPermissions()
+                            }
                         }
                     }
                 )
@@ -203,7 +210,9 @@ struct OnboardingView: View {
                     .foregroundColor(.ypText2)
 
                 Picker("LLM Model", selection: $selectedLLMModel) {
-                    Text("Qwen 2.5 3B (~2.0GB) — Recommended").tag("qwen-2.5-3b")
+                    Text("Qwen 2.5 1.5B (~1.0GB) — Recommended").tag("qwen-2.5-1.5b")
+                    Text("Llama 3.2 1B (~700MB)").tag("llama-3.2-1b")
+                    Text("Qwen 2.5 3B (~2.0GB)").tag("qwen-2.5-3b")
                     Text("Llama 3.2 3B (~2.0GB)").tag("llama-3.2-3b")
                     Text("Qwen 2.5 7B (~4.7GB)").tag("qwen-2.5-7b")
                     Text("Llama 3.1 8B (~4.7GB)").tag("llama-3.1-8b")
@@ -268,12 +277,29 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
 
             Button("Start Yapping") {
+                // Save selected models to persistent settings
+                let settings = DataManager.shared.fetchSettings()
+                settings.sttModelId = selectedSTTModel
+                settings.llmModelId = selectedLLMModel
+                try? DataManager.shared.container.mainContext.save()
+                print("[OnboardingView] Saved STT model: \(selectedSTTModel), LLM model: \(selectedLLMModel)")
+
+                // Mark onboarding as complete and notify the callback
                 UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+                UserDefaults.standard.synchronize()
+                print("[OnboardingView] Start Yapping pressed, calling onComplete")
                 onComplete()
             }
             .buttonStyle(.borderedProminent)
             .tint(.ypLavender)
             .controlSize(.large)
+        }
+    }
+
+    private func checkPermissions() {
+        Task { @MainActor in
+            accessibilityGranted = Permissions.hasAccessibilityPermission
+            micPermissionGranted = await Permissions.hasMicrophonePermission
         }
     }
 }

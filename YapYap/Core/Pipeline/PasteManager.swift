@@ -19,16 +19,25 @@ class PasteManager {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        // Small delay to ensure pasteboard is ready
+        // Ensure the frontmost app is ready to receive the paste.
+        // YapYap's floating bar is a non-activating panel, so the user's app
+        // should still be frontmost. We give a tiny delay for pasteboard sync.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            // Synthetic Cmd+V via CGEvent
-            self.simulatePaste()
+            // Activate the frontmost app to make sure it can receive key events
+            if let frontApp = NSWorkspace.shared.frontmostApplication {
+                frontApp.activate()
+            }
 
-            // Restore previous clipboard content after a delay
-            if let previous = previousContent {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    pasteboard.clearContents()
-                    pasteboard.setString(previous, forType: .string)
+            // Small additional delay after activation to ensure the app is ready
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                self.simulatePaste()
+
+                // Restore previous clipboard content after paste has been processed
+                if let previous = previousContent {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        pasteboard.clearContents()
+                        pasteboard.setString(previous, forType: .string)
+                    }
                 }
             }
         }

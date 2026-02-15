@@ -17,6 +17,8 @@ class FluidAudioEngine: STTEngine {
     func loadModel(progressHandler: @escaping (Double) -> Void) async throws {
         let modelPath = ModelStorage.shared.path(for: modelInfo.id, type: .stt)
 
+        print("[FluidAudioEngine] Loading model '\(modelInfo.id)' from path: \(modelPath.path)")
+
         // Load the models from the model directory
         let models = try await AsrModels.load(from: modelPath)
 
@@ -26,6 +28,8 @@ class FluidAudioEngine: STTEngine {
 
         asrManager = manager
         progressHandler(1.0)
+
+        print("[FluidAudioEngine] Model '\(modelInfo.id)' loaded successfully")
     }
 
     func unloadModel() {

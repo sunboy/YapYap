@@ -21,19 +21,38 @@ class HotkeyManager {
     private init() {}
 
     func configure(pipeline: TranscriptionPipeline, appState: AppState) {
+        print("[HotkeyManager] configure() called")
         self.pipeline = pipeline
         self.appState = appState
+
+        // Check accessibility permission - required for global hotkeys
+        let trusted = AXIsProcessTrusted()
+        print("[HotkeyManager] Accessibility trusted: \(trusted)")
+
+        if !trusted {
+            print("[HotkeyManager] WARNING: Accessibility not trusted - hotkeys may not work")
+            print("[HotkeyManager] Request accessibility permission to enable hotkeys")
+        }
+
         registerHotkeys()
     }
 
     private func registerHotkeys() {
+        print("[HotkeyManager] registerHotkeys() called")
+        NSLog("[HotkeyManager] registerHotkeys() called - NSLog version")
+
         // Push-to-Talk: hold to record, release to process
+        print("[HotkeyManager] Registering pushToTalk handlers...")
         KeyboardShortcuts.onKeyDown(for: .pushToTalk) { [weak self] in
+            print("[HotkeyManager] Push-to-talk KEY DOWN")
             self?.handlePushToTalkDown()
         }
         KeyboardShortcuts.onKeyUp(for: .pushToTalk) { [weak self] in
+            print("[HotkeyManager] Push-to-talk KEY UP")
             self?.handlePushToTalkUp()
         }
+        print("[HotkeyManager] pushToTalk handlers registered")
+        NSLog("[HotkeyManager] pushToTalk handlers registered - NSLog version")
 
         // Hands-Free Mode: toggle recording on/off
         KeyboardShortcuts.onKeyDown(for: .handsFreeMode) { [weak self] in
@@ -54,15 +73,46 @@ class HotkeyManager {
     // MARK: - Push-to-Talk
 
     private func handlePushToTalkDown() {
-        guard let appState = appState, appState.masterToggle else { return }
-        guard let pipeline = pipeline else { return }
+        print("🎹 handlePushToTalkDown called")
 
+        guard let appState = appState else {
+            print("⚠️ appState is nil!")
+            showError("appState is nil")
+            return
+        }
+
+        guard appState.masterToggle else {
+            print("⚠️ masterToggle is off! Current value: \(appState.masterToggle)")
+            showError("Master toggle is off")
+            return
+        }
+
+        guard let pipeline = pipeline else {
+            print("⚠️ pipeline is nil!")
+            showError("Pipeline is nil")
+            return
+        }
+
+        print("✅ Starting recording...")
         Task { @MainActor in
             do {
                 try await pipeline.startRecording()
+                print("✅ Recording started")
             } catch {
-                print("Failed to start recording: \(error)")
+                print("❌ Failed to start recording: \(error)")
+                showError("Recording failed: \(error.localizedDescription)")
             }
+        }
+    }
+
+    private func showError(_ message: String) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Hotkey Error"
+            alert.informativeText = message
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
         }
     }
 

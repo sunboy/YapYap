@@ -155,11 +155,21 @@ struct PopoverView: View {
 
     // MARK: - Quick Settings
 
+    private var sttModelName: String {
+        let settings = DataManager.shared.fetchSettings()
+        return STTModelRegistry.model(for: settings.sttModelId)?.name ?? settings.sttModelId
+    }
+
+    private var llmModelName: String {
+        let settings = DataManager.shared.fetchSettings()
+        return LLMModelRegistry.model(for: settings.llmModelId)?.name ?? settings.llmModelId
+    }
+
     private var quickSettingsSection: some View {
         VStack(spacing: 0) {
             settingsRow(icon: "🎙", label: "STT Model") {
                 HStack(spacing: 4) {
-                    Text("Whisper")
+                    Text(sttModelName)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.ypLavender)
                         .padding(.horizontal, 8)
@@ -175,7 +185,7 @@ struct PopoverView: View {
 
             settingsRow(icon: "✨", label: "Cleanup Model") {
                 HStack(spacing: 4) {
-                    Text("Qwen 2.5")
+                    Text(llmModelName)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.ypWarm)
                         .padding(.horizontal, 8)

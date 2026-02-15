@@ -1,5 +1,5 @@
 // TranscriptionPipeline.swift
-// YapYap — Orchestrates audio → VAD → STT → cleanup → paste
+// YapYap — Orchestrates audio → STT → cleanup → paste
 import SwiftData
 import AppKit
 import AVFoundation
@@ -13,48 +13,115 @@ class TranscriptionPipeline {
 
     private var sttEngine: (any STTEngine)?
     private var llmEngine: (any LLMEngine)?
-    private var vadManager: VADManager?
     private let container: ModelContainer
     private var isCommandMode: Bool = false
+
+    /// Word count threshold: transcriptions this short skip LLM and just get regex cleanup
+    private let fastPathWordThreshold = 12
+
+    /// Cached managers to avoid per-transcription disk I/O
+    private let snippetManager = SnippetManager()
+    private let personalDict = PersonalDictionary()
 
     init(appState: AppState, container: ModelContainer) {
         self.appState = appState
         self.container = container
         self.audioCapture = AudioCaptureManager()
         self.pasteManager = PasteManager()
-        self.vadManager = VADManager()
     }
 
     // MARK: - Model Loading
+
+    func loadModelsAtStartup() async throws {
+        appState.isLoadingModels = true
+        appState.modelsReady = false
+
+        // Pre-warm audio engine so first recording starts instantly
+        audioCapture.warmUp()
+
+        do {
+            try await ensureModelsLoaded()
+            appState.modelsReady = true
+            appState.modelLoadingStatus = "Ready to transcribe"
+            NSLog("[TranscriptionPipeline] ✅ Models loaded at startup, app ready")
+        } catch {
+            appState.modelLoadingStatus = "Model loading failed"
+            NSLog("[TranscriptionPipeline] ❌ Model loading failed at startup: \(error)")
+            throw error
+        }
+
+        appState.isLoadingModels = false
+    }
 
     func ensureModelsLoaded() async throws {
         let settings = try fetchSettings()
 
         // Load STT if not loaded
         if sttEngine == nil || !sttEngine!.isLoaded {
+            appState.modelLoadingStatus = "Loading speech model..."
+            appState.modelLoadingProgress = 0.0
+            NSLog("[TranscriptionPipeline] Loading STT model: \(settings.sttModelId)")
+
             sttEngine = STTEngineFactory.create(modelId: settings.sttModelId)
-            try await sttEngine!.loadModel { progress in
-                // Progress update could be published to AppState
+            try await sttEngine!.loadModel { [weak self] progress in
+                Task { @MainActor in
+                    self?.appState.modelLoadingProgress = progress * 0.5 // First 50%
+                }
             }
+            NSLog("[TranscriptionPipeline] ✅ STT model loaded")
         }
 
         // Load LLM if not loaded
         if llmEngine == nil || !llmEngine!.isLoaded {
+            appState.modelLoadingStatus = "Loading language model..."
+            appState.modelLoadingProgress = 0.5
+            NSLog("[TranscriptionPipeline] Loading LLM model: \(settings.llmModelId)")
+
             llmEngine = MLXEngine()
-            try await llmEngine!.loadModel(id: settings.llmModelId) { progress in
-                // Progress update could be published to AppState
+            try await llmEngine!.loadModel(id: settings.llmModelId) { [weak self] progress in
+                Task { @MainActor in
+                    self?.appState.modelLoadingProgress = 0.5 + (progress * 0.5) // Next 50%
+                }
             }
+            NSLog("[TranscriptionPipeline] ✅ LLM model loaded")
         }
+
+        appState.modelLoadingProgress = 1.0
     }
 
     // MARK: - Recording
 
     func startRecording(isCommandMode: Bool = false) async throws {
-        try await ensureModelsLoaded()
+        NSLog("[TranscriptionPipeline] startRecording() called, isCommandMode: \(isCommandMode)")
+        print("[TranscriptionPipeline] startRecording() called, isCommandMode: \(isCommandMode)")
+
+        // CHECK MICROPHONE PERMISSION FIRST - gives instant feedback if denied
+        let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+        NSLog("[TranscriptionPipeline] Microphone permission check: status=\(micStatus.rawValue), bundleId=\(bundleId)")
+
+        guard micStatus == .authorized else {
+            NSLog("[TranscriptionPipeline] ❌ Microphone permission denied (status=\(micStatus.rawValue))")
+            throw YapYapError.microphonePermissionDenied
+        }
+
+        NSLog("[TranscriptionPipeline] ✅ Microphone permission granted")
+
+        // CHECK IF MODELS ARE READY - should already be loaded at startup
+        if !appState.modelsReady {
+            NSLog("[TranscriptionPipeline] ⚠️ Models not ready, loading now...")
+            appState.modelLoadingStatus = "Loading models..."
+            try await ensureModelsLoaded()
+            appState.modelsReady = true
+        }
+
+        NSLog("[TranscriptionPipeline] ✅ Models ready, starting capture")
 
         self.isCommandMode = isCommandMode
         appState.creatureState = .recording
         appState.isRecording = true
+        NSLog("[TranscriptionPipeline] Recording state set to true, creature: \(appState.creatureState)")
+        print("[TranscriptionPipeline] Recording state set to true")
 
         SoundManager.shared.playStart()
         HapticManager.shared.tap()
@@ -64,15 +131,23 @@ class TranscriptionPipeline {
                 self?.appState.currentRMS = rms
             }
         }
+        print("[TranscriptionPipeline] Audio capture started")
     }
 
     func stopRecordingAndProcess() async throws -> String {
+        let pipelineStart = Date()
+        NSLog("[TranscriptionPipeline] stopRecordingAndProcess() called")
+
         // Stop recording
         guard let audioBuffer = audioCapture.stopCapture() else {
+            NSLog("[TranscriptionPipeline] ❌ No audio buffer captured (too short or empty)")
             appState.isRecording = false
             appState.creatureState = .sleeping
             throw YapYapError.noAudioRecorded
         }
+
+        let audioDuration = Double(audioBuffer.frameLength) / audioCapture.sampleRate
+        NSLog("[TranscriptionPipeline] ✅ Audio buffer: \(audioBuffer.frameLength) frames (\(String(format: "%.1f", audioDuration))s)")
 
         appState.isRecording = false
         appState.creatureState = .processing
@@ -82,22 +157,17 @@ class TranscriptionPipeline {
         HapticManager.shared.tap()
 
         do {
-            // VAD filter — strip silence and noise segments
-            let speechSegments = try await vadManager?.filterSpeechSegments(from: audioBuffer) ?? []
-            let processBuffer: AVAudioPCMBuffer
-            if speechSegments.isEmpty {
-                // Fall back to original buffer if VAD finds nothing
-                processBuffer = audioBuffer
-            } else {
-                // Concatenate speech segments
-                processBuffer = AudioSegment.concatenate(speechSegments) ?? audioBuffer
-            }
+            // SKIP VAD — WhisperKit handles silence natively, VAD adds 100-300ms latency
+            // Feed raw audio directly to STT
 
             // STT transcription
-            let transcription = try await sttEngine!.transcribe(audioBuffer: processBuffer)
+            var stageStart = Date()
+            let transcription = try await sttEngine!.transcribe(audioBuffer: audioBuffer)
             let rawText = transcription.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            NSLog("[TranscriptionPipeline] STT: \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
 
             guard !rawText.isEmpty else {
+                NSLog("[TranscriptionPipeline] ❌ Empty transcription")
                 appState.creatureState = .sleeping
                 appState.isProcessing = false
                 throw YapYapError.noAudioRecorded
@@ -111,38 +181,63 @@ class TranscriptionPipeline {
             }
 
             // Check for snippet trigger
-            let snippetManager = SnippetManager()
             if let snippet = snippetManager.matchSnippet(from: rawText) {
                 return try await handleSnippet(snippet: snippet, settings: settings)
             }
 
             // Apply personal dictionary corrections
-            let personalDict = PersonalDictionary()
             let correctedText = personalDict.applyCorrections(to: rawText)
 
-            // Detect app context
-            let styleSettings = StyleSettings()
+            // Detect app context (loads user-customized per-category styles from UserDefaults)
+            stageStart = Date()
+            let styleSettings = StyleSettings.loadFromUserDefaults()
             let appContext = AppContextDetector.detect(settings: styleSettings)
+            NSLog("[TranscriptionPipeline] Context: \(appContext.appName) (\(appContext.category.rawValue)) (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
 
-            // LLM cleanup
-            let context = CleanupContext(
-                stylePrompt: settings.stylePrompt,
-                formality: CleanupContext.Formality(rawValue: settings.formality) ?? .neutral,
-                language: settings.language,
-                appContext: appContext,
-                cleanupLevel: CleanupContext.CleanupLevel(rawValue: settings.cleanupLevel) ?? .medium,
-                removeFillers: true
-            )
+            let wordCount = correctedText.split(separator: " ").count
+            var cleanedText: String
 
-            var cleanedText = try await llmEngine!.cleanup(rawText: correctedText, context: context)
+            // FAST PATH: Short transcriptions skip LLM entirely — just regex cleanup
+            // This saves 500-1500ms for quick phrases like "hello" or "sounds good"
+            if wordCount <= fastPathWordThreshold {
+                NSLog("[TranscriptionPipeline] Fast path: \(wordCount) words, skipping LLM")
+                cleanedText = correctedText
+                // Apply basic capitalization fix
+                if let first = cleanedText.first, first.isLowercase {
+                    cleanedText = first.uppercased() + cleanedText.dropFirst()
+                }
+            } else {
+                // LLM cleanup for longer text
+                stageStart = Date()
+                let context = CleanupContext(
+                    stylePrompt: settings.stylePrompt,
+                    formality: CleanupContext.Formality(rawValue: settings.formality) ?? .neutral,
+                    language: settings.language,
+                    appContext: appContext,
+                    cleanupLevel: CleanupContext.CleanupLevel(rawValue: settings.cleanupLevel) ?? .medium,
+                    removeFillers: true
+                )
 
-            // Post-processing: apply output formatting
-            cleanedText = OutputFormatter.format(cleanedText, for: appContext)
+                cleanedText = try await llmEngine!.cleanup(rawText: correctedText, context: context)
+                NSLog("[TranscriptionPipeline] LLM: \"\(cleanedText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
 
-            // Post-processing: regex filler filter safety net
+                // Validate: LLM output must share significant content with input.
+                // If the model went off-script (chatbot response, refusal, code), fall back.
+                let trimmedOutput = cleanedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedOutput.isEmpty || !Self.isValidCleanup(input: correctedText, output: trimmedOutput) {
+                    NSLog("[TranscriptionPipeline] ⚠️ LLM output invalid, falling back to raw text")
+                    cleanedText = correctedText
+                    if let first = cleanedText.first, first.isLowercase {
+                        cleanedText = first.uppercased() + cleanedText.dropFirst()
+                    }
+                }
+            }
+
+            // Post-processing: output formatting + filler filter
+            cleanedText = OutputFormatter.format(cleanedText, for: appContext, styleSettings: styleSettings)
             cleanedText = FillerFilter.removeFillers(from: cleanedText, aggressive: settings.cleanupLevel == "heavy")
 
-            // Paste
+            // Paste and/or copy
             if settings.autoPaste {
                 pasteManager.paste(cleanedText)
             }
@@ -151,18 +246,20 @@ class TranscriptionPipeline {
                 NSPasteboard.general.setString(cleanedText, forType: .string)
             }
 
+            // Update analytics (compute word count once, reuse for history)
+            let finalWordCount = cleanedText.split(separator: " ").count
+
             // Save to history
             try saveTranscription(
                 raw: rawText,
                 cleaned: cleanedText,
+                wordCount: finalWordCount,
                 duration: transcription.processingTime,
                 sttModel: sttEngine?.modelInfo.id ?? "unknown",
                 sourceApp: appContext.appName
             )
-
-            // Update analytics
             await AnalyticsTracker.shared.recordTranscription(
-                wordCount: cleanedText.split(separator: " ").count,
+                wordCount: finalWordCount,
                 duration: transcription.processingTime
             )
 
@@ -170,13 +267,14 @@ class TranscriptionPipeline {
             appState.creatureState = .sleeping
             appState.isProcessing = false
             appState.lastTranscription = cleanedText
-
-            // Update stats in popover
             appState.updateStats()
 
+            let totalMs = Date().timeIntervalSince(pipelineStart) * 1000
+            NSLog("[TranscriptionPipeline] ✅ Complete in \(String(format: "%.0f", totalMs))ms: \"\(cleanedText)\"")
             return cleanedText
 
         } catch {
+            NSLog("[TranscriptionPipeline] ❌ Error: \(error)")
             appState.creatureState = .sleeping
             appState.isProcessing = false
             throw error
@@ -235,6 +333,34 @@ class TranscriptionPipeline {
         return snippet.expansion
     }
 
+    // MARK: - Output Validation
+
+    /// Check that LLM output is a valid cleanup of the input, not a chatbot response.
+    /// A valid cleanup should share a significant number of content words with the input.
+    private static func isValidCleanup(input: String, output: String) -> Bool {
+        let stopWords: Set<String> = ["the", "a", "an", "is", "are", "was", "were", "be", "been",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from", "it", "its",
+            "this", "that", "and", "or", "but", "not", "no", "so", "if", "as", "do"]
+
+        let inputWords = Set(input.lowercased().split(separator: " ")
+            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+            .filter { $0.count > 2 && !stopWords.contains($0) })
+
+        let outputWords = Set(output.lowercased().split(separator: " ")
+            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+            .filter { $0.count > 2 && !stopWords.contains($0) })
+
+        guard !inputWords.isEmpty else { return true }
+
+        let overlap = inputWords.intersection(outputWords).count
+        let overlapRatio = Double(overlap) / Double(inputWords.count)
+
+        NSLog("[TranscriptionPipeline] Validation: \(overlap)/\(inputWords.count) content words overlap (ratio: \(String(format: "%.2f", overlapRatio)))")
+
+        // At least 30% of input content words should appear in output
+        return overlapRatio >= 0.3
+    }
+
     // MARK: - Persistence
 
     private func fetchSettings() throws -> AppSettings {
@@ -243,13 +369,13 @@ class TranscriptionPipeline {
         return try context.fetch(descriptor).first ?? AppSettings()
     }
 
-    private func saveTranscription(raw: String, cleaned: String, duration: TimeInterval, sttModel: String, sourceApp: String) throws {
+    private func saveTranscription(raw: String, cleaned: String, wordCount: Int, duration: TimeInterval, sttModel: String, sourceApp: String) throws {
         let context = ModelContext(container)
         let entry = Transcription(
             rawText: raw,
             cleanedText: cleaned,
             durationSeconds: duration,
-            wordCount: cleaned.split(separator: " ").count,
+            wordCount: wordCount,
             sttModel: sttModel,
             llmModel: llmEngine?.modelId ?? "unknown",
             sourceApp: sourceApp,

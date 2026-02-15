@@ -10,7 +10,6 @@ enum YapYapError: LocalizedError {
     case cleanupFailed(Error)
     case pasteFailed(Error)
     case noAudioRecorded
-    case recordingTimeout
     case noTextSelected
 
     var errorDescription: String? {
@@ -33,8 +32,6 @@ enum YapYapError: LocalizedError {
             return "Paste failed: \(err.localizedDescription)"
         case .noAudioRecorded:
             return "No speech was detected. Try speaking louder or closer to the mic."
-        case .recordingTimeout:
-            return "Recording exceeded the maximum duration (5 minutes)."
         case .noTextSelected:
             return "No text selected. Highlight text first, then give a command."
         }

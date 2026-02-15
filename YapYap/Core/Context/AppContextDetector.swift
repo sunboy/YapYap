@@ -107,19 +107,20 @@ class AppContextDetector {
 
     // MARK: - Browser Tab Classification
 
+    /// Pre-built browser URL patterns for tab classification (allocated once)
+    private static let browserTabPatterns: [(String, AppCategory)] = [
+        ("gmail", .email), ("outlook.live", .email), ("mail.google", .email),
+        ("proton", .email), ("yahoo.com/mail", .email),
+        ("slack.com", .workMessaging), ("teams.microsoft", .workMessaging),
+        ("chatgpt", .aiChat), ("claude.ai", .aiChat), ("perplexity", .aiChat),
+        ("docs.google", .documents), ("notion.so", .documents),
+        ("github.com", .codeEditor), ("gitlab.com", .codeEditor),
+    ]
+
     private static func classifyBrowserTab(pid: pid_t) -> AppCategory {
         guard let title = getWindowTitle(pid: pid)?.lowercased() else { return .browser }
 
-        let patterns: [(String, AppCategory)] = [
-            ("gmail", .email), ("outlook.live", .email), ("mail.google", .email),
-            ("proton", .email), ("yahoo.com/mail", .email),
-            ("slack.com", .workMessaging), ("teams.microsoft", .workMessaging),
-            ("chatgpt", .aiChat), ("claude.ai", .aiChat), ("perplexity", .aiChat),
-            ("docs.google", .documents), ("notion.so", .documents),
-            ("github.com", .codeEditor), ("gitlab.com", .codeEditor),
-        ]
-
-        for (pattern, category) in patterns {
+        for (pattern, category) in browserTabPatterns {
             if title.contains(pattern) { return category }
         }
         return .browser

@@ -10,6 +10,9 @@ struct FillerFilter {
         options: [.caseInsensitive]
     )
 
+    /// Pre-compiled double-space cleanup regex
+    private static let doubleSpacePattern = try! NSRegularExpression(pattern: "  +")
+
     /// Extended fillers (used when aggressive mode is ON)
     static let extendedFillers = [
         "you know", "I mean", "sort of", "kind of",
@@ -17,33 +20,36 @@ struct FillerFilter {
         "so yeah", "yeah so", "like I said"
     ]
 
+    /// Pre-compiled regexes for extended fillers (compiled once, reused)
+    private static let extendedFillerRegexes: [NSRegularExpression] = {
+        extendedFillers.compactMap { filler in
+            let escaped = NSRegularExpression.escapedPattern(for: filler)
+            return try? NSRegularExpression(
+                pattern: "\\b\(escaped)\\b[,.]?\\s?",
+                options: [.caseInsensitive]
+            )
+        }
+    }()
+
     static func removeFillers(from text: String, aggressive: Bool = false) -> String {
         var cleaned = text
 
         // Always remove hesitation sounds
-        let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
+        var range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
         cleaned = hesitationPattern.stringByReplacingMatches(
             in: cleaned, range: range, withTemplate: ""
         )
 
         if aggressive {
-            for filler in extendedFillers {
-                let escaped = NSRegularExpression.escapedPattern(for: filler)
-                if let regex = try? NSRegularExpression(
-                    pattern: "\\b\(escaped)\\b[,.]?\\s?",
-                    options: [.caseInsensitive]
-                ) {
-                    let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
-                    cleaned = regex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "")
-                }
+            for regex in extendedFillerRegexes {
+                range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
+                cleaned = regex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "")
             }
         }
 
         // Clean up double spaces and leading/trailing whitespace
-        if let doubleSpaceRegex = try? NSRegularExpression(pattern: "  +") {
-            let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
-            cleaned = doubleSpaceRegex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: " ")
-        }
+        range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
+        cleaned = doubleSpacePattern.stringByReplacingMatches(in: cleaned, range: range, withTemplate: " ")
 
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }

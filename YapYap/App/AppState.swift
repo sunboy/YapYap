@@ -11,6 +11,12 @@ final class AppState {
     var lastTranscription: String?
     var isCommandMode: Bool = false
 
+    // Model loading state
+    var isLoadingModels: Bool = false
+    var modelLoadingProgress: Double = 0.0
+    var modelLoadingStatus: String = ""
+    var modelsReady: Bool = false
+
     // Quick stats for popover
     var todayCount: Int = 0
     var todayWords: Int = 0

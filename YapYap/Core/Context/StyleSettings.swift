@@ -29,4 +29,13 @@ struct StyleSettings: Codable {
         case .other: return other
         }
     }
+
+    /// Load user-saved style settings from UserDefaults, or return defaults.
+    static func loadFromUserDefaults() -> StyleSettings {
+        guard let data = UserDefaults.standard.data(forKey: "yapyap.styleSettings"),
+              let decoded = try? JSONDecoder().decode(StyleSettings.self, from: data) else {
+            return StyleSettings()
+        }
+        return decoded
+    }
 }

@@ -6,7 +6,7 @@ class FloatingBarPanel: NSPanel {
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 160, height: 52),
+            contentRect: NSRect(x: 0, y: 0, width: 140, height: 44),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false

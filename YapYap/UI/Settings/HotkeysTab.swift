@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct HotkeysTab: View {
     @State private var doubleTap = false
@@ -30,6 +31,37 @@ struct HotkeysTab: View {
             toggleRow(label: "Double-tap activation", subtitle: "Double-tap ⌥ for hands-free", isOn: $doubleTap)
             toggleRow(label: "Sound feedback", subtitle: "Subtle sound on start/stop", isOn: $soundFeedback)
             toggleRow(label: "Haptic feedback", subtitle: "Trackpad vibration (MacBook only)", isOn: $hapticFeedback)
+        }
+        .onAppear {
+            loadSettings()
+        }
+        .onChange(of: doubleTap) { _, newValue in
+            saveSettings { $0.doubleTapActivation = newValue }
+        }
+        .onChange(of: soundFeedback) { _, newValue in
+            saveSettings { $0.soundFeedback = newValue }
+            SoundManager.shared.setEnabled(newValue)
+        }
+        .onChange(of: hapticFeedback) { _, newValue in
+            saveSettings { $0.hapticFeedback = newValue }
+            HapticManager.shared.setEnabled(newValue)
+        }
+    }
+
+    private func loadSettings() {
+        Task { @MainActor in
+            let settings = DataManager.shared.fetchSettings()
+            doubleTap = settings.doubleTapActivation
+            soundFeedback = settings.soundFeedback
+            hapticFeedback = settings.hapticFeedback
+        }
+    }
+
+    private func saveSettings(_ update: @escaping (AppSettings) -> Void) {
+        Task { @MainActor in
+            let settings = DataManager.shared.fetchSettings()
+            update(settings)
+            try? DataManager.shared.container.mainContext.save()
         }
     }
 

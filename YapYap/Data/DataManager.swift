@@ -15,14 +15,44 @@ final class DataManager {
             CustomDictionaryEntry.self,
             DailyStats.self
         ])
+
+        // Get the app's Application Support directory
+        let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let yapyapDir = appSupportURL.appendingPathComponent("YapYap", isDirectory: true)
+
+        // Ensure directory exists
+        try? FileManager.default.createDirectory(at: yapyapDir, withIntermediateDirectories: true)
+
+        let storeURL = yapyapDir.appendingPathComponent("YapYap.store")
+
         let config = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false
+            url: storeURL,
+            allowsSave: true
         )
+
         do {
             container = try ModelContainer(for: schema, configurations: [config])
+            print("[DataManager] SwiftData container initialized at: \(storeURL.path)")
         } catch {
-            fatalError("Failed to initialize SwiftData container: \(error)")
+            print("[DataManager] Failed to initialize SwiftData: \(error)")
+            print("[DataManager] Attempting to delete corrupt store and retry...")
+
+            // Try to delete corrupt database and retry
+            try? FileManager.default.removeItem(at: storeURL)
+            try? FileManager.default.removeItem(at: storeURL.appendingPathExtension("shm"))
+            try? FileManager.default.removeItem(at: storeURL.appendingPathExtension("wal"))
+
+            do {
+                container = try ModelContainer(for: schema, configurations: [config])
+                print("[DataManager] SwiftData container initialized after cleanup")
+            } catch {
+                // Last resort: use in-memory store so app doesn't crash
+                print("[DataManager] Using in-memory store as fallback: \(error)")
+                let memoryConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                // This should never fail, but if it does, we have no choice but to crash
+                container = try! ModelContainer(for: schema, configurations: [memoryConfig])
+            }
         }
     }
 
@@ -30,6 +60,13 @@ final class DataManager {
         let context = ModelContext(container)
         let descriptor = FetchDescriptor<AppSettings>()
         if let settings = try? context.fetch(descriptor).first {
+            // Migrate invalid LLM model IDs to recommended default
+            if LLMModelRegistry.model(for: settings.llmModelId) == nil {
+                let newDefault = LLMModelRegistry.recommendedModel.id
+                print("[DataManager] Migrating invalid LLM: \(settings.llmModelId) → \(newDefault)")
+                settings.llmModelId = newDefault
+                try? context.save()
+            }
             return settings
         }
         let defaults = AppSettings.defaults()

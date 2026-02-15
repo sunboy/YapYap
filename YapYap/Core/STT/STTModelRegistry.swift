@@ -31,8 +31,8 @@ struct STTModelRegistry {
             sizeBytes: 255_852_544,
             sizeDescription: "~244MB",
             languages: ["en", "es", "fr", "de"],
-            description: "Fast and light. Good for 8GB machines.",
-            isRecommended: false
+            description: "Fast and light. Good for 8GB machines. Auto-downloads on first use.",
+            isRecommended: true
         ),
         STTModelInfo(
             id: "parakeet-tdt-v3",
@@ -41,17 +41,17 @@ struct STTModelRegistry {
             sizeBytes: 629_145_600,
             sizeDescription: "~600MB",
             languages: ["en", "es", "fr", "de", "it", "pt"],
-            description: "Fastest. Runs on Neural Engine. Recommended.",
-            isRecommended: true
+            description: "Fastest. Runs on Neural Engine. Must download manually in Settings.",
+            isRecommended: false
         ),
         STTModelInfo(
-            id: "voxtral",
-            name: "Voxtral",
+            id: "voxtral-mini-3b",
+            name: "Voxtral Mini 3B",
             backend: .whisperCpp,
-            sizeBytes: 681_574_400,
-            sizeDescription: "~650MB",
-            languages: ["en", "es", "fr", "de", "it", "pt", "zh"],
-            description: "Mistral's STT model. Good multilingual.",
+            sizeBytes: 9_500_000_000,
+            sizeDescription: "~9.5GB",
+            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi", "ar", "ru", "nl"],
+            description: "Mistral's SOTA model. 13 languages. Coming soon.",
             isRecommended: false
         ),
     ]

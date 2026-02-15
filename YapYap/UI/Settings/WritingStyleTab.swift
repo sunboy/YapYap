@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct WritingStyleTab: View {
     @State private var language = "English (US)"
@@ -72,6 +73,100 @@ struct WritingStyleTab: View {
 
             // Preview
             previewCard
+        }
+        .onAppear {
+            loadSettings()
+        }
+        .onChange(of: language) { _, newValue in
+            saveSettings { $0.language = languageToCode(newValue) }
+        }
+        .onChange(of: formality) { _, newValue in
+            saveSettings { $0.formality = formalityToValue(newValue) }
+        }
+        .onChange(of: stylePrompt) { _, newValue in
+            saveSettings { $0.stylePrompt = newValue }
+        }
+        .onChange(of: cleanupLevel) { _, newValue in
+            saveSettings { $0.cleanupLevel = cleanupLevelToValue(newValue) }
+        }
+    }
+
+    private func loadSettings() {
+        Task { @MainActor in
+            let settings = DataManager.shared.fetchSettings()
+            language = codeToLanguage(settings.language)
+            formality = valueToFormality(settings.formality)
+            stylePrompt = settings.stylePrompt
+            cleanupLevel = valueToCleanupLevel(settings.cleanupLevel)
+        }
+    }
+
+    private func saveSettings(_ update: @escaping (AppSettings) -> Void) {
+        Task { @MainActor in
+            let settings = DataManager.shared.fetchSettings()
+            update(settings)
+            try? DataManager.shared.container.mainContext.save()
+        }
+    }
+
+    // Language conversion helpers
+    private func languageToCode(_ display: String) -> String {
+        switch display {
+        case "English (US)": return "en"
+        case "English (UK)": return "en-GB"
+        case "Spanish": return "es"
+        case "French": return "fr"
+        case "German": return "de"
+        case "Hindi": return "hi"
+        case "Japanese": return "ja"
+        default: return "en"
+        }
+    }
+
+    private func codeToLanguage(_ code: String) -> String {
+        switch code {
+        case "en": return "English (US)"
+        case "en-GB": return "English (UK)"
+        case "es": return "Spanish"
+        case "fr": return "French"
+        case "de": return "German"
+        case "hi": return "Hindi"
+        case "ja": return "Japanese"
+        default: return "English (US)"
+        }
+    }
+
+    // Formality conversion helpers
+    private func formalityToValue(_ display: String) -> String {
+        if display.hasPrefix("Casual") { return "casual" }
+        if display.hasPrefix("Neutral") { return "neutral" }
+        if display.hasPrefix("Formal") { return "formal" }
+        return "neutral"
+    }
+
+    private func valueToFormality(_ value: String) -> String {
+        switch value {
+        case "casual": return "Casual — like texting a friend"
+        case "neutral": return "Neutral — everyday professional"
+        case "formal": return "Formal — polished and precise"
+        default: return "Neutral — everyday professional"
+        }
+    }
+
+    // Cleanup level conversion helpers
+    private func cleanupLevelToValue(_ display: String) -> String {
+        if display.hasPrefix("Light") { return "light" }
+        if display.hasPrefix("Medium") { return "medium" }
+        if display.hasPrefix("Heavy") { return "heavy" }
+        return "medium"
+    }
+
+    private func valueToCleanupLevel(_ value: String) -> String {
+        switch value {
+        case "light": return "Light — fix grammar, keep my words"
+        case "medium": return "Medium — restructure sentences, improve clarity"
+        case "heavy": return "Heavy — full rewrite matching my style"
+        default: return "Medium — restructure sentences, improve clarity"
         }
     }
 

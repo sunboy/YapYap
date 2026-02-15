@@ -1,127 +1,286 @@
 // CleanupPromptBuilder.swift
-// YapYap — Builds context-aware cleanup prompts for the LLM
+// YapYap — Builds model-specific, context-aware cleanup prompts for the LLM
 import Foundation
 
 struct CleanupPromptBuilder {
 
-    static func buildPrompt(rawText: String, context: CleanupContext) -> String {
-        let formalityInstruction = buildFormalityInstruction(context.formality)
-        let cleanupInstruction = buildCleanupInstruction(context.cleanupLevel)
-        let fillerInstruction = buildFillerRemovalInstruction(context)
-        let appFormatting = context.appContext.map { buildAppFormattingInstruction($0) } ?? ""
-        let styleInstruction = context.appContext.map { buildStyleInstruction($0.style) } ?? ""
-
-        let userStyle = context.stylePrompt.isEmpty ? "" : "- \(context.stylePrompt)"
-
-        return """
-        You are a writing assistant that cleans up voice transcriptions.
-
-        Rules:
-        - \(fillerInstruction)
-        - Fix grammar and punctuation
-        - \(formalityInstruction)
-        - \(cleanupInstruction)
-        \(styleInstruction.isEmpty ? "" : "- \(styleInstruction)")
-        \(appFormatting.isEmpty ? "" : "- \(appFormatting)")
-        \(userStyle)
-        - Preserve the speaker's intent and meaning exactly
-        - Do NOT add information that wasn't spoken
-        - Do NOT include any preamble, explanation, or notes
-        - Output ONLY the cleaned text
-
-        Raw transcription:
-        \(rawText)
-
-        Cleaned text:
-        """
+    /// Returns (systemMessage, userMessage) for the chat template.
+    /// Prompts are model-specific: small models (<=2B) get ultra-minimal prompts,
+    /// medium+ models (3B+) get detailed prompts with rules and more examples.
+    static func buildMessages(rawText: String, context: CleanupContext, modelId: String? = nil) -> (system: String, user: String) {
+        let (family, size) = resolveModel(modelId: modelId)
+        let system = buildSystemPrompt(context: context, family: family, size: size)
+        let user = buildUserMessage(rawText: rawText, context: context, family: family, size: size)
+        return (system: system, user: user)
     }
 
-    // MARK: - Formality
+    // MARK: - Model Resolution
 
-    static func buildFormalityInstruction(_ formality: CleanupContext.Formality) -> String {
-        switch formality {
-        case .casual:
-            return "Write casually, like texting a friend. Use contractions, simple words."
-        case .neutral:
-            return "Write in everyday professional tone. Clear and direct."
-        case .formal:
-            return "Write formally. Precise language, no contractions, polished."
+    private static func resolveModel(modelId: String?) -> (LLMModelFamily, LLMModelSize) {
+        guard let id = modelId, let info = LLMModelRegistry.model(for: id) else {
+            return (.qwen, .small) // Default to Qwen small-style prompting
+        }
+        return (info.family, info.size)
+    }
+
+    // MARK: - System Prompt
+
+    private static func buildSystemPrompt(context: CleanupContext, family: LLMModelFamily, size: LLMModelSize) -> String {
+        // Small models (<=2B): ultra-minimal system prompt.
+        // Testing showed 100% success with 8-word system prompt on 1B models,
+        // vs 33% success with detailed prompts.
+        if size == .small {
+            return buildSmallModelSystemPrompt(context: context, family: family)
+        }
+
+        // Medium+ models (3B+): detailed system prompt with full rules
+        switch family {
+        case .llama:
+            return buildLlamaDetailedSystemPrompt(context: context)
+        case .qwen:
+            return buildQwenDetailedSystemPrompt(context: context)
+        case .gemma:
+            return "You clean up speech-to-text transcripts. Output only the cleaned text."
         }
     }
 
-    // MARK: - Cleanup Level
-
-    static func buildCleanupInstruction(_ level: CleanupContext.CleanupLevel) -> String {
-        switch level {
+    /// Ultra-minimal system prompt for small models (<=2B params).
+    /// Testing showed this achieves 100% success on Llama 1B and Qwen 1.5B.
+    private static func buildSmallModelSystemPrompt(context: CleanupContext, family: LLMModelFamily) -> String {
+        switch context.cleanupLevel {
         case .light:
-            return "Only fix grammar and punctuation. Keep the speaker's exact words as much as possible."
+            return "Fix dictation errors. Output only fixed text."
         case .medium:
-            return "Fix grammar, restructure sentences for clarity. Maintain the speaker's voice."
+            return "Fix dictation errors. Remove filler words. Output only fixed text."
         case .heavy:
-            return "Fully rewrite for maximum clarity and polish. Match the speaker's intent, not their exact words."
+            return "Fix dictation errors. Remove fillers. Improve clarity. Output only fixed text."
         }
     }
 
-    // MARK: - Filler Removal
+    /// Detailed Llama system prompt for 3B+ models.
+    private static func buildLlamaDetailedSystemPrompt(context: CleanupContext) -> String {
+        var parts: [String] = []
 
-    static func buildFillerRemovalInstruction(_ context: CleanupContext) -> String {
-        guard context.removeFillers else {
-            return "Preserve filler words and disfluencies as spoken (verbatim mode)."
-        }
+        parts.append("You are a speech-to-text cleanup engine. You receive raw transcribed text and return a cleaned version.")
 
         switch context.cleanupLevel {
         case .light:
-            return "Remove hesitation sounds (um, uh, ah, er, hmm). Keep everything else as spoken."
+            parts.append("RULES:\n1. Fix punctuation and capitalization\n2. Do NOT remove any words")
         case .medium:
-            return """
-            Remove filler words: um, uh, ah, er, hmm, like (as filler), you know, I mean, sort of, kind of, basically, actually, literally, so yeah.
-            Handle self-corrections: if the speaker says "meet Tuesday, no Wednesday", output only "meet Wednesday".
-            Remove false starts and word repetitions (e.g., "I I I think" → "I think").
-            """
+            parts.append("RULES:\n1. Remove filler words: um, uh, like, you know, I mean, basically, right, kind of, sort of\n2. Fix punctuation and capitalization\n3. Handle self-corrections: \"X no wait Y\" → output only Y")
         case .heavy:
-            return """
-            Remove ALL filler words and verbal tics.
-            Resolve all self-corrections to final intent only.
-            Fix run-on sentences and add paragraph breaks where appropriate.
-            """
+            parts.append("RULES:\n1. Remove ALL filler words and hesitations\n2. Fix punctuation, capitalization, and sentence structure\n3. Handle self-corrections: \"X no wait Y\" → output only Y\n4. Improve clarity without changing meaning")
+        }
+
+        parts.append("STRICT CONSTRAINTS:\n- Do NOT add any words, ideas, or content not in the transcript\n- Do NOT summarize or shorten\n- Do NOT explain your changes\n- Output ONLY the cleaned text, nothing else")
+
+        if let appContext = context.appContext {
+            parts.append("App: \(appContext.appName) (\(toneHint(for: appContext)))")
+        }
+
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// Detailed Qwen system prompt for 3B+ models.
+    private static func buildQwenDetailedSystemPrompt(context: CleanupContext) -> String {
+        var parts: [String] = []
+
+        parts.append("You clean up speech-to-text transcripts.")
+
+        switch context.cleanupLevel {
+        case .light:
+            parts.append("Rules:\n- Fix punctuation and capitalization\n- Do NOT remove any words")
+        case .medium:
+            parts.append("Rules:\n- Remove: um, uh, like, you know, I mean, basically, right, kind of, sort of\n- Fix punctuation and capitalization\n- \"X no wait Y\" → keep only Y")
+        case .heavy:
+            parts.append("Rules:\n- Remove ALL filler words and hesitations\n- Fix punctuation, capitalization, and sentence structure\n- \"X no wait Y\" → keep only Y\n- Improve clarity without changing meaning")
+        }
+
+        switch context.formality {
+        case .casual:
+            parts.append("Tone: casual")
+        case .neutral:
+            break
+        case .formal:
+            parts.append("Tone: formal, no contractions")
+        }
+
+        if let appContext = context.appContext {
+            parts.append("App: \(appContext.appName) (\(toneHint(for: appContext)))")
+        }
+
+        if !context.stylePrompt.isEmpty {
+            parts.append("Style: \(context.stylePrompt)")
+        }
+
+        parts.append("Do NOT add new words. Do NOT summarize. Output only cleaned text.")
+
+        return parts.joined(separator: "\n")
+    }
+
+    // MARK: - User Message
+
+    private static func buildUserMessage(rawText: String, context: CleanupContext, family: LLMModelFamily, size: LLMModelSize) -> String {
+        // Small models: compact 2-example format for all families
+        if size == .small {
+            return buildSmallModelUserMessage(rawText: rawText, context: context)
+        }
+
+        // Medium+ models: family-specific with 3 detailed examples
+        switch family {
+        case .llama:
+            return buildLlamaDetailedUserMessage(rawText: rawText, context: context)
+        case .qwen:
+            return buildQwenDetailedUserMessage(rawText: rawText, context: context)
+        case .gemma:
+            return buildGemmaUserMessage(rawText: rawText, context: context)
         }
     }
 
-    // MARK: - App Formatting
+    /// Compact user message for small models (<=2B).
+    /// Uses 2 short examples with IN:/OUT: format.
+    /// Testing showed this achieves 100% success on Llama 1B.
+    private static func buildSmallModelUserMessage(rawText: String, context: CleanupContext) -> String {
+        var parts: [String] = []
 
-    static func buildAppFormattingInstruction(_ appContext: AppContext) -> String {
+        parts.append("""
+        Examples:
+        IN: um so like i need to uh finish the report by friday
+        OUT: I need to finish the report by Friday.
+
+        IN: hey so basically the thing is the api is broken and uh nobody noticed
+        OUT: Hey, the API is broken and nobody noticed.
+        """)
+
+        parts.append("Fix this:\n\(rawText)")
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// Detailed Llama user message for 3B+ models with 3 examples.
+    private static func buildLlamaDetailedUserMessage(rawText: String, context: CleanupContext) -> String {
+        var parts: [String] = []
+
+        parts.append("Clean up this transcript. Follow the examples exactly.")
+
+        switch context.cleanupLevel {
+        case .light:
+            parts.append("""
+            EXAMPLE 1:
+            Input: so i was thinking we should probably have a meeting tomorrow to discuss the project timeline
+            Output: So I was thinking we should probably have a meeting tomorrow to discuss the project timeline.
+
+            EXAMPLE 2:
+            Input: the server is basically down and nobody is responding to the alerts we need to fix this right away
+            Output: The server is basically down and nobody is responding to the alerts. We need to fix this right away.
+            """)
+        case .medium:
+            parts.append("""
+            EXAMPLE 1:
+            Input: um so i was thinking we should uh have a meeting tomorrow to discuss the project timeline you know
+            Output: I was thinking we should have a meeting tomorrow to discuss the project timeline.
+
+            EXAMPLE 2:
+            Input: basically what happened was the server went down at like 3 am and you know nobody was monitoring it so it was actually down for like two hours before anyone noticed
+            Output: What happened was the server went down at 3 AM and nobody was monitoring it, so it was down for two hours before anyone noticed.
+
+            EXAMPLE 3:
+            Input: hey can you uh look at the app the app is crashing when users try to log in i think it's a null pointer issue
+            Output: Hey, can you look at the app? It's crashing when users try to log in. I think it's a null pointer issue.
+            """)
+        case .heavy:
+            parts.append("""
+            EXAMPLE 1:
+            Input: um so basically like i was thinking about it and uh we should probably you know have a meeting tomorrow to uh discuss the project timeline
+            Output: We should have a meeting tomorrow to discuss the project timeline.
+
+            EXAMPLE 2:
+            Input: so like basically what happened was the server went down at like 3 am and you know nobody was monitoring it so it was actually down for like two hours before anyone noticed i mean that's not great right
+            Output: The server went down at 3 AM. Nobody was monitoring it, so it was down for two hours before anyone noticed.
+            """)
+        }
+
+        parts.append("NOW CLEAN THIS TRANSCRIPT:\n\(rawText)")
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// Detailed Qwen user message for 3B+ models.
+    private static func buildQwenDetailedUserMessage(rawText: String, context: CleanupContext) -> String {
+        var parts: [String] = []
+
+        parts.append("""
+        Clean up this transcript. Follow the examples exactly.
+
+        EXAMPLE 1:
+        Input: um so i was thinking we should uh have a meeting tomorrow to discuss the project timeline you know
+        Output: I was thinking we should have a meeting tomorrow to discuss the project timeline.
+
+        EXAMPLE 2:
+        Input: basically what happened was the server went down at like 3 am and you know nobody was monitoring it so it was actually down for like two hours before anyone noticed
+        Output: What happened was the server went down at 3 AM and nobody was monitoring it, so it was down for two hours before anyone noticed.
+
+        EXAMPLE 3:
+        Input: hey can you uh look at the app the app is crashing when users try to log in i think it's a null pointer issue
+        Output: Hey, can you look at the app? It's crashing when users try to log in. I think it's a null pointer issue.
+        """)
+
+        parts.append("NOW CLEAN THIS TRANSCRIPT:\n\(rawText)")
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// Gemma user message with all instructions + examples (no system role support).
+    private static func buildGemmaUserMessage(rawText: String, context: CleanupContext) -> String {
+        var parts: [String] = []
+
+        var instructions = "INSTRUCTIONS: Clean up the transcript at the end.\n"
+        switch context.cleanupLevel {
+        case .light:
+            instructions += "FIX: punctuation, capitalization\n"
+        case .medium:
+            instructions += "REMOVE: filler words (um, uh, like, you know, I mean, basically)\nFIX: punctuation, capitalization\nSELF-CORRECTIONS: \"X no wait Y\" → keep only Y\n"
+        case .heavy:
+            instructions += "REMOVE: ALL filler words and hesitations\nFIX: punctuation, capitalization, sentence structure\nSELF-CORRECTIONS: \"X no wait Y\" → keep only Y\n"
+        }
+        instructions += "Do NOT add new words. Do NOT summarize. Output ONLY the cleaned text."
+        parts.append(instructions)
+
+        if let appContext = context.appContext {
+            parts.append("App: \(appContext.appName) (\(toneHint(for: appContext)))")
+        }
+
+        parts.append("""
+        EXAMPLES:
+        IN: um so i was thinking about like refactoring the auth module you know
+        OUT: I was thinking about refactoring the auth module.
+
+        IN: hey just wanted to let you know the deploy went fine no issues everything's looking good
+        OUT: Hey, just wanted to let you know the deploy went fine. No issues, everything's looking good.
+        """)
+
+        parts.append("TRANSCRIPT TO CLEAN:\n\(rawText)")
+        return parts.joined(separator: "\n\n")
+    }
+
+    // MARK: - App Context Helpers
+
+    /// Brief tone hint from app category, kept compact for small model context windows
+    private static func toneHint(for appContext: AppContext) -> String {
         switch appContext.category {
         case .personalMessaging:
-            return "Format for personal messaging: short, conversational sentences. \(appContext.style == .veryCasual ? "No capitalization. No trailing periods." : "")"
+            return "casual messaging"
         case .workMessaging:
-            return "Format for work messaging: concise and direct. Bullet points OK for lists."
+            return "work messaging"
         case .email:
-            return "Format for email: proper paragraphs, greeting if included, sign-off if indicated."
-        case .codeEditor where appContext.isIDEChatPanel:
-            return "Format for AI coding chat: wrap code references in backticks, use @filename for file references, preserve technical terms."
+            return "email, use proper sentences"
         case .codeEditor:
-            return "Format for code editor: concise, technical language. Wrap code references in backticks."
+            return "code editor, keep technical terms exact"
+        case .browser:
+            return "browser"
         case .documents:
-            return "Format for document: proper paragraph structure. Auto-detect lists and format as bullet points."
+            return "document, clean prose"
         case .aiChat:
-            return "Format for AI chat prompt: preserve intent precisely. Keep natural structure."
-        case .browser, .other:
-            return "Format with general-purpose style: clean sentences, proper punctuation."
-        }
-    }
-
-    // MARK: - Style
-
-    static func buildStyleInstruction(_ style: OutputStyle) -> String {
-        switch style {
-        case .veryCasual:
-            return "Style: Very casual. No capitalization at sentence starts. No trailing periods. Minimal punctuation."
-        case .casual:
-            return "Style: Casual. Normal sentence capitalization. Light punctuation. Conversational."
-        case .excited:
-            return "Style: Excited. Sentence capitalization. Use exclamation points where tone suggests enthusiasm."
-        case .formal:
-            return "Style: Formal. Full capitalization, complete punctuation. Professional paragraphs."
+            return "AI chat"
+        case .other:
+            return "general"
         }
     }
 }

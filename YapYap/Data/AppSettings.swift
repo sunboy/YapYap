@@ -20,13 +20,14 @@ final class AppSettings {
     var historyLimit: Int
     var soundFeedback: Bool
     var hapticFeedback: Bool
+    var doubleTapActivation: Bool
     var microphoneId: String?
     var gpuAcceleration: Bool
     var autoDownloadModels: Bool
 
     init(
-        sttModelId: String = "whisper-large-v3-turbo",
-        llmModelId: String = "qwen-1.5b",
+        sttModelId: String = "whisper-small",
+        llmModelId: String = "qwen-2.5-1.5b",
         stylePrompt: String = "",
         formality: String = "neutral",
         cleanupLevel: String = "medium",
@@ -42,6 +43,7 @@ final class AppSettings {
         historyLimit: Int = 100,
         soundFeedback: Bool = true,
         hapticFeedback: Bool = true,
+        doubleTapActivation: Bool = false,
         microphoneId: String? = nil,
         gpuAcceleration: Bool = true,
         autoDownloadModels: Bool = true
@@ -63,6 +65,7 @@ final class AppSettings {
         self.historyLimit = historyLimit
         self.soundFeedback = soundFeedback
         self.hapticFeedback = hapticFeedback
+        self.doubleTapActivation = doubleTapActivation
         self.microphoneId = microphoneId
         self.gpuAcceleration = gpuAcceleration
         self.autoDownloadModels = autoDownloadModels

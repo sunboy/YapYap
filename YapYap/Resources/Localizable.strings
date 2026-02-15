@@ -120,4 +120,3 @@
 /* Errors */
 "error.modelNotLoaded" = "AI model is not loaded. Go to Settings → Models to download one.";
 "error.noAudioRecorded" = "No speech was detected. Try speaking louder or closer to the mic.";
-"error.recordingTimeout" = "Recording exceeded the maximum duration.";

@@ -5,142 +5,305 @@ import XCTest
 
 final class CleanupPromptBuilderTests: XCTestCase {
 
-    // MARK: - Full Prompt Build
+    // MARK: - Default Behavior (nil modelId → Qwen small)
 
-    func testBuildPromptContainsRawText() {
+    func testDefaultPromptUsesSmallQwenStyle() {
         let context = makeContext()
-        let prompt = CleanupPromptBuilder.buildPrompt(rawText: "hello world", context: context)
-        XCTAssertTrue(prompt.contains("hello world"))
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "hello world", context: context)
+        // Default resolves to (.qwen, .small) — ultra-minimal prompt
+        XCTAssertTrue(messages.system.contains("Fix dictation"))
     }
 
-    func testBuildPromptContainsCleanedTextMarker() {
+    func testDefaultPromptUserContainsRawText() {
         let context = makeContext()
-        let prompt = CleanupPromptBuilder.buildPrompt(rawText: "test", context: context)
-        XCTAssertTrue(prompt.contains("Cleaned text:"))
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "hello world", context: context)
+        XCTAssertTrue(messages.user.contains("hello world"))
     }
 
-    func testBuildPromptIncludesCustomStylePrompt() {
+    func testDefaultPromptUserContainsFewShotExamples() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context)
+        XCTAssertTrue(messages.user.contains("IN:"))
+        XCTAssertTrue(messages.user.contains("OUT:"))
+    }
+
+    // MARK: - Small Model Prompts (<=2B: Llama 1B, Qwen 1.5B)
+
+    func testSmallModelSystemPromptIsUltraMinimal() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        // Small model prompt should be under 15 words
+        let wordCount = messages.system.split(separator: " ").count
+        XCTAssertLessThanOrEqual(wordCount, 15, "Small model system prompt should be ultra-minimal")
+        XCTAssertTrue(messages.system.contains("Fix dictation"))
+    }
+
+    func testSmallModelUserMessageHasCompactExamples() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test input", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.user.contains("IN:"))
+        XCTAssertTrue(messages.user.contains("OUT:"))
+        XCTAssertTrue(messages.user.contains("Fix this:"))
+    }
+
+    func testSmallModelUserMessageEndsWithRawText() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "my test input", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.user.hasSuffix("my test input"))
+    }
+
+    func testQwen1_5BAlsoUsesSmallPrompt() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-1.5b")
+        XCTAssertTrue(messages.system.contains("Fix dictation"))
+    }
+
+    func testSmallModelOmitsFormality() {
+        let context = makeContext(formality: .casual)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertFalse(messages.system.contains("casual"), "Small models should not get formality instructions")
+    }
+
+    func testSmallModelOmitsAppContext() {
+        let appContext = AppContext(
+            bundleId: "com.tinyspeck.slackmacgap",
+            appName: "Slack",
+            category: .workMessaging,
+            style: .casual,
+            windowTitle: nil,
+            focusedFieldText: nil,
+            isIDEChatPanel: false
+        )
+        let context = makeContext(appContext: appContext)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertFalse(messages.system.contains("Slack"), "Small models should not get app context")
+    }
+
+    func testSmallModelOmitsStylePrompt() {
         let context = makeContext(stylePrompt: "Be concise and direct")
-        let prompt = CleanupPromptBuilder.buildPrompt(rawText: "test", context: context)
-        XCTAssertTrue(prompt.contains("Be concise and direct"))
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-1.5b")
+        XCTAssertFalse(messages.system.contains("Be concise and direct"), "Small models should not get custom style prompts")
     }
 
-    func testBuildPromptIncludesSystemRole() {
+    // MARK: - Medium Model Prompts (3B+: Llama 3B, Qwen 3B/7B)
+
+    func testLlama3BUsesDetailedPrompt() {
         let context = makeContext()
-        let prompt = CleanupPromptBuilder.buildPrompt(rawText: "test", context: context)
-        XCTAssertTrue(prompt.contains("writing assistant"))
-        XCTAssertTrue(prompt.contains("voice transcriptions"))
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.system.contains("speech-to-text cleanup engine"))
+        XCTAssertTrue(messages.system.contains("STRICT CONSTRAINTS"))
     }
 
-    // MARK: - Formality Instructions
-
-    func testCasualFormality() {
-        let instruction = CleanupPromptBuilder.buildFormalityInstruction(.casual)
-        XCTAssertTrue(instruction.lowercased().contains("casual"))
-        XCTAssertTrue(instruction.lowercased().contains("contractions"))
+    func testLlama3BUserHasDetailedExamples() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
+        XCTAssertTrue(messages.user.contains("NOW CLEAN THIS TRANSCRIPT:"))
     }
 
-    func testNeutralFormality() {
-        let instruction = CleanupPromptBuilder.buildFormalityInstruction(.neutral)
-        XCTAssertTrue(instruction.lowercased().contains("professional") || instruction.lowercased().contains("everyday"))
+    // MARK: - Qwen Medium Model Prompts
+
+    func testQwenMediumSystemPromptHasRules() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("You clean up speech-to-text transcripts."))
     }
 
-    func testFormalFormality() {
-        let instruction = CleanupPromptBuilder.buildFormalityInstruction(.formal)
-        XCTAssertTrue(instruction.lowercased().contains("formal"))
-        XCTAssertTrue(instruction.lowercased().contains("no contractions") || instruction.lowercased().contains("polished"))
+    func testQwenMediumUserMessageHasExamples() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
+        XCTAssertTrue(messages.user.contains("NOW CLEAN THIS TRANSCRIPT:"))
     }
 
-    // MARK: - Cleanup Level Instructions
-
-    func testLightCleanup() {
-        let instruction = CleanupPromptBuilder.buildCleanupInstruction(.light)
-        XCTAssertTrue(instruction.lowercased().contains("grammar"))
-        XCTAssertTrue(instruction.lowercased().contains("exact words") || instruction.lowercased().contains("keep"))
+    func testQwenMediumIncludesCustomStylePrompt() {
+        let context = makeContext(stylePrompt: "Be concise and direct")
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("Be concise and direct"))
     }
 
-    func testMediumCleanup() {
-        let instruction = CleanupPromptBuilder.buildCleanupInstruction(.medium)
-        XCTAssertTrue(instruction.lowercased().contains("clarity") || instruction.lowercased().contains("restructure"))
+    // MARK: - Cleanup Levels (Medium Models)
+
+    func testLightCleanupMentionsPunctuation() {
+        let context = makeContext(cleanupLevel: .light)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.lowercased().contains("punctuation"))
     }
 
-    func testHeavyCleanup() {
-        let instruction = CleanupPromptBuilder.buildCleanupInstruction(.heavy)
-        XCTAssertTrue(instruction.lowercased().contains("rewrite") || instruction.lowercased().contains("polish"))
+    func testMediumCleanupMentionsFillers() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.lowercased().contains("um, uh"))
     }
 
-    // MARK: - Filler Removal Instructions
-
-    func testFillerRemovalOff() {
-        let context = makeContext(removeFillers: false)
-        let instruction = CleanupPromptBuilder.buildFillerRemovalInstruction(context)
-        XCTAssertTrue(instruction.lowercased().contains("preserve") || instruction.lowercased().contains("verbatim"))
+    func testHeavyCleanupMentionsClarityOnMediumModel() {
+        let context = makeContext(cleanupLevel: .heavy)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.system.lowercased().contains("clarity"))
     }
 
-    func testFillerRemovalLightLevel() {
-        let context = makeContext(cleanupLevel: .light, removeFillers: true)
-        let instruction = CleanupPromptBuilder.buildFillerRemovalInstruction(context)
-        XCTAssertTrue(instruction.lowercased().contains("um") || instruction.lowercased().contains("hesitation"))
+    // MARK: - Cleanup Levels (Small Models)
+
+    func testSmallModelLightCleanupOmitsFillers() {
+        let context = makeContext(cleanupLevel: .light)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.contains("Fix dictation"))
+        XCTAssertFalse(messages.system.contains("filler"), "Light cleanup on small model should not mention fillers")
     }
 
-    func testFillerRemovalMediumLevel() {
-        let context = makeContext(cleanupLevel: .medium, removeFillers: true)
-        let instruction = CleanupPromptBuilder.buildFillerRemovalInstruction(context)
-        XCTAssertTrue(instruction.lowercased().contains("self-correction") || instruction.lowercased().contains("filler"))
+    func testSmallModelMediumCleanupMentionsFillers() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.contains("filler"))
     }
 
-    func testFillerRemovalHeavyLevel() {
-        let context = makeContext(cleanupLevel: .heavy, removeFillers: true)
-        let instruction = CleanupPromptBuilder.buildFillerRemovalInstruction(context)
-        XCTAssertTrue(instruction.lowercased().contains("all") || instruction.lowercased().contains("paragraph"))
+    func testSmallModelHeavyCleanupMentionsClarity() {
+        let context = makeContext(cleanupLevel: .heavy)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.lowercased().contains("clarity"))
     }
 
-    // MARK: - Style Instructions
+    // MARK: - Formality (Medium Models)
 
-    func testVeryCasualStyle() {
-        let instruction = CleanupPromptBuilder.buildStyleInstruction(.veryCasual)
-        XCTAssertTrue(instruction.lowercased().contains("no capitalization") || instruction.lowercased().contains("no trailing"))
+    func testCasualFormalityInQwenMedium() {
+        let context = makeContext(formality: .casual)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.lowercased().contains("casual"))
     }
 
-    func testCasualStyle() {
-        let instruction = CleanupPromptBuilder.buildStyleInstruction(.casual)
-        XCTAssertTrue(instruction.lowercased().contains("casual") || instruction.lowercased().contains("conversational"))
+    func testFormalFormalityInQwenMedium() {
+        let context = makeContext(formality: .formal)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.lowercased().contains("formal"))
     }
 
-    func testExcitedStyle() {
-        let instruction = CleanupPromptBuilder.buildStyleInstruction(.excited)
-        XCTAssertTrue(instruction.lowercased().contains("exclamation") || instruction.lowercased().contains("excited"))
+    func testNeutralFormalityOmitsExtraInstruction() {
+        let context = makeContext(formality: .neutral)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertFalse(messages.system.contains("Tone: casual"))
+        XCTAssertFalse(messages.system.contains("Tone: formal"))
     }
 
-    func testFormalStyle() {
-        let instruction = CleanupPromptBuilder.buildStyleInstruction(.formal)
-        XCTAssertTrue(instruction.lowercased().contains("formal") || instruction.lowercased().contains("professional"))
+    // MARK: - App Context (Medium Models)
+
+    func testAppContextInjectedInLlamaMedium() {
+        let appContext = AppContext(
+            bundleId: "com.tinyspeck.slackmacgap",
+            appName: "Slack",
+            category: .workMessaging,
+            style: .casual,
+            windowTitle: nil,
+            focusedFieldText: nil,
+            isIDEChatPanel: false
+        )
+        let context = makeContext(appContext: appContext)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.system.contains("Slack"))
+        XCTAssertTrue(messages.system.contains("work messaging"))
     }
 
-    // MARK: - App Formatting Instructions
-
-    func testPersonalMessagingFormatting() {
-        let ctx = AppContext(bundleId: "", appName: "Messages", category: .personalMessaging, style: .casual, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
-        let instruction = CleanupPromptBuilder.buildAppFormattingInstruction(ctx)
-        XCTAssertTrue(instruction.lowercased().contains("messaging") || instruction.lowercased().contains("conversational"))
+    func testAppContextInjectedInQwenMedium() {
+        let appContext = AppContext(
+            bundleId: "com.apple.mail",
+            appName: "Mail",
+            category: .email,
+            style: .formal,
+            windowTitle: nil,
+            focusedFieldText: nil,
+            isIDEChatPanel: false
+        )
+        let context = makeContext(appContext: appContext)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("Mail"))
+        XCTAssertTrue(messages.system.contains("email"))
     }
 
-    func testEmailFormatting() {
-        let ctx = AppContext(bundleId: "", appName: "Mail", category: .email, style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
-        let instruction = CleanupPromptBuilder.buildAppFormattingInstruction(ctx)
-        XCTAssertTrue(instruction.lowercased().contains("email") || instruction.lowercased().contains("paragraph"))
+    func testCodeEditorContextKeepsTechnicalTerms() {
+        let appContext = AppContext(
+            bundleId: "com.microsoft.VSCode",
+            appName: "VS Code",
+            category: .codeEditor,
+            style: .formal,
+            windowTitle: nil,
+            focusedFieldText: nil,
+            isIDEChatPanel: false
+        )
+        let context = makeContext(appContext: appContext)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.system.contains("technical terms"))
     }
 
-    func testIDEChatFormatting() {
-        let ctx = AppContext(bundleId: "", appName: "Cursor", category: .codeEditor, style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: true)
-        let instruction = CleanupPromptBuilder.buildAppFormattingInstruction(ctx)
-        XCTAssertTrue(instruction.lowercased().contains("backtick") || instruction.lowercased().contains("@filename"))
+    func testNoAppContextOmitsAppLine() {
+        let context = makeContext(appContext: nil)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertFalse(messages.system.contains("App:"))
     }
 
-    func testCodeEditorFormatting() {
-        let ctx = AppContext(bundleId: "", appName: "VS Code", category: .codeEditor, style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
-        let instruction = CleanupPromptBuilder.buildAppFormattingInstruction(ctx)
-        XCTAssertTrue(instruction.lowercased().contains("code") || instruction.lowercased().contains("technical"))
+    // MARK: - Unknown Model Falls Back to Qwen Small
+
+    func testUnknownModelIdFallsBackToSmallPrompt() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "nonexistent-model")
+        // Unknown models fall back to (.qwen, .small) — ultra-minimal
+        XCTAssertTrue(messages.system.contains("Fix dictation"))
+    }
+
+    func testNilModelIdFallsBackToSmallPrompt() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: nil)
+        XCTAssertTrue(messages.system.contains("Fix dictation"))
+    }
+
+    // MARK: - Llama Medium Few-Shot Examples Per Cleanup Level
+
+    func testLlamaMediumLightExamplesPreserveAllWords() {
+        let context = makeContext(cleanupLevel: .light)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        // Light examples should NOT show filler removal
+        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
+        XCTAssertFalse(messages.user.contains("um so"))
+    }
+
+    func testLlamaMediumExamplesShowFillerRemoval() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        // Medium examples show "um" removal
+        XCTAssertTrue(messages.user.contains("um so"))
+        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
+    }
+
+    func testLlamaMediumHeavyExamplesShowAggressiveCleanup() {
+        let context = makeContext(cleanupLevel: .heavy)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
+        // Heavy has fewer examples (2 instead of 3) but more aggressive
+        XCTAssertFalse(messages.user.contains("EXAMPLE 3:"))
+    }
+
+    // MARK: - Cross-Size Consistency
+
+    func testAllSmallModelsGetSamePromptStructure() {
+        let context = makeContext()
+        let llama1b = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        let qwen1_5b = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-1.5b")
+        // Both small models should use ultra-minimal prompts
+        XCTAssertTrue(llama1b.system.contains("Fix dictation"))
+        XCTAssertTrue(qwen1_5b.system.contains("Fix dictation"))
+        // Both should use compact IN:/OUT: examples
+        XCTAssertTrue(llama1b.user.contains("IN:"))
+        XCTAssertTrue(qwen1_5b.user.contains("IN:"))
+    }
+
+    func testMediumModelsGetDetailedPrompts() {
+        let context = makeContext()
+        let llama3b = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        let qwen3b = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        // Both medium models should get detailed prompts
+        XCTAssertTrue(llama3b.user.contains("EXAMPLE 1:"))
+        XCTAssertTrue(qwen3b.user.contains("EXAMPLE 1:"))
+        // But with family-specific system prompts
+        XCTAssertTrue(llama3b.system.contains("speech-to-text cleanup engine"))
+        XCTAssertTrue(qwen3b.system.contains("You clean up speech-to-text transcripts."))
     }
 
     // MARK: - Helpers
@@ -149,13 +312,14 @@ final class CleanupPromptBuilderTests: XCTestCase {
         stylePrompt: String = "",
         formality: CleanupContext.Formality = .neutral,
         cleanupLevel: CleanupContext.CleanupLevel = .medium,
+        appContext: AppContext? = nil,
         removeFillers: Bool = true
     ) -> CleanupContext {
         CleanupContext(
             stylePrompt: stylePrompt,
             formality: formality,
             language: "en",
-            appContext: nil,
+            appContext: appContext,
             cleanupLevel: cleanupLevel,
             removeFillers: removeFillers
         )

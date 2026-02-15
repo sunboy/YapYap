@@ -1,44 +1,37 @@
 // FloatingBarView.swift
-// YapYap — SwiftUI pill view for the floating recording bar
+// YapYap — Compact floating pill with creature states
 import SwiftUI
 
 struct FloatingBarView: View {
     @Bindable var appState: AppState
-    @State private var isExpanded = false
 
     var body: some View {
-        HStack(spacing: 10) {
-            // Creature
-            CreatureView(state: appState.creatureState, size: 42)
+        HStack(spacing: 6) {
+            // Creature - always visible, shows state through animation
+            CreatureView(state: appState.creatureState, size: 28)
 
-            // Waveform bars (only when recording)
-            if appState.isRecording {
+            // Contextual indicator next to creature
+            if appState.isLoadingModels {
+                ProgressView(value: appState.modelLoadingProgress)
+                    .progressViewStyle(.linear)
+                    .frame(width: 48)
+                    .tint(Color.ypWarm)
+                    .transition(.opacity)
+            } else if appState.isRecording {
                 WaveformView(rms: appState.currentRMS)
-                    .frame(width: 50, height: 20)
-                    .transition(.opacity.combined(with: .scale))
+                    .frame(width: 36, height: 14)
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 26)
-                .fill(Color(red: 20/255, green: 18/255, blue: 28/255, opacity: 0.92))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 26)
-                        .stroke(
-                            appState.isRecording
-                                ? Color.ypWarm.opacity(0.12)
-                                : Color.white.opacity(0.06),
-                            lineWidth: 1
-                        )
-                )
+            Capsule()
+                .fill(Color(red: 20/255, green: 18/255, blue: 28/255, opacity: 0.85))
         )
-        .shadow(color: .black.opacity(0.3), radius: 12, y: 4)
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: appState.isRecording)
-        .onChange(of: appState.isRecording) { _, newValue in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                isExpanded = newValue
-            }
-        }
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isRecording)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
+        .animation(.easeInOut(duration: 0.3), value: appState.isLoadingModels)
     }
 }

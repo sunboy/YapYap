@@ -3,7 +3,12 @@
 import Foundation
 
 class PersonalDictionary: ObservableObject {
-    @Published var entries: [String: String] = [:]
+    @Published var entries: [String: String] = [:] {
+        didSet { rebuildRegexCache() }
+    }
+
+    /// Cached compiled regexes for each dictionary entry (rebuilt when entries change)
+    private var cachedRegexes: [(NSRegularExpression, String)] = []
 
     private let fileURL: URL = {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -16,13 +21,11 @@ class PersonalDictionary: ObservableObject {
 
     /// Apply dictionary corrections to text (before LLM cleanup)
     func applyCorrections(to text: String) -> String {
+        guard !cachedRegexes.isEmpty else { return text }
         var result = text
-        for (spoken, corrected) in entries {
-            let escaped = NSRegularExpression.escapedPattern(for: spoken)
-            if let regex = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: [.caseInsensitive]) {
-                let range = NSRange(result.startIndex..<result.endIndex, in: result)
-                result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: corrected)
-            }
+        for (regex, replacement) in cachedRegexes {
+            let range = NSRange(result.startIndex..<result.endIndex, in: result)
+            result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: replacement)
         }
         return result
     }
@@ -37,6 +40,17 @@ class PersonalDictionary: ObservableObject {
     func removeCorrection(spoken: String) {
         entries.removeValue(forKey: spoken.lowercased())
         save()
+    }
+
+    /// Rebuild the compiled regex cache from current entries
+    private func rebuildRegexCache() {
+        cachedRegexes = entries.compactMap { (spoken, corrected) in
+            let escaped = NSRegularExpression.escapedPattern(for: spoken)
+            guard let regex = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: [.caseInsensitive]) else {
+                return nil
+            }
+            return (regex, corrected)
+        }
     }
 
     /// Monitor for user corrections after pasting (auto-learn)
