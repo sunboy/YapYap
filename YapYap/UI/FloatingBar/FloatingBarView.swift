@@ -67,18 +67,17 @@ struct FloatingBarView: View {
                     .transition(.opacity)
             }
         }
-        .padding(.leading, 8)
-        .padding(.trailing, 14)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .background(
-            Capsule()
-                .fill(Color(red: 36/255, green: 33/255, blue: 46/255, opacity: 0.97))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(red: 36/255, green: 33/255, blue: 46/255))
                 .overlay(
-                    Capsule()
-                        .strokeBorder(Color.ypWarm.opacity(0.1), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(Color.ypWarm.opacity(0.15), lineWidth: 1)
                 )
+                .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
         )
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 4)
         .fixedSize()
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isRecording)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
@@ -124,56 +123,46 @@ struct FloatingBarView: View {
 
 // MARK: - Transparent Hosting View
 
-/// Custom NSHostingView subclass that forces complete transparency.
-/// Overrides layout to recursively clear all sublayer backgrounds that
-/// NSHostingView's internal SwiftUI rendering tree may set.
-/// Uses throttling to avoid running the recursive layer walk on every
-/// layout pass (which fires rapidly during animations).
-class TransparentHostingView<Content: View>: NSHostingView<Content> {
-    private var lastTransparencyPass: CFTimeInterval = 0
+/// Wrapper view that embeds an NSHostingView inside a transparent container.
+/// Instead of fighting NSHostingView's internal layer management, we place
+/// the hosting view inside a non-drawing NSView container. The container's
+/// layer is set to clear, and the hosting view sits on top. The window's
+/// own transparency (backgroundColor = .clear, isOpaque = false) ensures
+/// the compositing is correct.
+class TransparentHostingView<Content: View>: NSView {
+    let hostingView: NSHostingView<Content>
+
+    init(rootView: Content) {
+        hostingView = NSHostingView(rootView: rootView)
+        super.init(frame: .zero)
+
+        wantsLayer = true
+        layer?.backgroundColor = .clear
+        layer?.isOpaque = false
+        layerContentsRedrawPolicy = .never
+
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.backgroundColor = .clear
         window?.isOpaque = false
-        forceTransparent()
     }
 
-    override func layout() {
-        super.layout()
-        throttledTransparent()
-    }
+    override var isOpaque: Bool { false }
 
-    override func updateLayer() {
-        super.updateLayer()
-        throttledTransparent()
-    }
-
-    /// Full recursive clear — used once when the view first appears.
-    private func forceTransparent() {
-        wantsLayer = true
-        layer?.backgroundColor = .clear
-        layer?.isOpaque = false
-        if let rootLayer = layer {
-            clearSublayers(rootLayer)
-        }
-        lastTransparencyPass = CACurrentMediaTime()
-    }
-
-    /// Throttled: only run the recursive clear at most every 0.5s.
-    /// layout() and updateLayer() fire on every animation frame; the
-    /// recursive walk is expensive and unnecessary that often.
-    private func throttledTransparent() {
-        let now = CACurrentMediaTime()
-        guard now - lastTransparencyPass > 0.5 else { return }
-        forceTransparent()
-    }
-
-    private func clearSublayers(_ layer: CALayer) {
-        layer.backgroundColor = .clear
-        layer.isOpaque = false
-        for sublayer in layer.sublayers ?? [] {
-            clearSublayers(sublayer)
-        }
+    override func draw(_ dirtyRect: NSRect) {
+        // Do not fill — keep fully transparent
     }
 }

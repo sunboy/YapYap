@@ -125,11 +125,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupFloatingBar() {
         floatingBarPanel = FloatingBarPanel()
 
-        // Set content view with FloatingBarView using transparent hosting view
         let floatingView = FloatingBarView(appState: appState)
         let hostingView = TransparentHostingView(rootView: floatingView)
-        hostingView.wantsLayer = true
-        hostingView.layer?.backgroundColor = .clear
         floatingBarPanel?.contentView = hostingView
 
         // Position the bar

@@ -508,21 +508,17 @@ struct ModelsTab: View {
     // MARK: - Settings
 
     private func loadSettings() {
-        Task { @MainActor in
-            let settings = DataManager.shared.fetchSettings()
-            selectedSTT = settings.sttModelId
-            selectedLLM = settings.llmModelId
-            autoDownload = settings.autoDownloadModels
-            gpuAcceleration = settings.gpuAcceleration
-        }
+        let settings = DataManager.shared.fetchSettings()
+        selectedSTT = settings.sttModelId
+        selectedLLM = settings.llmModelId
+        autoDownload = settings.autoDownloadModels
+        gpuAcceleration = settings.gpuAcceleration
     }
 
-    private func saveSettings(_ update: @escaping (AppSettings) -> Void) {
-        Task { @MainActor in
-            let settings = DataManager.shared.fetchSettings()
-            update(settings)
-            try? DataManager.shared.container.mainContext.save()
-        }
+    private func saveSettings(_ update: (AppSettings) -> Void) {
+        let settings = DataManager.shared.fetchSettings()
+        update(settings)
+        try? DataManager.shared.container.mainContext.save()
     }
 
     // MARK: - Download Detection
