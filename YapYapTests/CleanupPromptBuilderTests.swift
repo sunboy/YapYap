@@ -29,12 +29,12 @@ final class CleanupPromptBuilderTests: XCTestCase {
 
     // MARK: - Small Model Prompts (<=2B: Llama 1B, Qwen 1.5B)
 
-    func testSmallModelSystemPromptIsUltraMinimal() {
+    func testSmallModelSystemPromptIsConcise() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
-        // Small model prompt should be under 15 words
+        // Small model prompt should be concise (under 25 words including list hint)
         let wordCount = messages.system.split(separator: " ").count
-        XCTAssertLessThanOrEqual(wordCount, 15, "Small model system prompt should be ultra-minimal")
+        XCTAssertLessThanOrEqual(wordCount, 25, "Small model system prompt should be concise")
         XCTAssertTrue(messages.system.contains("Fix dictation"))
     }
 
@@ -64,7 +64,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         XCTAssertFalse(messages.system.contains("casual"), "Small models should not get formality instructions")
     }
 
-    func testSmallModelOmitsAppContext() {
+    func testSmallModelIncludesConciseAppContextHint() {
         let appContext = AppContext(
             bundleId: "com.tinyspeck.slackmacgap",
             appName: "Slack",
@@ -76,7 +76,8 @@ final class CleanupPromptBuilderTests: XCTestCase {
         )
         let context = makeContext(appContext: appContext)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
-        XCTAssertFalse(messages.system.contains("Slack"), "Small models should not get app context")
+        // Small models now get concise app context hints (not the app name, but the category hint)
+        XCTAssertTrue(messages.system.contains("@mentions"), "Small models should get concise work messaging hint")
     }
 
     func testSmallModelOmitsStylePrompt() {
@@ -304,6 +305,146 @@ final class CleanupPromptBuilderTests: XCTestCase {
         // But with family-specific system prompts
         XCTAssertTrue(llama3b.system.contains("speech-to-text cleanup engine"))
         XCTAssertTrue(qwen3b.system.contains("You clean up speech-to-text transcripts."))
+    }
+
+    // MARK: - IDE Chat Panel Prompt
+
+    func testIDEChatPanelToneHintIncludesFilePrefixInstruction() {
+        let appCtx = AppContext(bundleId: "", appName: "Cursor", category: .codeEditor,
+                                style: .formal, windowTitle: "Composer",
+                                focusedFieldText: nil, isIDEChatPanel: true)
+        let context = makeContext(appContext: appCtx)
+        let (system, _) = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(system.contains("prefix filenames with @"))
+    }
+
+    func testNonIDEChatPanelDoesNotIncludeFilePrefixInstruction() {
+        let appCtx = AppContext(bundleId: "", appName: "VS Code", category: .codeEditor,
+                                style: .formal, windowTitle: nil,
+                                focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let (system, _) = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertFalse(system.contains("prefix filenames with @"))
+        XCTAssertTrue(system.contains("code editor"))
+    }
+
+    // MARK: - Updated Tone Hints
+
+    func testWorkMessagingToneHintIncludesSlack() {
+        let appCtx = AppContext(bundleId: "", appName: "Slack", category: .workMessaging,
+                                style: .casual, windowTitle: nil,
+                                focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let (system, _) = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(system.contains("Slack/Teams"))
+        XCTAssertTrue(system.contains("@mentions"))
+        XCTAssertTrue(system.contains("#channels"))
+    }
+
+    func testEmailToneHintIncludesParagraphStructure() {
+        let appCtx = AppContext(bundleId: "", appName: "Mail", category: .email,
+                                style: .formal, windowTitle: nil,
+                                focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let (system, _) = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(system.contains("paragraph structure"))
+    }
+
+    func testAIChatToneHintIncludesCodeReferences() {
+        let appCtx = AppContext(bundleId: "", appName: "ChatGPT", category: .aiChat,
+                                style: .casual, windowTitle: nil,
+                                focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let (system, _) = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(system.contains("code references"))
+    }
+
+    // MARK: - List Formatting Instruction
+
+    func testMediumModelIncludesListInstruction() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("list of items"))
+    }
+
+    func testLlamaMediumIncludesListInstruction() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.system.contains("list of items"))
+    }
+
+    func testSmallModelIncludesListInstruction() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.contains("Lists"))
+        XCTAssertTrue(messages.system.contains("numbered"))
+    }
+
+    func testSmallModelUserMessageIncludesListExample() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.user.contains("1. Check email"))
+        XCTAssertTrue(messages.user.contains("2. Review the PR"))
+    }
+
+    func testMediumModelMentionsCommaSeparated() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("comma-separated"))
+    }
+
+    func testLlamaMediumMentionsCommaSeparated() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.system.contains("comma-separated"))
+    }
+
+    // MARK: - Small Model App Context Hints
+
+    func testSmallModelEmailHint() {
+        let appCtx = AppContext(bundleId: "", appName: "Mail", category: .email,
+                                style: .formal, windowTitle: nil,
+                                focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.contains("proper sentences"))
+    }
+
+    func testSmallModelIDEChatHint() {
+        let appCtx = AppContext(bundleId: "", appName: "Cursor", category: .codeEditor,
+                                style: .formal, windowTitle: "Composer",
+                                focusedFieldText: nil, isIDEChatPanel: true)
+        let context = makeContext(appContext: appCtx)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-1.5b")
+        XCTAssertTrue(messages.system.contains("Prefix filenames with @"))
+    }
+
+    func testSmallModelPersonalMessagingHint() {
+        let appCtx = AppContext(bundleId: "", appName: "Messages", category: .personalMessaging,
+                                style: .veryCasual, windowTitle: nil,
+                                focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.contains("casual"))
+    }
+
+    func testSmallModelAIChatHint() {
+        let appCtx = AppContext(bundleId: "", appName: "ChatGPT", category: .aiChat,
+                                style: .casual, windowTitle: nil,
+                                focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.contains("technical terms"))
+    }
+
+    func testSmallModelNoAppContextNoHint() {
+        let context = makeContext(appContext: nil)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        // Without app context, should just have base prompt + list hint
+        XCTAssertTrue(messages.system.contains("Fix dictation"))
+        XCTAssertTrue(messages.system.contains("Lists"))
+        XCTAssertFalse(messages.system.contains("@mentions"))
+        XCTAssertFalse(messages.system.contains("proper sentences"))
     }
 
     // MARK: - Helpers

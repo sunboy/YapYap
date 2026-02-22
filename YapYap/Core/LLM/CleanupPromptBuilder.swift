@@ -44,17 +44,46 @@ struct CleanupPromptBuilder {
         }
     }
 
-    /// Ultra-minimal system prompt for small models (<=2B params).
-    /// Testing showed this achieves 100% success on Llama 1B and Qwen 1.5B.
+    /// Concise system prompt for small models (<=2B params).
+    /// Llama 3.2 1B has IFEval 59.5 — can follow short, focused instructions.
+    /// Includes concise app context hints and list detection.
     private static func buildSmallModelSystemPrompt(context: CleanupContext, family: LLMModelFamily) -> String {
+        var prompt: String
         switch context.cleanupLevel {
         case .light:
-            return "Fix dictation errors. Output only fixed text."
+            prompt = "Fix dictation errors. Output only fixed text."
         case .medium:
-            return "Fix dictation errors. Remove filler words. Output only fixed text."
+            prompt = "Fix dictation errors. Remove filler words. Output only fixed text."
         case .heavy:
-            return "Fix dictation errors. Remove fillers. Improve clarity. Output only fixed text."
+            prompt = "Fix dictation errors. Remove fillers. Improve clarity. Output only fixed text."
         }
+
+        // List detection — concise instruction for small models
+        prompt += " Lists → numbered, one per line."
+
+        // Add concise app context hint
+        if let appContext = context.appContext {
+            switch appContext.category {
+            case .workMessaging:
+                prompt += " Keep @mentions and #channels."
+            case .email:
+                prompt += " Use proper sentences."
+            case .codeEditor:
+                if appContext.isIDEChatPanel {
+                    prompt += " Prefix filenames with @."
+                } else {
+                    prompt += " Keep code terms exact."
+                }
+            case .personalMessaging:
+                prompt += " Keep it casual."
+            case .aiChat:
+                prompt += " Keep technical terms exact."
+            default:
+                break
+            }
+        }
+
+        return prompt
     }
 
     /// Detailed Llama system prompt for 3B+ models.
@@ -72,7 +101,7 @@ struct CleanupPromptBuilder {
             parts.append("RULES:\n1. Remove ALL filler words and hesitations\n2. Fix punctuation, capitalization, and sentence structure\n3. Handle self-corrections: \"X no wait Y\" → output only Y\n4. Improve clarity without changing meaning")
         }
 
-        parts.append("STRICT CONSTRAINTS:\n- Do NOT add any words, ideas, or content not in the transcript\n- Do NOT summarize or shorten\n- Do NOT explain your changes\n- Output ONLY the cleaned text, nothing else")
+        parts.append("STRICT CONSTRAINTS:\n- Do NOT add any words, ideas, or content not in the transcript\n- Do NOT summarize or shorten\n- Do NOT explain your changes\n- If the input contains a list of items (comma-separated, colon-introduced, or ordinal), format each item on its own line as a numbered list\n- Output ONLY the cleaned text, nothing else")
 
         if let appContext = context.appContext {
             parts.append("App: \(appContext.appName) (\(toneHint(for: appContext)))")
@@ -113,7 +142,7 @@ struct CleanupPromptBuilder {
             parts.append("Style: \(context.stylePrompt)")
         }
 
-        parts.append("Do NOT add new words. Do NOT summarize. Output only cleaned text.")
+        parts.append("If the input contains a list of items (comma-separated, colon-introduced, or ordinal), format each item on its own line as a numbered list.\nDo NOT add new words. Do NOT summarize. Output only cleaned text.")
 
         return parts.joined(separator: "\n")
     }
@@ -150,6 +179,12 @@ struct CleanupPromptBuilder {
 
         IN: hey so basically the thing is the api is broken and uh nobody noticed
         OUT: Hey, the API is broken and nobody noticed.
+
+        IN: things to do today check email review the PR and update the docs
+        OUT:
+        1. Check email
+        2. Review the PR
+        3. Update the docs
         """)
 
         parts.append("Fix this:\n\(rawText)")
@@ -240,6 +275,7 @@ struct CleanupPromptBuilder {
         case .heavy:
             instructions += "REMOVE: ALL filler words and hesitations\nFIX: punctuation, capitalization, sentence structure\nSELF-CORRECTIONS: \"X no wait Y\" → keep only Y\n"
         }
+        instructions += "If the input contains a list of items (comma-separated, colon-introduced, or ordinal), format each item on its own line as a numbered list.\n"
         instructions += "Do NOT add new words. Do NOT summarize. Output ONLY the cleaned text."
         parts.append(instructions)
 
@@ -262,15 +298,19 @@ struct CleanupPromptBuilder {
 
     // MARK: - App Context Helpers
 
-    /// Brief tone hint from app category, kept compact for small model context windows
+    /// Brief tone hint from app category, kept compact for small model context windows.
+    /// IDE chat panels get a special hint to prefix filenames with @.
     private static func toneHint(for appContext: AppContext) -> String {
+        if appContext.isIDEChatPanel {
+            return "IDE chat panel, prefix filenames with @, keep technical terms exact"
+        }
         switch appContext.category {
         case .personalMessaging:
             return "casual messaging"
         case .workMessaging:
-            return "work messaging"
+            return "work messaging (Slack/Teams), keep @mentions and #channels intact"
         case .email:
-            return "email, use proper sentences"
+            return "email, use proper sentences and paragraph structure"
         case .codeEditor:
             return "code editor, keep technical terms exact"
         case .browser:
@@ -278,7 +318,7 @@ struct CleanupPromptBuilder {
         case .documents:
             return "document, clean prose"
         case .aiChat:
-            return "AI chat"
+            return "AI chat, keep technical terms and code references exact"
         case .other:
             return "general"
         }

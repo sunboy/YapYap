@@ -47,6 +47,9 @@ class TranscriptionPipeline {
         } catch {
             appState.modelLoadingStatus = "Model loading failed"
             NSLog("[TranscriptionPipeline] ❌ Model loading failed at startup: \(error)")
+            // Always clear loading state, even on failure — otherwise
+            // the UI stays stuck showing the loading indicator forever
+            appState.isLoadingModels = false
             throw error
         }
 

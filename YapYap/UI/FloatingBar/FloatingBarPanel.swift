@@ -6,7 +6,7 @@ class FloatingBarPanel: NSPanel {
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 140, height: 44),
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 48),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -16,7 +16,7 @@ class FloatingBarPanel: NSPanel {
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         self.isMovableByWindowBackground = false
         self.backgroundColor = .clear
-        self.hasShadow = true
+        self.hasShadow = false
         self.hidesOnDeactivate = false
         self.isOpaque = false
     }

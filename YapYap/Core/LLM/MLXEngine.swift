@@ -15,6 +15,9 @@ class MLXEngine: LLMEngine {
     /// Pre-compiled regex patterns for output sanitization (compiled once, reused)
     private static let sanitizationRegexes = SanitizationRegexes()
 
+    /// Matches lines starting with list markers: "1. ", "2) ", "- ", "* ", "• "
+    private static let listMarkerRegex = try! NSRegularExpression(pattern: "^(\\d+[.)]\\s|[-•*]\\s)")
+
     var isLoaded: Bool { lmContext != nil }
 
     func loadModel(id: String, progressHandler: @escaping (Double) -> Void) async throws {
@@ -61,9 +64,18 @@ class MLXEngine: LLMEngine {
         do {
             encoding = try lmContext.tokenizer.applyChatTemplate(messages: chatMessages)
         } catch {
-            // Fallback: manual template if applyChatTemplate fails
+            // Fallback: manual template if applyChatTemplate fails.
+            // Use model-family-specific token format to avoid garbage output.
             NSLog("[MLXEngine] applyChatTemplate failed: \(error), using manual template")
-            let fallbackPrompt = "<|im_start|>system\n\(messages.system)<|im_end|>\n<|im_start|>user\n\(messages.user)<|im_end|>\n<|im_start|>assistant\n"
+            let fallbackModelInfo = modelId.flatMap { LLMModelRegistry.model(for: $0) }
+            let fallbackPrompt: String
+            if fallbackModelInfo?.family == .llama {
+                // Llama 3.x format
+                fallbackPrompt = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n\(messages.system)<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n\(messages.user)<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+            } else {
+                // Qwen/ChatML format (default)
+                fallbackPrompt = "<|im_start|>system\n\(messages.system)<|im_end|>\n<|im_start|>user\n\(messages.user)<|im_end|>\n<|im_start|>assistant\n"
+            }
             encoding = lmContext.tokenizer.encode(text: fallbackPrompt)
         }
 
@@ -226,9 +238,23 @@ class MLXEngine: LLMEngine {
             cleaned = String(cleaned.dropFirst().dropLast())
         }
 
-        // Collapse newlines into spaces — voice transcription cleanup should not
-        // introduce line breaks unless the input was explicitly multi-paragraph
-        cleaned = cleaned.replacingOccurrences(of: "\\s*\\n+\\s*", with: " ", options: .regularExpression)
+        // Collapse newlines into spaces, EXCEPT when the LLM produced an intentional
+        // list (2+ lines starting with numbered/bulleted markers like "1.", "-", "*").
+        let splitLines = cleaned.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let listLineCount = splitLines.filter { line in
+            let range = NSRange(line.startIndex..<line.endIndex, in: line)
+            return listMarkerRegex.firstMatch(in: line, range: range) != nil
+        }.count
+
+        if listLineCount >= 2 {
+            // Preserve newlines — this is an intentional list from the LLM
+            cleaned = splitLines.joined(separator: "\n")
+        } else {
+            // Collapse newlines — prose that the LLM split unnecessarily
+            cleaned = splitLines.joined(separator: " ")
+        }
 
         return cleaned.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
     }

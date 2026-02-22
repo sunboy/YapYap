@@ -112,9 +112,14 @@ class AppContextDetector {
         ("gmail", .email), ("outlook.live", .email), ("mail.google", .email),
         ("proton", .email), ("yahoo.com/mail", .email),
         ("slack.com", .workMessaging), ("teams.microsoft", .workMessaging),
+        ("discord.com", .workMessaging), ("linear.app", .workMessaging),
+        ("jira", .workMessaging),
         ("chatgpt", .aiChat), ("claude.ai", .aiChat), ("perplexity", .aiChat),
         ("docs.google", .documents), ("notion.so", .documents),
+        ("confluence", .documents),
         ("github.com", .codeEditor), ("gitlab.com", .codeEditor),
+        ("stackoverflow", .codeEditor),
+        ("reddit.com", .personalMessaging),
     ]
 
     private static func classifyBrowserTab(pid: pid_t) -> AppCategory {

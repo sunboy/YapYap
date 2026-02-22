@@ -17,7 +17,8 @@ class PasteManager {
 
         // Set new content
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        let setOk = pasteboard.setString(text, forType: .string)
+        NSLog("[PasteManager] Clipboard set: \(setOk), text length: \(text.count)")
 
         // Ensure the frontmost app is ready to receive the paste.
         // YapYap's floating bar is a non-activating panel, so the user's app
@@ -25,18 +26,23 @@ class PasteManager {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             // Activate the frontmost app to make sure it can receive key events
             if let frontApp = NSWorkspace.shared.frontmostApplication {
+                NSLog("[PasteManager] Activating app: \(frontApp.localizedName ?? "unknown") (pid: \(frontApp.processIdentifier))")
                 frontApp.activate()
+            } else {
+                NSLog("[PasteManager] ⚠️ No frontmost app found")
             }
 
             // Small additional delay after activation to ensure the app is ready
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                NSLog("[PasteManager] Sending synthetic Cmd+V")
                 self.simulatePaste()
 
                 // Restore previous clipboard content after paste has been processed
                 if let previous = previousContent {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         pasteboard.clearContents()
                         pasteboard.setString(previous, forType: .string)
+                        NSLog("[PasteManager] Clipboard restored")
                     }
                 }
             }
@@ -72,15 +78,22 @@ class PasteManager {
     // MARK: - CGEvent Helpers
 
     private func simulatePaste() {
+        // CGEvent requires accessibility permission — check first
+        let trusted = AXIsProcessTrusted()
+        NSLog("[PasteManager] AXIsProcessTrusted: \(trusted)")
+
         let source = CGEventSource(stateID: .hidSystemState)
+        NSLog("[PasteManager] CGEventSource created: \(source != nil)")
 
         // Key code for 'V' is 0x09
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: UInt16(kVK_ANSI_V), keyDown: true)
         keyDown?.flags = .maskCommand
         keyDown?.post(tap: .cghidEventTap)
+        NSLog("[PasteManager] Cmd+V keyDown posted: \(keyDown != nil)")
 
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: UInt16(kVK_ANSI_V), keyDown: false)
         keyUp?.flags = .maskCommand
         keyUp?.post(tap: .cghidEventTap)
+        NSLog("[PasteManager] Cmd+V keyUp posted: \(keyUp != nil)")
     }
 }

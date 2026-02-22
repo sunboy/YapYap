@@ -48,6 +48,20 @@ extension Color {
     // Creature internals
     static let ypEyeDark = Color(hex: "2A2040")
     static let ypEyeStroke = Color(hex: "6B5E8A")
+
+    // Creature accessories (recording state)
+    static let ypHeadphoneBand = Color(hex: "7B6FA0")
+    static let ypHeadphoneCup = Color(hex: "F4A261")       // same as ypWarm
+    static let ypHeadphoneCupInner = Color(hex: "E8914E")
+    static let ypNotepadPaper = Color.white
+    static let ypNotepadBinding = Color(hex: "E8914E")
+    static let ypNotepadLines = Color(hex: "D0D0D0")
+    static let ypPenBarrel = Color(hex: "F4A261")
+    static let ypPenGrip = Color(hex: "E8914E")
+    static let ypPenTip = Color(hex: "2A2040")
+
+    // Creature accessories (processing state)
+    static let ypThinkingDot = Color(hex: "C4B8E8")        // same as ypLavender
 }
 
 // MARK: - Hex Color Init

@@ -82,15 +82,48 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         print("[AppDelegate] applicationDidFinishLaunching complete")
+
+        // Listen for wake-from-sleep to recover if model loading was interrupted
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(handleWakeFromSleep),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleWakeFromSleep() {
+        print("[AppDelegate] System woke from sleep")
+        // If models aren't ready (loading was interrupted by sleep), retry
+        if !appState.modelsReady && !appState.isLoadingModels {
+            print("[AppDelegate] Models not ready after wake — retrying load")
+            Task {
+                do {
+                    try await pipeline?.loadModelsAtStartup()
+                    print("[AppDelegate] ✅ Models loaded after wake")
+                } catch {
+                    print("[AppDelegate] ❌ Model loading failed after wake: \(error)")
+                }
+            }
+        }
+        // If stuck in loading state (shouldn't happen with the fix, but safety net)
+        if appState.isLoadingModels {
+            print("[AppDelegate] ⚠️ Clearing stuck loading state after wake")
+            appState.isLoadingModels = false
+            appState.modelLoadingStatus = "Interrupted — will retry on next use"
+        }
     }
 
     @MainActor
     private func setupFloatingBar() {
         floatingBarPanel = FloatingBarPanel()
 
-        // Set content view with FloatingBarView
+        // Set content view with FloatingBarView using transparent hosting view
         let floatingView = FloatingBarView(appState: appState)
-        floatingBarPanel?.contentView = NSHostingView(rootView: floatingView)
+        let hostingView = TransparentHostingView(rootView: floatingView)
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = .clear
+        floatingBarPanel?.contentView = hostingView
 
         // Position the bar
         floatingBarPanel?.positionOnScreen(position: .bottomCenter)
@@ -111,37 +144,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func startObservingRecordingState() {
         print("[AppDelegate] startObservingRecordingState() starting observation loop")
-        var lastRecordingState = false
         var lastBarVisibleState = false
+        var loopCount = 0
 
         Task {
             while !Task.isCancelled {
-                let isRecording = appState.isRecording
-                let settings = DataManager.shared.fetchSettings()
+                // Only fetch settings every ~20 iterations (2 seconds) to avoid
+                // hammering SwiftData on the main thread, which can freeze the UI
+                if loopCount % 20 == 0 {
+                    let settings = DataManager.shared.fetchSettings()
+                    let shouldShowBar = settings.showFloatingBar
 
-                // Bar should be visible whenever showFloatingBar setting is enabled
-                // (it will show resting character when idle, waveform when recording)
-                let shouldShowBar = settings.showFloatingBar
-
-                // Only log when state changes to avoid spam
-                if isRecording != lastRecordingState {
-                    print("[AppDelegate] Recording state changed: \(isRecording), showFloatingBar setting: \(settings.showFloatingBar)")
-                    lastRecordingState = isRecording
-                }
-
-                // Only update bar visibility if state actually changed
-                if shouldShowBar != lastBarVisibleState {
-                    if shouldShowBar {
-                        print("[AppDelegate] Showing floating bar")
-                        floatingBarPanel?.showBar()
-                    } else {
-                        print("[AppDelegate] Hiding floating bar")
-                        floatingBarPanel?.hideBar()
+                    if shouldShowBar != lastBarVisibleState {
+                        if shouldShowBar {
+                            print("[AppDelegate] Showing floating bar")
+                            floatingBarPanel?.showBar()
+                        } else {
+                            print("[AppDelegate] Hiding floating bar")
+                            floatingBarPanel?.hideBar()
+                        }
+                        lastBarVisibleState = shouldShowBar
                     }
-                    lastBarVisibleState = shouldShowBar
                 }
 
-                // Small delay to avoid tight loop
+                loopCount += 1
                 try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
             }
         }
