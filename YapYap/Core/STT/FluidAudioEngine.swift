@@ -37,6 +37,22 @@ class FluidAudioEngine: STTEngine {
         asrManager = nil
     }
 
+    func warmup() async {
+        guard let asrManager = asrManager else { return }
+        do {
+            // Create a 1-second silence buffer at 16kHz to keep model warm
+            let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+            let frameCount = AVAudioFrameCount(16000)
+            guard let silenceBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return }
+            silenceBuffer.frameLength = frameCount
+            // Buffer is zero-initialized by default (silence)
+            _ = try await asrManager.transcribe(silenceBuffer, source: .microphone)
+            NSLog("[FluidAudioEngine] Keep-alive warmup complete")
+        } catch {
+            NSLog("[FluidAudioEngine] Keep-alive warmup failed: \(error)")
+        }
+    }
+
     func transcribe(audioBuffer: AVAudioPCMBuffer) async throws -> TranscriptionResult {
         guard let asrManager = asrManager else {
             throw YapYapError.modelNotLoaded

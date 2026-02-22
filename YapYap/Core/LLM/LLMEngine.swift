@@ -25,4 +25,6 @@ protocol LLMEngine: AnyObject {
     func loadModel(id: String, progressHandler: @escaping (Double) -> Void) async throws
     func unloadModel()
     func cleanup(rawText: String, context: CleanupContext) async throws -> String
+    /// Run a minimal inference to keep model weights resident in memory
+    func warmup() async
 }

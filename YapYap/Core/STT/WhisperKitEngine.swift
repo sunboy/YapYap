@@ -66,6 +66,26 @@ class WhisperKitEngine: STTEngine {
         pipe = nil
     }
 
+    func warmup() async {
+        guard let pipe = pipe else { return }
+        do {
+            // Transcribe 1 second of silence to keep ANE/GPU contexts warm
+            let silenceBuffer = [Float](repeating: 0.0, count: 16000)
+            let options = DecodingOptions(
+                task: .transcribe,
+                language: "en",
+                temperature: 0.0,
+                withoutTimestamps: true,
+                suppressBlank: true,
+                noSpeechThreshold: 0.6
+            )
+            _ = try await pipe.transcribe(audioArray: silenceBuffer, decodeOptions: options)
+            NSLog("[WhisperKitEngine] Keep-alive warmup complete")
+        } catch {
+            NSLog("[WhisperKitEngine] Keep-alive warmup failed: \(error)")
+        }
+    }
+
     func transcribe(audioBuffer: AVAudioPCMBuffer) async throws -> TranscriptionResult {
         guard let pipe = pipe else {
             throw YapYapError.modelNotLoaded

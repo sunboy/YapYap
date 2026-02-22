@@ -17,11 +17,25 @@ class TranscriptionPipeline {
     private var isCommandMode: Bool = false
 
     /// Word count threshold: transcriptions this short skip LLM and just get regex cleanup
-    private let fastPathWordThreshold = 12
+    private let fastPathWordThreshold = 20
+
+    /// Common filler words that indicate the text would benefit from LLM cleanup
+    private static let fillerWords: Set<String> = [
+        "um", "uh", "uh,", "um,", "like", "basically", "you know",
+        "actually", "literally", "i mean", "sort of", "kind of"
+    ]
 
     /// Cached managers to avoid per-transcription disk I/O
     private let snippetManager = SnippetManager()
     private let personalDict = PersonalDictionary()
+
+    /// Keep-alive timer: periodic warmup to prevent OS from evicting model weights
+    private var keepAliveTimer: Timer?
+    private static let keepAliveInterval: TimeInterval = 1800 // 30 minutes
+
+    /// Pre-computed context: captured at recording start so it's ready when STT finishes
+    private var cachedStyleSettings: StyleSettings?
+    private var cachedAppContext: AppContext?
 
     init(appState: AppState, container: ModelContainer) {
         self.appState = appState
@@ -54,6 +68,30 @@ class TranscriptionPipeline {
         }
 
         appState.isLoadingModels = false
+    }
+
+    // MARK: - Keep-Alive
+
+    /// Start periodic warmup to keep model weights resident in memory.
+    /// macOS will evict memory-mapped weights after extended idle, causing
+    /// 8-9s cold-start penalty. A tiny inference every 30 min prevents this.
+    func startKeepAliveTimer() {
+        stopKeepAliveTimer()
+        keepAliveTimer = Timer.scheduledTimer(withTimeInterval: Self.keepAliveInterval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            Task {
+                NSLog("[TranscriptionPipeline] Keep-alive: warming up models")
+                await self.sttEngine?.warmup()
+                await self.llmEngine?.warmup()
+                NSLog("[TranscriptionPipeline] Keep-alive: warmup complete")
+            }
+        }
+        NSLog("[TranscriptionPipeline] Keep-alive timer started (interval: \(Self.keepAliveInterval)s)")
+    }
+
+    func stopKeepAliveTimer() {
+        keepAliveTimer?.invalidate()
+        keepAliveTimer = nil
     }
 
     func ensureModelsLoaded() async throws {
@@ -129,6 +167,15 @@ class TranscriptionPipeline {
         SoundManager.shared.playStart()
         HapticManager.shared.tap()
 
+        // Pre-compute app context now — the user's app is frontmost during recording.
+        // This saves ~30ms off the critical path after STT and provides cached values
+        // for future speculative LLM prefill.
+        let styleSettings = StyleSettings.loadFromUserDefaults()
+        let appContext = AppContextDetector.detect(settings: styleSettings)
+        self.cachedStyleSettings = styleSettings
+        self.cachedAppContext = appContext
+        NSLog("[TranscriptionPipeline] Pre-cached context: \(appContext.appName) (\(appContext.category.rawValue))")
+
         try await audioCapture.startCapture { [weak self] rms in
             DispatchQueue.main.async {
                 self?.appState.currentRMS = rms
@@ -173,8 +220,13 @@ class TranscriptionPipeline {
                 NSLog("[TranscriptionPipeline] ❌ Empty transcription")
                 appState.creatureState = .sleeping
                 appState.isProcessing = false
+                appState.partialTranscription = nil
                 throw YapYapError.noAudioRecorded
             }
+
+            // Show raw STT output immediately as type-ahead preview.
+            // User sees their words while LLM cleanup runs in the background.
+            appState.partialTranscription = rawText
 
             let settings = try fetchSettings()
 
@@ -191,19 +243,24 @@ class TranscriptionPipeline {
             // Apply personal dictionary corrections
             let correctedText = personalDict.applyCorrections(to: rawText)
 
-            // Detect app context (loads user-customized per-category styles from UserDefaults)
+            // Use pre-computed context from startRecording() (saves ~30ms).
+            // Fall back to fresh detection if cache is empty (shouldn't happen).
             stageStart = Date()
-            let styleSettings = StyleSettings.loadFromUserDefaults()
-            let appContext = AppContextDetector.detect(settings: styleSettings)
-            NSLog("[TranscriptionPipeline] Context: \(appContext.appName) (\(appContext.category.rawValue)) (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+            let styleSettings = cachedStyleSettings ?? StyleSettings.loadFromUserDefaults()
+            let appContext = cachedAppContext ?? AppContextDetector.detect(settings: styleSettings)
+            cachedStyleSettings = nil
+            cachedAppContext = nil
+            NSLog("[TranscriptionPipeline] Context: \(appContext.appName) (\(appContext.category.rawValue)) (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms, cached)")
 
             let wordCount = correctedText.split(separator: " ").count
             var cleanedText: String
 
-            // FAST PATH: Short transcriptions skip LLM entirely — just regex cleanup
-            // This saves 500-1500ms for quick phrases like "hello" or "sounds good"
-            if wordCount <= fastPathWordThreshold {
-                NSLog("[TranscriptionPipeline] Fast path: \(wordCount) words, skipping LLM")
+            // FAST PATH: Short transcriptions skip LLM entirely — just regex cleanup.
+            // This saves 500-1500ms for quick phrases like "hello" or "sounds good".
+            // Exception: if fillers are detected, route through LLM even if short.
+            let hasFillers = Self.containsFillers(correctedText)
+            if wordCount <= fastPathWordThreshold && !hasFillers {
+                NSLog("[TranscriptionPipeline] Fast path: \(wordCount) words, no fillers, skipping LLM")
                 cleanedText = correctedText
                 // Apply basic capitalization fix
                 if let first = cleanedText.first, first.isLowercase {
@@ -249,28 +306,45 @@ class TranscriptionPipeline {
                 NSPasteboard.general.setString(cleanedText, forType: .string)
             }
 
-            // Update analytics (compute word count once, reuse for history)
-            let finalWordCount = cleanedText.split(separator: " ").count
-
-            // Save to history
-            try saveTranscription(
-                raw: rawText,
-                cleaned: cleanedText,
-                wordCount: finalWordCount,
-                duration: transcription.processingTime,
-                sttModel: sttEngine?.modelInfo.id ?? "unknown",
-                sourceApp: appContext.appName
-            )
-            await AnalyticsTracker.shared.recordTranscription(
-                wordCount: finalWordCount,
-                duration: transcription.processingTime
-            )
-
-            // Update state
+            // Update state immediately — text is already pasted
             appState.creatureState = .sleeping
             appState.isProcessing = false
+            appState.partialTranscription = nil
             appState.lastTranscription = cleanedText
-            appState.updateStats()
+
+            // Move history save + analytics off the critical path.
+            // Text is already pasted, no need to block on disk I/O.
+            let finalWordCount = cleanedText.split(separator: " ").count
+            let processingTime = transcription.processingTime
+            let sttModelId = sttEngine?.modelInfo.id ?? "unknown"
+            let sourceApp = appContext.appName
+            let container = self.container
+            Task.detached { [weak self] in
+                do {
+                    let context = ModelContext(container)
+                    let entry = Transcription(
+                        rawText: rawText,
+                        cleanedText: cleanedText,
+                        durationSeconds: processingTime,
+                        wordCount: finalWordCount,
+                        sttModel: sttModelId,
+                        llmModel: self?.llmEngine?.modelId ?? "unknown",
+                        sourceApp: sourceApp,
+                        language: "en"
+                    )
+                    context.insert(entry)
+                    try context.save()
+                } catch {
+                    NSLog("[TranscriptionPipeline] ⚠️ Failed to save transcription history: \(error)")
+                }
+                await AnalyticsTracker.shared.recordTranscription(
+                    wordCount: finalWordCount,
+                    duration: processingTime
+                )
+                Task { @MainActor in
+                    self?.appState.updateStats()
+                }
+            }
 
             let totalMs = Date().timeIntervalSince(pipelineStart) * 1000
             NSLog("[TranscriptionPipeline] ✅ Complete in \(String(format: "%.0f", totalMs))ms: \"\(cleanedText)\"")
@@ -280,6 +354,7 @@ class TranscriptionPipeline {
             NSLog("[TranscriptionPipeline] ❌ Error: \(error)")
             appState.creatureState = .sleeping
             appState.isProcessing = false
+            appState.partialTranscription = nil
             throw error
         }
     }
@@ -289,6 +364,7 @@ class TranscriptionPipeline {
         appState.isRecording = false
         appState.isProcessing = false
         appState.creatureState = .sleeping
+        appState.partialTranscription = nil
         isCommandMode = false
     }
 
@@ -336,6 +412,14 @@ class TranscriptionPipeline {
         return snippet.expansion
     }
 
+    // MARK: - Filler Detection
+
+    /// Quick check for common filler words that indicate LLM cleanup would help
+    private static func containsFillers(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return fillerWords.contains(where: { lower.contains($0) })
+    }
+
     // MARK: - Output Validation
 
     /// Check that LLM output is a valid cleanup of the input, not a chatbot response.
@@ -372,19 +456,4 @@ class TranscriptionPipeline {
         return try context.fetch(descriptor).first ?? AppSettings()
     }
 
-    private func saveTranscription(raw: String, cleaned: String, wordCount: Int, duration: TimeInterval, sttModel: String, sourceApp: String) throws {
-        let context = ModelContext(container)
-        let entry = Transcription(
-            rawText: raw,
-            cleanedText: cleaned,
-            durationSeconds: duration,
-            wordCount: wordCount,
-            sttModel: sttModel,
-            llmModel: llmEngine?.modelId ?? "unknown",
-            sourceApp: sourceApp,
-            language: "en"
-        )
-        context.insert(entry)
-        try context.save()
-    }
 }

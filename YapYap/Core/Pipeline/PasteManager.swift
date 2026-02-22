@@ -22,8 +22,8 @@ class PasteManager {
 
         // Ensure the frontmost app is ready to receive the paste.
         // YapYap's floating bar is a non-activating panel, so the user's app
-        // should still be frontmost. We give a tiny delay for pasteboard sync.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+        // should still be frontmost. Brief delay for pasteboard sync.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
             // Activate the frontmost app to make sure it can receive key events
             if let frontApp = NSWorkspace.shared.frontmostApplication {
                 NSLog("[PasteManager] Activating app: \(frontApp.localizedName ?? "unknown") (pid: \(frontApp.processIdentifier))")
@@ -33,7 +33,7 @@ class PasteManager {
             }
 
             // Small additional delay after activation to ensure the app is ready
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
                 NSLog("[PasteManager] Sending synthetic Cmd+V")
                 self.simulatePaste()
 

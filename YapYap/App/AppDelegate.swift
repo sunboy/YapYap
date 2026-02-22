@@ -75,6 +75,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 do {
                     try await pipeline?.loadModelsAtStartup()
                     print("[AppDelegate] ✅ Models loaded, app ready to transcribe")
+                    // Start keep-alive timer to prevent OS from evicting model weights
+                    DispatchQueue.main.async {
+                        self.pipeline?.startKeepAliveTimer()
+                    }
                 } catch {
                     print("[AppDelegate] ❌ Failed to load models at startup: \(error)")
                 }
@@ -101,6 +105,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 do {
                     try await pipeline?.loadModelsAtStartup()
                     print("[AppDelegate] ✅ Models loaded after wake")
+                    DispatchQueue.main.async {
+                        self.pipeline?.startKeepAliveTimer()
+                    }
                 } catch {
                     print("[AppDelegate] ❌ Model loading failed after wake: \(error)")
                 }

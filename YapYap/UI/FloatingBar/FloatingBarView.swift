@@ -35,6 +35,19 @@ struct FloatingBarView: View {
                     .foregroundColor(.ypText2)
                     .lineLimit(1)
                     .transition(.opacity)
+            } else if appState.isProcessing, let preview = appState.partialTranscription {
+                // Type-ahead preview: show raw STT text while LLM cleanup runs
+                Text(preview)
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundColor(.ypText2.opacity(0.7))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 200)
+                    .transition(.opacity)
+
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(Color.ypWarm)
             } else if appState.isRecording {
                 WaveformView(rms: appState.currentRMS)
                     .frame(width: 36, height: 14)
@@ -70,6 +83,7 @@ struct FloatingBarView: View {
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isRecording)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
         .animation(.easeInOut(duration: 0.3), value: appState.isLoadingModels)
+        .animation(.easeInOut(duration: 0.2), value: appState.partialTranscription != nil)
         .onChange(of: appState.isRecording) { _, isRecording in
             if isRecording {
                 startTimer()

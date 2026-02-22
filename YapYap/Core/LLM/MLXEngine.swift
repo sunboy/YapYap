@@ -46,6 +46,24 @@ class MLXEngine: LLMEngine {
         modelId = nil
     }
 
+    func warmup() async {
+        guard let lmContext = lmContext else { return }
+        do {
+            let tokens = lmContext.tokenizer.encode(text: "Hello")
+            let input = LMInput(tokens: MLXArray(tokens))
+            let parameters = GenerateParameters(maxTokens: 1)
+            let stream: AsyncStream<Generation> = try generate(
+                input: input,
+                parameters: parameters,
+                context: lmContext
+            )
+            for await _ in stream { break }
+            NSLog("[MLXEngine] Keep-alive warmup complete")
+        } catch {
+            NSLog("[MLXEngine] Keep-alive warmup failed: \(error)")
+        }
+    }
+
     func cleanup(rawText: String, context: CleanupContext) async throws -> String {
         guard let lmContext = lmContext else {
             throw YapYapError.modelNotLoaded
@@ -89,20 +107,17 @@ class MLXEngine: LLMEngine {
         let modelInfo = modelId.flatMap { LLMModelRegistry.model(for: $0) }
         let family = modelInfo?.family ?? .qwen
 
-        // Tune prefillStepSize based on prompt length:
-        // Smaller prompts benefit from smaller step sizes to avoid wasted computation.
-        // Default is 512, but our prompts are typically 50-200 tokens.
-        let prefillStepSize = encoding.count <= 128 ? 128 : 256
-
-        NSLog("[MLXEngine] Prompt: \(encoding.count) tokens, user: \(userTokenCount) tokens, maxOutput: \(maxOutputTokens), family: \(family.rawValue), prefillStep: \(prefillStepSize)")
+        // Use library default prefillStepSize (512). Our prompts are 150-250 tokens,
+        // and the prefill processes them in chunks of this size. Larger steps allow
+        // better GPU utilization on Apple Silicon.
+        NSLog("[MLXEngine] Prompt: \(encoding.count) tokens, user: \(userTokenCount) tokens, maxOutput: \(maxOutputTokens), family: \(family.rawValue)")
 
         let parameters = GenerateParameters(
             maxTokens: maxOutputTokens,
             temperature: family.temperature,
             topP: family.topP,
             repetitionPenalty: family.repetitionPenalty,
-            repetitionContextSize: family.repetitionContextSize,
-            prefillStepSize: prefillStepSize
+            repetitionContextSize: family.repetitionContextSize
         )
 
         let startTime = Date()

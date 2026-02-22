@@ -10,6 +10,8 @@ final class AppState {
     var currentRMS: Float = 0.0
     var lastTranscription: String?
     var isCommandMode: Bool = false
+    /// Raw STT output shown as preview while LLM processes
+    var partialTranscription: String?
 
     // Model loading state
     var isLoadingModels: Bool = false
