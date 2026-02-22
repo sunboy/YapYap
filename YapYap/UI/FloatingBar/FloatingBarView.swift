@@ -76,7 +76,6 @@ struct FloatingBarView: View {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .strokeBorder(Color.ypWarm.opacity(0.15), lineWidth: 1)
                 )
-                .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
         )
         .fixedSize()
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isRecording)
