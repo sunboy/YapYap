@@ -524,7 +524,7 @@ struct ModelsTab: View {
     // MARK: - Download Detection
 
     private func checkDownloadedModels() {
-        Task {
+        Task.detached(priority: .utility) {
             var downloaded: Set<String> = []
             let homeDir = FileManager.default.homeDirectoryForCurrentUser
 
@@ -555,32 +555,35 @@ struct ModelsTab: View {
                 }
             }
 
-            await MainActor.run {
+            await MainActor.run { [downloaded] in
                 self.downloadedModels = downloaded
-                computeModelSizes()
+                self.computeModelSizes()
             }
         }
     }
 
     private func computeModelSizes() {
-        Task {
+        let downloaded = downloadedModels
+        let llmCache = llmCacheDir
+        let whisperCache = whisperCacheDir
+        Task.detached(priority: .utility) {
             var sizes: [String: String] = [:]
 
             // LLM model sizes
-            for model in LLMModelRegistry.allModels where downloadedModels.contains(model.id) {
+            for model in LLMModelRegistry.allModels where downloaded.contains(model.id) {
                 let repoName = "models--" + model.huggingFaceId.replacingOccurrences(of: "/", with: "--")
-                let modelDir = llmCacheDir.appendingPathComponent(repoName)
+                let modelDir = llmCache.appendingPathComponent(repoName)
                 if let size = Self.directorySize(at: modelDir) {
                     sizes[model.id] = Self.formatBytes(size)
                 }
             }
 
             // WhisperKit model sizes
-            if FileManager.default.fileExists(atPath: whisperCacheDir.path),
-               let contents = try? FileManager.default.contentsOfDirectory(atPath: whisperCacheDir.path) {
+            if FileManager.default.fileExists(atPath: whisperCache.path),
+               let contents = try? FileManager.default.contentsOfDirectory(atPath: whisperCache.path) {
                 for name in contents {
                     let lower = name.lowercased()
-                    let fullPath = whisperCacheDir.appendingPathComponent(name)
+                    let fullPath = whisperCache.appendingPathComponent(name)
                     guard let size = Self.directorySize(at: fullPath) else { continue }
                     let formatted = Self.formatBytes(size)
                     if lower.contains("whisper-small") || lower.contains("whisper_small") { sizes["whisper-small"] = formatted }
@@ -589,7 +592,7 @@ struct ModelsTab: View {
                 }
             }
 
-            await MainActor.run {
+            await MainActor.run { [sizes] in
                 self.modelSizes = sizes
             }
         }
