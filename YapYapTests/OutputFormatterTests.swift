@@ -241,6 +241,31 @@ final class OutputFormatterTests: XCTestCase {
         XCTAssertTrue(result.contains("\n\nFinally"))
     }
 
+    func testEmailGreetingExtracted() {
+        let input = "Hi Robert, I found your contact on the conference page and noticed that you are an organizer for the upcoming AI summit."
+        let result = OutputFormatter.applyEmailFormatting(input)
+        XCTAssertTrue(result.hasPrefix("Hi Robert,\n\n"))
+    }
+
+    func testEmailSignOffExtracted() {
+        let input = "I found your contact on the conference page. I'd like to present my profile. I'm an expert in AI and data engineering. Thanks, Sandeep"
+        let result = OutputFormatter.applyEmailFormatting(input)
+        XCTAssertTrue(result.contains("\n\nThanks,\nSandeep"))
+    }
+
+    func testEmailGreetingAndSignOff() {
+        let input = "Hello Sarah, The project is going well and we delivered on time. I wanted to update you on our progress. Best regards, John"
+        let result = OutputFormatter.applyEmailFormatting(input)
+        XCTAssertTrue(result.hasPrefix("Hello Sarah,\n\n"))
+        XCTAssertTrue(result.hasSuffix("Best regards,\nJohn"))
+    }
+
+    func testEmailNoGreetingWithoutName() {
+        let input = "Hello there. The project is going well. We delivered on time."
+        let result = OutputFormatter.applyEmailFormatting(input)
+        XCTAssertFalse(result.hasPrefix("Hello there\n\n"))
+    }
+
     // MARK: - AI Chat File Tagging
 
     func testAIChatFileTagging() {

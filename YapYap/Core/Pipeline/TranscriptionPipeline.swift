@@ -27,7 +27,7 @@ class TranscriptionPipeline {
 
     /// Cached managers to avoid per-transcription disk I/O
     private let snippetManager = SnippetManager()
-    private let personalDict = PersonalDictionary()
+    private let personalDict = PersonalDictionary.shared
 
     /// Keep-alive timer: periodic warmup to prevent OS from evicting model weights
     private var keepAliveTimer: Timer?
@@ -97,8 +97,14 @@ class TranscriptionPipeline {
     func ensureModelsLoaded() async throws {
         let settings = try fetchSettings()
 
-        // Load STT if not loaded
-        if sttEngine == nil || !sttEngine!.isLoaded {
+        // Reload STT if not loaded OR if user switched to a different model in Settings
+        let needsSTTReload = sttEngine == nil || !sttEngine!.isLoaded
+            || sttEngine!.modelInfo.id != settings.sttModelId
+        if needsSTTReload {
+            if let existing = sttEngine, existing.isLoaded {
+                NSLog("[TranscriptionPipeline] STT model changed: \(existing.modelInfo.id) → \(settings.sttModelId), unloading old")
+                existing.unloadModel()
+            }
             appState.modelLoadingStatus = "Loading speech model..."
             appState.modelLoadingProgress = 0.0
             NSLog("[TranscriptionPipeline] Loading STT model: \(settings.sttModelId)")
@@ -112,8 +118,14 @@ class TranscriptionPipeline {
             NSLog("[TranscriptionPipeline] ✅ STT model loaded")
         }
 
-        // Load LLM if not loaded
-        if llmEngine == nil || !llmEngine!.isLoaded {
+        // Reload LLM if not loaded OR if user switched to a different model in Settings
+        let needsLLMReload = llmEngine == nil || !llmEngine!.isLoaded
+            || llmEngine!.modelId != settings.llmModelId
+        if needsLLMReload {
+            if let existing = llmEngine, existing.isLoaded {
+                NSLog("[TranscriptionPipeline] LLM model changed: \(existing.modelId ?? "unknown") → \(settings.llmModelId), unloading old")
+                existing.unloadModel()
+            }
             appState.modelLoadingStatus = "Loading language model..."
             appState.modelLoadingProgress = 0.5
             NSLog("[TranscriptionPipeline] Loading LLM model: \(settings.llmModelId)")
@@ -210,9 +222,10 @@ class TranscriptionPipeline {
             // SKIP VAD — WhisperKit handles silence natively, VAD adds 100-300ms latency
             // Feed raw audio directly to STT
 
-            // STT transcription
+            // STT transcription — pass user's language setting to the engine
             var stageStart = Date()
-            let transcription = try await sttEngine!.transcribe(audioBuffer: audioBuffer)
+            let settings = try fetchSettings()
+            let transcription = try await sttEngine!.transcribe(audioBuffer: audioBuffer, language: settings.language)
             let rawText = transcription.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             NSLog("[TranscriptionPipeline] STT: \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
 
@@ -228,8 +241,6 @@ class TranscriptionPipeline {
             // User sees their words while LLM cleanup runs in the background.
             appState.partialTranscription = rawText
 
-            let settings = try fetchSettings()
-
             // Check for command mode
             if isCommandMode || CommandMode.isCommand(rawText) {
                 return try await handleCommandMode(rawText: rawText, settings: settings)
@@ -240,14 +251,14 @@ class TranscriptionPipeline {
                 return try await handleSnippet(snippet: snippet, settings: settings)
             }
 
-            // Apply personal dictionary corrections
-            let correctedText = personalDict.applyCorrections(to: rawText)
-
             // Use pre-computed context from startRecording() (saves ~30ms).
             // Fall back to fresh detection if cache is empty (shouldn't happen).
             stageStart = Date()
             let styleSettings = cachedStyleSettings ?? StyleSettings.loadFromUserDefaults()
             let appContext = cachedAppContext ?? AppContextDetector.detect(settings: styleSettings)
+
+            // Apply personal dictionary corrections (pass app name for per-app entries)
+            let correctedText = personalDict.applyCorrections(to: rawText, activeAppName: appContext.appName)
             cachedStyleSettings = nil
             cachedAppContext = nil
             NSLog("[TranscriptionPipeline] Context: \(appContext.appName) (\(appContext.category.rawValue)) (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms, cached)")
@@ -275,11 +286,15 @@ class TranscriptionPipeline {
                     language: settings.language,
                     appContext: appContext,
                     cleanupLevel: CleanupContext.CleanupLevel(rawValue: settings.cleanupLevel) ?? .medium,
-                    removeFillers: true
+                    removeFillers: true,
+                    experimentalPrompts: settings.experimentalPrompts
                 )
 
                 cleanedText = try await llmEngine!.cleanup(rawText: correctedText, context: context)
                 NSLog("[TranscriptionPipeline] LLM: \"\(cleanedText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+
+                // Strip example echo: small models sometimes echo few-shot examples before the actual output
+                cleanedText = Self.stripExampleEcho(output: cleanedText, input: correctedText)
 
                 // Validate: LLM output must share significant content with input.
                 // If the model went off-script (chatbot response, refusal, code), fall back.
@@ -311,11 +326,16 @@ class TranscriptionPipeline {
             appState.isProcessing = false
             appState.partialTranscription = nil
             appState.lastTranscription = cleanedText
+            appState.lastRawTranscription = rawText
+
+            // Auto-learn corrections: monitor the focused text field for user edits
+            if settings.autoPaste {
+                personalDict.monitorAndLearn(pastedText: cleanedText)
+            }
 
             // Move history save + analytics off the critical path.
             // Text is already pasted, no need to block on disk I/O.
             let finalWordCount = cleanedText.split(separator: " ").count
-            let processingTime = transcription.processingTime
             let sttModelId = sttEngine?.modelInfo.id ?? "unknown"
             let sourceApp = appContext.appName
             let container = self.container
@@ -325,21 +345,23 @@ class TranscriptionPipeline {
                     let entry = Transcription(
                         rawText: rawText,
                         cleanedText: cleanedText,
-                        durationSeconds: processingTime,
+                        durationSeconds: audioDuration,
                         wordCount: finalWordCount,
                         sttModel: sttModelId,
                         llmModel: self?.llmEngine?.modelId ?? "unknown",
                         sourceApp: sourceApp,
-                        language: "en"
+                        language: transcription.language ?? "en"
                     )
                     context.insert(entry)
                     try context.save()
                 } catch {
                     NSLog("[TranscriptionPipeline] ⚠️ Failed to save transcription history: \(error)")
                 }
+                // Use audio duration (speaking time) as the "time saved" metric,
+                // since it represents how long the user would have spent typing
                 await AnalyticsTracker.shared.recordTranscription(
                     wordCount: finalWordCount,
-                    duration: processingTime
+                    duration: audioDuration
                 )
                 Task { @MainActor in
                     self?.appState.updateStats()
@@ -385,7 +407,8 @@ class TranscriptionPipeline {
             language: settings.language,
             appContext: nil,
             cleanupLevel: .medium,
-            removeFillers: false
+            removeFillers: false,
+            experimentalPrompts: settings.experimentalPrompts
         ))
 
         pasteManager.paste(result)
@@ -421,6 +444,53 @@ class TranscriptionPipeline {
     }
 
     // MARK: - Output Validation
+
+    /// Strip example echo: small models sometimes echo few-shot examples before the actual output.
+    /// Detects known example phrases or "Transcript:" markers and strips everything before them.
+    private static func stripExampleEcho(output: String, input: String) -> String {
+        var cleaned = output
+
+        // Check for "Transcript:" marker — model echoed the prompt structure
+        if let transcriptRange = cleaned.range(of: "Transcript:", options: .caseInsensitive) {
+            let afterTranscript = String(cleaned[transcriptRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !afterTranscript.isEmpty {
+                NSLog("[TranscriptionPipeline] ⚠️ Stripped example echo (Transcript: marker)")
+                cleaned = afterTranscript
+            }
+        }
+
+        // Check for known example phrases from few-shot prompts
+        let exampleMarkers = [
+            "I was thinking we should have a meeting tomorrow to discuss the project timeline.",
+            "An iOS app\n2. A website\n3. API documentation",
+            "Pick up groceries",
+            "Fix the auth bug",
+        ]
+        for marker in exampleMarkers {
+            if cleaned.contains(marker), !input.lowercased().contains(marker.lowercased().prefix(20)) {
+                // The output contains an example phrase that's NOT in the actual input — likely echo
+                // Try to find where the actual transcript starts by looking for input words
+                let inputFirstWords = input.split(separator: " ").prefix(4).joined(separator: " ").lowercased()
+                if let startRange = cleaned.range(of: inputFirstWords, options: .caseInsensitive) {
+                    let extracted = String(cleaned[startRange.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !extracted.isEmpty {
+                        NSLog("[TranscriptionPipeline] ⚠️ Stripped example echo (matched input start)")
+                        cleaned = extracted
+                        break
+                    }
+                }
+            }
+        }
+
+        // Length sanity: if output is more than 2.5x the input word count, something is wrong
+        let inputWordCount = input.split(separator: " ").count
+        let outputWordCount = cleaned.split(separator: " ").count
+        if outputWordCount > 0 && inputWordCount > 0 && Double(outputWordCount) / Double(inputWordCount) > 2.5 {
+            NSLog("[TranscriptionPipeline] ⚠️ Output suspiciously long (\(outputWordCount) vs \(inputWordCount) input words)")
+        }
+
+        return cleaned
+    }
 
     /// Check that LLM output is a valid cleanup of the input, not a chatbot response.
     /// A valid cleanup should share a significant number of content words with the input.

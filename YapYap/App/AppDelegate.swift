@@ -129,11 +129,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let hostingView = TransparentHostingView(rootView: floatingView)
         floatingBarPanel?.contentView = hostingView
 
-        // Position the bar
-        floatingBarPanel?.positionOnScreen(position: .bottomCenter)
-
         // Show the bar if setting is enabled (will show resting character)
         let settings = DataManager.shared.fetchSettings()
+
+        // Position the bar from saved settings
+        let barPosition = FloatingBarPosition(fromSettingsString: settings.floatingBarPosition)
+        floatingBarPanel?.positionOnScreen(position: barPosition)
         if settings.showFloatingBar {
             print("[AppDelegate] Showing floating bar at launch (resting state)")
             floatingBarPanel?.showBar()
@@ -149,6 +150,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startObservingRecordingState() {
         print("[AppDelegate] startObservingRecordingState() starting observation loop")
         var lastBarVisibleState = false
+        var lastBarPosition = ""
         var loopCount = 0
 
         Task {
@@ -168,6 +170,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             floatingBarPanel?.hideBar()
                         }
                         lastBarVisibleState = shouldShowBar
+                    }
+
+                    // Apply position changes from settings
+                    if settings.floatingBarPosition != lastBarPosition {
+                        let position = FloatingBarPosition(fromSettingsString: settings.floatingBarPosition)
+                        floatingBarPanel?.positionOnScreen(position: position)
+                        lastBarPosition = settings.floatingBarPosition
                     }
                 }
 

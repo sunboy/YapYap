@@ -12,7 +12,6 @@ final class DataManager {
             Transcription.self,
             AppSettings.self,
             PowerModeRule.self,
-            CustomDictionaryEntry.self,
             DailyStats.self
         ])
 

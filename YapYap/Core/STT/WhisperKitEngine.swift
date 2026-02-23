@@ -86,7 +86,7 @@ class WhisperKitEngine: STTEngine {
         }
     }
 
-    func transcribe(audioBuffer: AVAudioPCMBuffer) async throws -> TranscriptionResult {
+    func transcribe(audioBuffer: AVAudioPCMBuffer, language: String = "en") async throws -> TranscriptionResult {
         guard let pipe = pipe else {
             throw YapYapError.modelNotLoaded
         }
@@ -94,17 +94,26 @@ class WhisperKitEngine: STTEngine {
         let startTime = Date()
         let floatArray = bufferToFloatArray(audioBuffer)
 
+        // Enable timestamps for audio longer than 30s so the decoder properly
+        // seeks through multiple windows. Without timestamps on long audio,
+        // Whisper loses track and truncates the transcription.
+        let audioDuration = Double(audioBuffer.frameLength) / 16000.0
+        let needsTimestamps = audioDuration > 28.0
+
+        // Map language code to Whisper's expected format (strip region suffixes like "en-GB" → "en")
+        let whisperLang = language.components(separatedBy: "-").first ?? "en"
+        NSLog("[WhisperKitEngine] Transcribing with language: \(whisperLang)")
+
         // Speed-optimized decoding options — no temperature fallback retries
-        // language: "en" forces English-only decoding, preventing noise → foreign language hallucinations
         let options = DecodingOptions(
             task: .transcribe,
-            language: "en",
+            language: whisperLang,
             temperature: 0.0,
             temperatureFallbackCount: 2,
             usePrefillPrompt: true,
             usePrefillCache: true,
             detectLanguage: false,
-            withoutTimestamps: true,
+            withoutTimestamps: !needsTimestamps,
             wordTimestamps: false,
             suppressBlank: true,
             compressionRatioThreshold: 2.4,

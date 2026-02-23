@@ -8,7 +8,13 @@ struct CleanupPromptBuilder {
     /// Prompts are model-specific: small models (<=2B) get ultra-minimal prompts,
     /// medium+ models (3B+) get detailed prompts with rules and more examples.
     static func buildMessages(rawText: String, context: CleanupContext, modelId: String? = nil) -> (system: String, user: String) {
-        let (family, size) = resolveModel(modelId: modelId)
+        let (family, resolvedSize) = resolveModel(modelId: modelId)
+        // Experimental mode: treat small models as medium so they get detailed prompts.
+        // Exception: 1B-class models (< 800MB) can't follow detailed prompts — they echo
+        // examples or ignore instructions entirely. Only upgrade 1.5B+ small models.
+        let modelInfo = modelId.flatMap { LLMModelRegistry.model(for: $0) }
+        let is1BClass = (modelInfo?.sizeBytes ?? 0) < 800_000_000
+        let size = (context.experimentalPrompts && resolvedSize == .small && !is1BClass) ? .medium : resolvedSize
         let system = buildSystemPrompt(context: context, family: family, size: size)
         let user = buildUserMessage(rawText: rawText, context: context, family: family, size: size)
         return (system: system, user: user)
@@ -40,7 +46,7 @@ struct CleanupPromptBuilder {
         case .qwen:
             return buildQwenDetailedSystemPrompt(context: context)
         case .gemma:
-            return "You clean up speech-to-text transcripts. Output only the cleaned text."
+            return "You clean up speech-to-text transcripts. Reply with only the cleaned text. No preamble, no labels, no repeating instructions—start with the first word of the cleaned text."
         }
     }
 
@@ -51,15 +57,15 @@ struct CleanupPromptBuilder {
         var prompt: String
         switch context.cleanupLevel {
         case .light:
-            prompt = "Fix dictation errors. Output only fixed text."
+            prompt = "Fix dictation errors. Reply with only the fixed text—no preamble or labels."
         case .medium:
-            prompt = "Fix dictation errors. Remove filler words. Output only fixed text."
+            prompt = "Fix dictation errors. Remove filler words. Reply with only the fixed text—no preamble or labels."
         case .heavy:
-            prompt = "Fix dictation errors. Remove fillers. Improve clarity. Output only fixed text."
+            prompt = "Fix dictation errors. Remove fillers. Improve clarity. Reply with only the fixed text—no preamble or labels."
         }
 
         // List detection — concise instruction for small models
-        prompt += " Lists → numbered, one per line."
+        prompt += " When multiple items are listed, format as a list with each item on its own line. Use 1. 2. 3. for ordered items, - for unordered."
 
         // Add concise app context hint
         if let appContext = context.appContext {
@@ -67,7 +73,7 @@ struct CleanupPromptBuilder {
             case .workMessaging:
                 prompt += " Keep @mentions and #channels."
             case .email:
-                prompt += " Use proper sentences."
+                prompt += " Format as email with proper sentences and paragraphs."
             case .codeEditor:
                 if appContext.isIDEChatPanel {
                     prompt += " Prefix filenames with @."
@@ -101,7 +107,7 @@ struct CleanupPromptBuilder {
             parts.append("RULES:\n1. Remove ALL filler words and hesitations\n2. Fix punctuation, capitalization, and sentence structure\n3. Handle self-corrections: \"X no wait Y\" → output only Y\n4. Improve clarity without changing meaning")
         }
 
-        parts.append("STRICT CONSTRAINTS:\n- Do NOT add any words, ideas, or content not in the transcript\n- Do NOT summarize or shorten\n- Do NOT explain your changes\n- If the input contains a list of items (comma-separated, colon-introduced, or ordinal), format each item on its own line as a numbered list\n- Output ONLY the cleaned text, nothing else")
+        parts.append("STRICT CONSTRAINTS:\n- Do NOT add any words, ideas, or content not in the transcript\n- Do NOT summarize or shorten\n- Do NOT explain your changes\n- Do NOT repeat these instructions, add a preamble, or label your reply (e.g. no \"Here is the cleaned transcript:\" or similar). Start your reply with the first word of the cleaned text.\n- When the speaker lists or enumerates multiple things, format them as a list with each item on its own line. Use numbered lists (1. 2. 3.) for ordered/sequential items, bullet points (- ) for unordered items.\n- Output ONLY the cleaned text, nothing else")
 
         if let appContext = context.appContext {
             parts.append("App: \(appContext.appName) (\(toneHint(for: appContext)))")
@@ -142,7 +148,7 @@ struct CleanupPromptBuilder {
             parts.append("Style: \(context.stylePrompt)")
         }
 
-        parts.append("If the input contains a list of items (comma-separated, colon-introduced, or ordinal), format each item on its own line as a numbered list.\nDo NOT add new words. Do NOT summarize. Output only cleaned text.")
+        parts.append("When the speaker lists or enumerates multiple things, format them as a list with each item on its own line. Use numbered lists (1. 2. 3.) for ordered/sequential items, bullet points (- ) for unordered items.\nDo NOT add new words. Do NOT summarize. Do NOT repeat instructions or add a preamble—start your reply with the first word of the cleaned text. Output only the cleaned text.")
 
         return parts.joined(separator: "\n")
     }
@@ -180,14 +186,15 @@ struct CleanupPromptBuilder {
         IN: hey so basically the thing is the api is broken and uh nobody noticed
         OUT: Hey, the API is broken and nobody noticed.
 
-        IN: things to do today check email review the PR and update the docs
+        IN: so i need to buy milk eggs bread and also pick up the dry cleaning
         OUT:
-        1. Check email
-        2. Review the PR
-        3. Update the docs
+        - Milk
+        - Eggs
+        - Bread
+        - Pick up the dry cleaning
         """)
 
-        parts.append("Fix this:\n\(rawText)")
+        parts.append("Reply with only the fixed text (no preamble).\n\n\(rawText)")
         return parts.joined(separator: "\n\n")
     }
 
@@ -207,6 +214,13 @@ struct CleanupPromptBuilder {
             EXAMPLE 2:
             Input: the server is basically down and nobody is responding to the alerts we need to fix this right away
             Output: The server is basically down and nobody is responding to the alerts. We need to fix this right away.
+
+            EXAMPLE 3:
+            Input: i need to pick up groceries get gas and also drop off the package at the post office
+            Output:
+            - Pick up groceries
+            - Get gas
+            - Drop off the package at the post office
             """)
         case .medium:
             parts.append("""
@@ -221,6 +235,14 @@ struct CleanupPromptBuilder {
             EXAMPLE 3:
             Input: hey can you uh look at the app the app is crashing when users try to log in i think it's a null pointer issue
             Output: Hey, can you look at the app? It's crashing when users try to log in. I think it's a null pointer issue.
+
+            EXAMPLE 4:
+            Input: so for the project i'm working on like three things an ios app a website and also some api documentation
+            Output:
+            For the project I'm working on:
+            1. An iOS app
+            2. A website
+            3. API documentation
             """)
         case .heavy:
             parts.append("""
@@ -231,10 +253,18 @@ struct CleanupPromptBuilder {
             EXAMPLE 2:
             Input: so like basically what happened was the server went down at like 3 am and you know nobody was monitoring it so it was actually down for like two hours before anyone noticed i mean that's not great right
             Output: The server went down at 3 AM. Nobody was monitoring it, so it was down for two hours before anyone noticed.
+
+            EXAMPLE 3:
+            Input: um so basically the priorities are like first we need to fix the auth bug then uh deploy the new api and you know update the docs
+            Output:
+            The priorities are:
+            1. Fix the auth bug
+            2. Deploy the new API
+            3. Update the docs
             """)
         }
 
-        parts.append("NOW CLEAN THIS TRANSCRIPT:\n\(rawText)")
+        parts.append("Reply with only the cleaned text (no preamble, no labels).\n\nTranscript:\n\(rawText)")
         return parts.joined(separator: "\n\n")
     }
 
@@ -256,9 +286,17 @@ struct CleanupPromptBuilder {
         EXAMPLE 3:
         Input: hey can you uh look at the app the app is crashing when users try to log in i think it's a null pointer issue
         Output: Hey, can you look at the app? It's crashing when users try to log in. I think it's a null pointer issue.
+
+        EXAMPLE 4:
+        Input: so for the project i'm working on like three things an ios app a website and also some api documentation
+        Output:
+        For the project I'm working on:
+        1. An iOS app
+        2. A website
+        3. API documentation
         """)
 
-        parts.append("NOW CLEAN THIS TRANSCRIPT:\n\(rawText)")
+        parts.append("Reply with only the cleaned text (no preamble, no labels).\n\nTranscript:\n\(rawText)")
         return parts.joined(separator: "\n\n")
     }
 
@@ -276,7 +314,7 @@ struct CleanupPromptBuilder {
             instructions += "REMOVE: ALL filler words and hesitations\nFIX: punctuation, capitalization, sentence structure\nSELF-CORRECTIONS: \"X no wait Y\" → keep only Y\n"
         }
         instructions += "If the input contains a list of items (comma-separated, colon-introduced, or ordinal), format each item on its own line as a numbered list.\n"
-        instructions += "Do NOT add new words. Do NOT summarize. Output ONLY the cleaned text."
+        instructions += "Do NOT add new words. Do NOT summarize. Do NOT repeat instructions or add a preamble. Output ONLY the cleaned text—start with the first word of the cleaned text."
         parts.append(instructions)
 
         if let appContext = context.appContext {
@@ -290,9 +328,15 @@ struct CleanupPromptBuilder {
 
         IN: hey just wanted to let you know the deploy went fine no issues everything's looking good
         OUT: Hey, just wanted to let you know the deploy went fine. No issues, everything's looking good.
+
+        IN: so i need to pick up groceries get gas and also drop off the package at the post office
+        OUT:
+        - Pick up groceries
+        - Get gas
+        - Drop off the package at the post office
         """)
 
-        parts.append("TRANSCRIPT TO CLEAN:\n\(rawText)")
+        parts.append("Reply with only the cleaned text (no preamble, no labels).\n\nTranscript:\n\(rawText)")
         return parts.joined(separator: "\n\n")
     }
 

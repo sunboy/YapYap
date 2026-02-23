@@ -27,7 +27,7 @@ class WhisperCppEngine: STTEngine {
         // No-op: backend not yet implemented
     }
 
-    func transcribe(audioBuffer: AVAudioPCMBuffer) async throws -> TranscriptionResult {
+    func transcribe(audioBuffer: AVAudioPCMBuffer, language: String = "en") async throws -> TranscriptionResult {
         throw YapYapError.modelNotLoaded
     }
 }

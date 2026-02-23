@@ -3,6 +3,16 @@ import SwiftUI
 struct PopoverView: View {
     let appState: AppState
 
+    @State private var currentSTTModelName: String = ""
+    @State private var currentLLMModelName: String = ""
+    @State private var currentLanguage: String = "English"
+    @State private var copyToClipboard: Bool = true
+
+    // Correction editing state
+    @State private var isEditingTranscription = false
+    @State private var editableTranscription = ""
+    @State private var learnedMessage: String?
+
     var body: some View {
         VStack(spacing: 0) {
             // MARK: - Header
@@ -25,6 +35,31 @@ struct PopoverView: View {
         .background(Color.ypBg3)
         .onAppear {
             appState.updateStats()
+            refreshSettingsState()
+        }
+    }
+
+    private func refreshSettingsState() {
+        let settings = DataManager.shared.fetchSettings()
+        currentSTTModelName = STTModelRegistry.model(for: settings.sttModelId)?.name ?? settings.sttModelId
+        currentLLMModelName = LLMModelRegistry.model(for: settings.llmModelId)?.name ?? settings.llmModelId
+        currentLanguage = Self.languageDisplayName(for: settings.language)
+        copyToClipboard = settings.copyToClipboard
+    }
+
+    private static func languageDisplayName(for code: String) -> String {
+        switch code {
+        case "en", "en-GB": return "English"
+        case "es": return "Spanish"
+        case "fr": return "French"
+        case "de": return "German"
+        case "it": return "Italian"
+        case "pt": return "Portuguese"
+        case "zh": return "Chinese"
+        case "ja": return "Japanese"
+        case "ko": return "Korean"
+        case "hi": return "Hindi"
+        default: return "English"
         }
     }
 
@@ -88,33 +123,153 @@ struct PopoverView: View {
 
     private func lastTranscriptionSection(text: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("LAST TRANSCRIPTION")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(.ypText3)
-                .tracking(0.8)
+            HStack {
+                Text("LAST TRANSCRIPTION")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.ypText3)
+                    .tracking(0.8)
 
-            Text(text)
-                .font(.system(size: 12))
-                .foregroundColor(.ypText2)
-                .lineLimit(2)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.ypCard)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.ypBorderLight, lineWidth: 1)
-                )
-                .cornerRadius(6)
-                .onTapGesture {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(text, forType: .string)
+                Spacer()
+
+                if !isEditingTranscription {
+                    Button(action: {
+                        editableTranscription = text
+                        isEditingTranscription = true
+                        learnedMessage = nil
+                    }) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 10))
+                            .foregroundColor(.ypText3)
+                    }
+                    .buttonStyle(.plain)
                 }
+            }
+
+            if isEditingTranscription {
+                // Editing mode
+                VStack(alignment: .leading, spacing: 8) {
+                    TextEditor(text: $editableTranscription)
+                        .font(.system(size: 12))
+                        .foregroundColor(.ypText2)
+                        .scrollContentBackground(.hidden)
+                        .padding(6)
+                        .frame(minHeight: 50, maxHeight: 80)
+                        .background(Color.ypCard)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.ypLavender.opacity(0.5), lineWidth: 1)
+                        )
+                        .cornerRadius(6)
+
+                    HStack(spacing: 8) {
+                        Button(action: learnCorrections) {
+                            Text("Learn Corrections")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.ypLavender)
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: {
+                            isEditingTranscription = false
+                            learnedMessage = nil
+                        }) {
+                            Text("Cancel")
+                                .font(.system(size: 11))
+                                .foregroundColor(.ypText3)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if let message = learnedMessage {
+                    Text(message)
+                        .font(.system(size: 10))
+                        .foregroundColor(.ypLavender)
+                        .transition(.opacity)
+                }
+            } else {
+                // Display mode
+                Text(text)
+                    .font(.system(size: 12))
+                    .foregroundColor(.ypText2)
+                    .lineLimit(2)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.ypCard)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.ypBorderLight, lineWidth: 1)
+                    )
+                    .cornerRadius(6)
+                    .onTapGesture {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .overlay(alignment: .bottom) {
             Divider().background(Color.ypBorderLight)
+        }
+    }
+
+    private func learnCorrections() {
+        guard let originalText = appState.lastTranscription else { return }
+        let edited = editableTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !edited.isEmpty, edited != originalText else {
+            isEditingTranscription = false
+            return
+        }
+
+        // Diff cleaned text against edited version
+        var candidates = CorrectionDiffer.diff(original: originalText, corrected: edited)
+
+        // Also try to map corrections back to raw STT output for better learning
+        if let rawText = appState.lastRawTranscription {
+            let rawCandidates = CorrectionDiffer.diff(original: rawText, corrected: edited)
+            // Add raw-based candidates that aren't duplicates
+            let existingOriginals = Set(candidates.map { $0.original.lowercased() })
+            for rc in rawCandidates where !existingOriginals.contains(rc.original.lowercased()) {
+                candidates.append(rc)
+            }
+        }
+
+        let dict = PersonalDictionary.shared
+        var learned: [String] = []
+        for candidate in candidates {
+            dict.learnCorrection(
+                spoken: candidate.original,
+                corrected: candidate.corrected,
+                source: .manual
+            )
+            learned.append("\(candidate.original) \u{2192} \(candidate.corrected)")
+        }
+
+        if learned.isEmpty {
+            learnedMessage = "No corrections detected"
+        } else {
+            learnedMessage = "Learned: " + learned.joined(separator: ", ")
+        }
+
+        // Update the displayed transcription
+        appState.lastTranscription = edited
+
+        // Copy corrected text to clipboard
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(edited, forType: .string)
+
+        // Dismiss editing after a brief moment
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            isEditingTranscription = false
+            learnedMessage = nil
         }
     }
 
@@ -155,21 +310,11 @@ struct PopoverView: View {
 
     // MARK: - Quick Settings
 
-    private var sttModelName: String {
-        let settings = DataManager.shared.fetchSettings()
-        return STTModelRegistry.model(for: settings.sttModelId)?.name ?? settings.sttModelId
-    }
-
-    private var llmModelName: String {
-        let settings = DataManager.shared.fetchSettings()
-        return LLMModelRegistry.model(for: settings.llmModelId)?.name ?? settings.llmModelId
-    }
-
     private var quickSettingsSection: some View {
         VStack(spacing: 0) {
             settingsRow(icon: "🎙", label: "STT Model") {
                 HStack(spacing: 4) {
-                    Text(sttModelName)
+                    Text(currentSTTModelName)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.ypLavender)
                         .padding(.horizontal, 8)
@@ -182,10 +327,13 @@ struct PopoverView: View {
                         .opacity(0.3)
                 }
             }
+            .onTapGesture {
+                SettingsWindowController.shared.showWindow(nil)
+            }
 
             settingsRow(icon: "✨", label: "Cleanup Model") {
                 HStack(spacing: 4) {
-                    Text(llmModelName)
+                    Text(currentLLMModelName)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.ypWarm)
                         .padding(.horizontal, 8)
@@ -198,10 +346,13 @@ struct PopoverView: View {
                         .opacity(0.3)
                 }
             }
+            .onTapGesture {
+                SettingsWindowController.shared.showWindow(nil)
+            }
 
             settingsRow(icon: "🌐", label: "Language") {
                 HStack(spacing: 4) {
-                    Text("English")
+                    Text(currentLanguage)
                         .font(.system(size: 11))
                         .foregroundColor(.ypText3)
                     Text("›")
@@ -209,6 +360,9 @@ struct PopoverView: View {
                         .foregroundColor(.ypText3)
                         .opacity(0.3)
                 }
+            }
+            .onTapGesture {
+                SettingsWindowController.shared.showWindow(nil)
             }
 
             // Divider
@@ -218,9 +372,17 @@ struct PopoverView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
 
-            settingsRow(icon: "📋", label: "Paste to clipboard") {
-                Toggle("", isOn: .constant(true))
-                    .toggleStyle(YPToggleStyle())
+            settingsRow(icon: "📋", label: "Copy to clipboard") {
+                Toggle("", isOn: Binding(
+                    get: { copyToClipboard },
+                    set: { newValue in
+                        copyToClipboard = newValue
+                        let settings = DataManager.shared.fetchSettings()
+                        settings.copyToClipboard = newValue
+                        try? DataManager.shared.container.mainContext.save()
+                    }
+                ))
+                .toggleStyle(YPToggleStyle())
             }
         }
         .padding(8)

@@ -6,9 +6,12 @@ final class AppState {
     var creatureState: CreatureState = .sleeping
     var isRecording: Bool = false
     var isProcessing: Bool = false
-    var masterToggle: Bool = true
+    var masterToggle: Bool {
+        didSet { UserDefaults.standard.set(masterToggle, forKey: "masterToggle") }
+    }
     var currentRMS: Float = 0.0
     var lastTranscription: String?
+    var lastRawTranscription: String?
     var isCommandMode: Bool = false
     /// Raw STT output shown as preview while LLM processes
     var partialTranscription: String?
@@ -23,6 +26,16 @@ final class AppState {
     var todayCount: Int = 0
     var todayWords: Int = 0
     var todayTimeSaved: String = "0m"
+
+    init() {
+        // Restore master toggle (defaults to true if never saved)
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: "masterToggle") != nil {
+            self.masterToggle = defaults.bool(forKey: "masterToggle")
+        } else {
+            self.masterToggle = true
+        }
+    }
 
     func updateStats() {
         Task { @MainActor in

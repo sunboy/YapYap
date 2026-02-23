@@ -24,6 +24,7 @@ final class AppSettings {
     var microphoneId: String?
     var gpuAcceleration: Bool
     var autoDownloadModels: Bool
+    var experimentalPrompts: Bool
 
     init(
         sttModelId: String = "whisper-small",
@@ -39,14 +40,15 @@ final class AppSettings {
         autoPaste: Bool = true,
         copyToClipboard: Bool = true,
         notifyOnComplete: Bool = false,
-        floatingBarPosition: String = "center",
+        floatingBarPosition: String = "Bottom center",
         historyLimit: Int = 100,
         soundFeedback: Bool = true,
         hapticFeedback: Bool = true,
         doubleTapActivation: Bool = false,
         microphoneId: String? = nil,
         gpuAcceleration: Bool = true,
-        autoDownloadModels: Bool = true
+        autoDownloadModels: Bool = true,
+        experimentalPrompts: Bool = false
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -69,6 +71,7 @@ final class AppSettings {
         self.microphoneId = microphoneId
         self.gpuAcceleration = gpuAcceleration
         self.autoDownloadModels = autoDownloadModels
+        self.experimentalPrompts = experimentalPrompts
     }
 
     static func defaults() -> AppSettings {

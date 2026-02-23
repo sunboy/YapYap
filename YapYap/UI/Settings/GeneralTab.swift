@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AVFoundation
 
 struct GeneralTab: View {
     @State private var launchAtLogin = true
@@ -7,11 +8,12 @@ struct GeneralTab: View {
     @State private var autoPaste = true
     @State private var copyToClipboard = true
     @State private var notifyOnComplete = false
+    @State private var experimentalPrompts = false
     @State private var selectedMic = "Default"
     @State private var floatingBarPosition = "Bottom center"
     @State private var historyLimit = "Last 100"
+    @State private var micOptions: [String] = ["Default"]
 
-    private let micOptions = ["Default", "MacBook Pro Microphone (Built-in)", "AirPods Pro"]
     private let positions = ["Bottom center", "Bottom left", "Bottom right", "Top center"]
     private let historyOptions = ["Last 50", "Last 100", "Last 500", "Keep all", "Don't save"]
 
@@ -34,11 +36,22 @@ struct GeneralTab: View {
 
             divider
 
+            Text("EXPERIMENTAL")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.ypText2)
+                .tracking(0.8)
+                .padding(.bottom, 8)
+
+            toggleRow(label: "Detailed prompts for small models", subtitle: "Use 3B+ model prompts on ≤1B models (may reduce accuracy)", isOn: $experimentalPrompts)
+
+            divider
+
             dropdownRow(label: "MICROPHONE", options: micOptions, selection: $selectedMic)
             dropdownRow(label: "FLOATING BAR POSITION", options: positions, selection: $floatingBarPosition)
             dropdownRow(label: "TRANSCRIPTION HISTORY", options: historyOptions, selection: $historyLimit)
         }
         .onAppear {
+            enumerateMicrophones()
             loadSettings()
         }
         .onChange(of: launchAtLogin) { _, newValue in
@@ -56,34 +69,58 @@ struct GeneralTab: View {
         .onChange(of: notifyOnComplete) { _, newValue in
             saveSettings { $0.notifyOnComplete = newValue }
         }
+        .onChange(of: experimentalPrompts) { _, newValue in
+            saveSettings { $0.experimentalPrompts = newValue }
+        }
         .onChange(of: floatingBarPosition) { _, newValue in
             saveSettings { $0.floatingBarPosition = newValue }
         }
         .onChange(of: historyLimit) { _, newValue in
             saveSettings { $0.historyLimit = historyLimitToInt(newValue) }
         }
+        .onChange(of: selectedMic) { _, newValue in
+            let micId = newValue == "Default" ? nil : newValue
+            saveSettings { $0.microphoneId = micId }
+        }
+    }
+
+    private func enumerateMicrophones() {
+        let devices = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone],
+            mediaType: .audio,
+            position: .unspecified
+        ).devices
+
+        var options = ["Default"]
+        for device in devices {
+            options.append(device.localizedName)
+        }
+        micOptions = options
     }
 
     private func loadSettings() {
-        Task { @MainActor in
-            let settings = DataManager.shared.fetchSettings()
-            launchAtLogin = settings.launchAtLogin
-            showFloatingBar = settings.showFloatingBar
-            autoPaste = settings.autoPaste
-            copyToClipboard = settings.copyToClipboard
-            notifyOnComplete = settings.notifyOnComplete
-            floatingBarPosition = settings.floatingBarPosition
-            historyLimit = intToHistoryLimit(settings.historyLimit)
+        let settings = DataManager.shared.fetchSettings()
+        launchAtLogin = settings.launchAtLogin
+        showFloatingBar = settings.showFloatingBar
+        autoPaste = settings.autoPaste
+        copyToClipboard = settings.copyToClipboard
+        notifyOnComplete = settings.notifyOnComplete
+        experimentalPrompts = settings.experimentalPrompts
+        floatingBarPosition = settings.floatingBarPosition
+        historyLimit = intToHistoryLimit(settings.historyLimit)
+
+        // Load saved mic selection
+        if let micId = settings.microphoneId, micOptions.contains(micId) {
+            selectedMic = micId
+        } else {
+            selectedMic = "Default"
         }
     }
 
-    private func saveSettings(_ update: @escaping (AppSettings) -> Void) {
-        Task { @MainActor in
-            let settings = DataManager.shared.fetchSettings()
-            update(settings)
-            // Settings are automatically saved by SwiftData context
-            try? DataManager.shared.container.mainContext.save()
-        }
+    private func saveSettings(_ update: (AppSettings) -> Void) {
+        let settings = DataManager.shared.fetchSettings()
+        update(settings)
+        try? DataManager.shared.container.mainContext.save()
     }
 
     private func historyLimitToInt(_ str: String) -> Int {

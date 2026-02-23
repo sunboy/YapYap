@@ -90,6 +90,7 @@ struct OutputFormatter {
         "1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5
     ]
 
+
     // MARK: - Colon-List Detection Patterns
 
     /// Matches a colon that introduces a list (not time like 3:00, not URL like https:)
@@ -230,14 +231,52 @@ struct OutputFormatter {
 
     // MARK: - Email Formatting
 
-    /// Insert paragraph breaks before transition words for better email structure.
-    static func applyEmailFormatting(_ text: String) -> String {
-        // Only apply if text has 3+ sentences and no existing paragraph breaks
-        let sentenceCount = text.components(separatedBy: CharacterSet(charactersIn: ".!?")).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
-        guard sentenceCount >= 3 && !text.contains("\n\n") else { return text }
+    /// Matches greeting patterns at the start of text
+    private static let greetingRegex = try! NSRegularExpression(
+        pattern: "^((?:Hi|Hello|Hey|Dear|Good morning|Good afternoon|Good evening)\\s+[A-Z][a-z]+(?:\\s+[A-Z][a-z]+)?,?)\\s+",
+        options: []
+    )
 
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return emailParagraphRegex.stringByReplacingMatches(in: text, range: range, withTemplate: "$1\n\n$2")
+    /// Matches sign-off patterns near the end of text
+    private static let signOffRegex = try! NSRegularExpression(
+        pattern: "\\s+((?:Thanks|Thank you|Best|Best regards|Regards|Cheers|Sincerely|Warm regards|Kind regards|All the best),?\\s+[A-Z][a-z]+\\.?)$",
+        options: []
+    )
+
+    /// Format email text with greeting/body/sign-off structure and transition paragraph breaks.
+    static func applyEmailFormatting(_ text: String) -> String {
+        guard !text.contains("\n\n") else { return text }
+
+        var result = text
+
+        // Extract greeting (e.g., "Hi Robert," or "Hello Sarah,")
+        let fullRange = NSRange(result.startIndex..<result.endIndex, in: result)
+        if let greetingMatch = greetingRegex.firstMatch(in: result, range: fullRange),
+           let greetingRange = Range(greetingMatch.range(at: 1), in: result) {
+            let greeting = String(result[greetingRange])
+            let rest = String(result[greetingRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+            result = greeting + "\n\n" + rest
+        }
+
+        // Extract sign-off (e.g., "Thanks, Sandeep" or "Best regards, John")
+        let currentRange = NSRange(result.startIndex..<result.endIndex, in: result)
+        if let signOffMatch = signOffRegex.firstMatch(in: result, range: currentRange),
+           let signOffRange = Range(signOffMatch.range(at: 1), in: result) {
+            let signOff = String(result[signOffRange])
+            let body = String(result[result.startIndex..<signOffRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+            // Split sign-off name onto its own line (e.g., "Thanks,\nSandeep")
+            let signOffFormatted = signOff.replacingOccurrences(of: ", ", with: ",\n")
+            result = body + "\n\n" + signOffFormatted
+        }
+
+        // Insert paragraph breaks before transition words in the body
+        let sentenceCount = result.components(separatedBy: CharacterSet(charactersIn: ".!?")).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
+        if sentenceCount >= 3 {
+            let range = NSRange(result.startIndex..<result.endIndex, in: result)
+            result = emailParagraphRegex.stringByReplacingMatches(in: result, range: range, withTemplate: "$1\n\n$2")
+        }
+
+        return result
     }
 
     // MARK: - List Formatting (Ordinal Safety Net + Colon-List Detection)

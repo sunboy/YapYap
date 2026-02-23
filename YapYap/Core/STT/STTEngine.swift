@@ -41,7 +41,7 @@ protocol STTEngine: AnyObject {
     var isLoaded: Bool { get }
     func loadModel(progressHandler: @escaping (Double) -> Void) async throws
     func unloadModel()
-    func transcribe(audioBuffer: AVAudioPCMBuffer) async throws -> TranscriptionResult
+    func transcribe(audioBuffer: AVAudioPCMBuffer, language: String) async throws -> TranscriptionResult
     /// Run a minimal inference to keep model weights resident in memory
     func warmup() async
 }

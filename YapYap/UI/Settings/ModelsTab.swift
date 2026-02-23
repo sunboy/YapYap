@@ -149,7 +149,7 @@ struct ModelsTab: View {
                             .padding(.vertical, 3)
                             .background(Color.ypPillLavender)
                             .cornerRadius(4)
-                    } else {
+                    } else if isDownloaded {
                         Button(action: { selectSTTModel(model.id) }) {
                             Text("Select")
                                 .font(.system(size: 10, weight: .medium))
@@ -158,6 +158,22 @@ struct ModelsTab: View {
                                 .padding(.vertical, 3)
                                 .background(Color.ypCard2)
                                 .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // STT models auto-download on first use via WhisperKit
+                        Button(action: { selectSTTModel(model.id) }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.down.circle")
+                                    .font(.system(size: 9))
+                                Text("Select & Download")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundColor(.ypLavender)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.ypPillLavender)
+                            .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
                     }
@@ -254,14 +270,32 @@ struct ModelsTab: View {
                 // Action buttons
                 HStack(spacing: 6) {
                     if isSelected {
-                        Text("Active")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.ypLavender)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.ypPillLavender)
-                            .cornerRadius(4)
-                    } else {
+                        if isDownloaded {
+                            Text("Active")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.ypLavender)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.ypPillLavender)
+                                .cornerRadius(4)
+                        } else {
+                            // Selected but not downloaded — prompt download
+                            Button(action: { downloadAndSelectLLMModel(model) }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "arrow.down.circle")
+                                        .font(.system(size: 9))
+                                    Text("Download to Activate")
+                                        .font(.system(size: 10, weight: .medium))
+                                }
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(4)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } else if isDownloaded {
                         Button(action: { selectLLMModel(model.id) }) {
                             Text("Select")
                                 .font(.system(size: 10, weight: .medium))
@@ -270,6 +304,22 @@ struct ModelsTab: View {
                                 .padding(.vertical, 3)
                                 .background(Color.ypCard2)
                                 .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // Not downloaded, not selected — download first
+                        Button(action: { downloadAndSelectLLMModel(model) }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.down.circle")
+                                    .font(.system(size: 9))
+                                Text("Download & Select")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundColor(.ypLavender)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.ypPillLavender)
+                            .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
                     }
@@ -291,23 +341,6 @@ struct ModelsTab: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Color.red.opacity(0.08))
-                            .cornerRadius(4)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    if !isDownloaded {
-                        Button(action: { downloadLLMModel(model) }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "arrow.down.circle")
-                                    .font(.system(size: 9))
-                                Text("Download")
-                                    .font(.system(size: 10, weight: .medium))
-                            }
-                            .foregroundColor(.ypLavender)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.ypPillLavender)
                             .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
@@ -430,7 +463,11 @@ struct ModelsTab: View {
         saveSettings { $0.llmModelId = id }
     }
 
-    private func downloadLLMModel(_ model: LLMModelInfo) {
+    private func downloadAndSelectLLMModel(_ model: LLMModelInfo) {
+        downloadLLMModel(model, selectAfterDownload: true)
+    }
+
+    private func downloadLLMModel(_ model: LLMModelInfo, selectAfterDownload: Bool = false) {
         guard downloadingModel == nil else { return }
         downloadingModel = model.id
         downloadProgress = 0
@@ -454,6 +491,9 @@ struct ModelsTab: View {
                     downloadingModel = nil
                     downloadProgress = 0
                     computeModelSizes()
+                    if selectAfterDownload {
+                        selectLLMModel(model.id)
+                    }
                 }
             } catch {
                 NSLog("[ModelsTab] Download failed for \(model.id): \(error)")

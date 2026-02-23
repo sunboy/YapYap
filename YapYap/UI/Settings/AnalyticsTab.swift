@@ -60,33 +60,31 @@ struct AnalyticsTab: View {
     }
 
     private func loadAnalytics() {
-        Task { @MainActor in
-            let totals = await AnalyticsTracker.shared.getTotalStats()
-            totalTranscriptions = totals.transcriptions
-            totalWords = totals.words
-            totalTimeSaved = formatDuration(totals.duration)
+        let totals = AnalyticsTracker.shared.getTotalStats()
+        totalTranscriptions = totals.transcriptions
+        totalWords = totals.words
+        totalTimeSaved = formatDuration(totals.duration)
 
-            let weekStats = await AnalyticsTracker.shared.getStatsForWeek()
-            let calendar = Calendar.current
-            let today = calendar.startOfDay(for: Date())
+        let weekStats = AnalyticsTracker.shared.getStatsForWeek()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
 
-            // Create data for last 7 days
-            var dataByDate: [Date: Int] = [:]
-            for stat in weekStats {
-                dataByDate[stat.date] = stat.transcriptionCount
-            }
+        // Create data for last 7 days
+        var dataByDate: [Date: Int] = [:]
+        for stat in weekStats {
+            dataByDate[stat.date] = stat.transcriptionCount
+        }
 
-            // Find max value for normalization
-            let maxCount = dataByDate.values.max() ?? 1
+        // Find max value for normalization
+        let maxCount = dataByDate.values.max() ?? 1
 
-            // Generate array for last 7 days
-            weeklyData = (0..<7).compactMap { offset in
-                guard let date = calendar.date(byAdding: .day, value: -6 + offset, to: today) else { return nil }
-                let dayName = calendar.shortWeekdaySymbols[calendar.component(.weekday, from: date) - 1]
-                let count = dataByDate[date] ?? 0
-                let normalized = maxCount > 0 ? Double(count) / Double(maxCount) : 0.0
-                return (dayName, normalized)
-            }
+        // Generate array for last 7 days
+        weeklyData = (0..<7).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -6 + offset, to: today) else { return nil }
+            let dayName = calendar.shortWeekdaySymbols[calendar.component(.weekday, from: date) - 1]
+            let count = dataByDate[date] ?? 0
+            let normalized = maxCount > 0 ? Double(count) / Double(maxCount) : 0.0
+            return (dayName, normalized)
         }
     }
 

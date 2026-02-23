@@ -6,8 +6,8 @@ struct WritingStyleTab: View {
     @State private var formality = "Casual — like texting a friend"
     @State private var stylePrompt = "Write like a senior engineer — concise, direct, no fluff. Prefer short sentences. Skip pleasantries."
     @State private var cleanupLevel = "Medium — restructure sentences, improve clarity"
+    @State private var availableLanguages: [String] = ["English (US)"]
 
-    private let languages = ["English (US)", "English (UK)", "Spanish", "French", "German", "Hindi", "Japanese"]
     private let formalities = [
         "Casual — like texting a friend",
         "Neutral — everyday professional",
@@ -31,10 +31,10 @@ struct WritingStyleTab: View {
                 .foregroundColor(.ypText3)
                 .padding(.bottom, 20)
 
-            // Language
+            // Language — dynamically filtered by selected STT + LLM model capabilities
             formGroup(label: "WRITING LANGUAGE") {
                 Picker("", selection: $language) {
-                    ForEach(languages, id: \.self) { Text($0) }
+                    ForEach(availableLanguages, id: \.self) { Text($0) }
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
@@ -92,21 +92,61 @@ struct WritingStyleTab: View {
     }
 
     private func loadSettings() {
-        Task { @MainActor in
-            let settings = DataManager.shared.fetchSettings()
-            language = codeToLanguage(settings.language)
-            formality = valueToFormality(settings.formality)
-            stylePrompt = settings.stylePrompt
-            cleanupLevel = valueToCleanupLevel(settings.cleanupLevel)
+        let settings = DataManager.shared.fetchSettings()
+        formality = valueToFormality(settings.formality)
+        stylePrompt = settings.stylePrompt
+        cleanupLevel = valueToCleanupLevel(settings.cleanupLevel)
+
+        // Compute available languages from intersection of STT and LLM model capabilities
+        availableLanguages = Self.computeAvailableLanguages(
+            sttModelId: settings.sttModelId,
+            llmModelId: settings.llmModelId
+        )
+
+        let currentLang = codeToLanguage(settings.language)
+        if availableLanguages.contains(currentLang) {
+            language = currentLang
+        } else {
+            // Current language not supported by model combo — reset to English
+            language = "English (US)"
+            saveSettings { $0.language = "en" }
         }
     }
 
     private func saveSettings(_ update: @escaping (AppSettings) -> Void) {
-        Task { @MainActor in
-            let settings = DataManager.shared.fetchSettings()
-            update(settings)
-            try? DataManager.shared.container.mainContext.save()
-        }
+        let settings = DataManager.shared.fetchSettings()
+        update(settings)
+        try? DataManager.shared.container.mainContext.save()
+    }
+
+    /// Compute available languages as the intersection of the selected STT and LLM models
+    static func computeAvailableLanguages(sttModelId: String, llmModelId: String) -> [String] {
+        let sttLanguages = STTModelRegistry.model(for: sttModelId)?.languages ?? ["en"]
+        let llmLanguages = LLMModelRegistry.model(for: llmModelId)?.languages ?? ["en"]
+
+        let sttSet = Set(sttLanguages)
+        let llmSet = Set(llmLanguages)
+        let intersection = sttSet.intersection(llmSet)
+
+        // Map codes to display names, preserving a stable order
+        let allDisplayLanguages: [(code: String, display: String)] = [
+            ("en", "English (US)"),
+            ("es", "Spanish"),
+            ("fr", "French"),
+            ("de", "German"),
+            ("it", "Italian"),
+            ("pt", "Portuguese"),
+            ("zh", "Chinese"),
+            ("ja", "Japanese"),
+            ("ko", "Korean"),
+            ("hi", "Hindi"),
+        ]
+
+        let result = allDisplayLanguages
+            .filter { intersection.contains($0.code) }
+            .map { $0.display }
+
+        return result.isEmpty ? ["English (US)"] : result
     }
 
     // Language conversion helpers
@@ -117,8 +157,12 @@ struct WritingStyleTab: View {
         case "Spanish": return "es"
         case "French": return "fr"
         case "German": return "de"
+        case "Italian": return "it"
+        case "Portuguese": return "pt"
+        case "Chinese": return "zh"
         case "Hindi": return "hi"
         case "Japanese": return "ja"
+        case "Korean": return "ko"
         default: return "en"
         }
     }
@@ -130,8 +174,12 @@ struct WritingStyleTab: View {
         case "es": return "Spanish"
         case "fr": return "French"
         case "de": return "German"
+        case "it": return "Italian"
+        case "pt": return "Portuguese"
+        case "zh": return "Chinese"
         case "hi": return "Hindi"
         case "ja": return "Japanese"
+        case "ko": return "Korean"
         default: return "English (US)"
         }
     }

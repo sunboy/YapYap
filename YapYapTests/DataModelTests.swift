@@ -50,13 +50,21 @@ final class DataModelTests: XCTestCase {
         XCTAssertNotNil(t.timestamp)
     }
 
-    // MARK: - CustomDictionaryEntry
+    // MARK: - CorrectionEntry
 
-    func testCustomDictionaryEntry() {
-        let entry = CustomDictionaryEntry(original: "anthropick", replacement: "Anthropic")
-        XCTAssertEqual(entry.original, "anthropick")
-        XCTAssertEqual(entry.replacement, "Anthropic")
+    func testCorrectionEntry() {
+        let entry = CorrectionEntry(
+            spoken: "anthropick",
+            corrected: "Anthropic",
+            dateAdded: Date(),
+            hitCount: 0,
+            isEnabled: true,
+            source: .manual
+        )
+        XCTAssertEqual(entry.spoken, "anthropick")
+        XCTAssertEqual(entry.corrected, "Anthropic")
         XCTAssertTrue(entry.isEnabled)
+        XCTAssertEqual(entry.source, .manual)
     }
 
     // MARK: - DailyStats

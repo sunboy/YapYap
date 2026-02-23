@@ -6,6 +6,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case hotkeys = "Hotkeys"
     case general = "General"
     case style = "Style"
+    case dictionary = "Dictionary"
+    case history = "History"
     case analytics = "Analytics"
     case about = "About"
 
@@ -18,6 +20,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .hotkeys: return "⌨️"
         case .general: return "⚙️"
         case .style: return "✨"
+        case .dictionary: return "📖"
+        case .history: return "📜"
         case .analytics: return "📊"
         case .about: return "💜"
         }
@@ -25,8 +29,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var section: String {
         switch self {
-        case .writingStyle, .models, .hotkeys, .general, .style: return "CONFIGURATION"
-        case .analytics: return "INSIGHTS"
+        case .writingStyle, .models, .hotkeys, .general, .style, .dictionary: return "CONFIGURATION"
+        case .history, .analytics: return "INSIGHTS"
         case .about: return "APP"
         }
     }
@@ -101,8 +105,8 @@ struct SettingsView: View {
 
             // Navigation
             VStack(alignment: .leading, spacing: 0) {
-                navSection("CONFIGURATION", tabs: [.writingStyle, .models, .hotkeys, .general, .style])
-                navSection("INSIGHTS", tabs: [.analytics])
+                navSection("CONFIGURATION", tabs: [.writingStyle, .models, .hotkeys, .general, .style, .dictionary])
+                navSection("INSIGHTS", tabs: [.history, .analytics])
                 navSection("APP", tabs: [.about])
             }
             .padding(.horizontal, 8)
@@ -163,6 +167,8 @@ struct SettingsView: View {
         case .hotkeys: HotkeysTab()
         case .general: GeneralTab()
         case .style: StyleTab()
+        case .dictionary: DictionaryTab()
+        case .history: HistoryTab()
         case .analytics: AnalyticsTab()
         case .about: AboutTab()
         }

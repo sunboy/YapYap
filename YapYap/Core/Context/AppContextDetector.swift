@@ -80,10 +80,12 @@ class AppContextDetector {
         var category: AppCategory
         if let override = settings.appCategoryOverrides[bundleId] {
             category = override
+        } else if browserBundleIds.contains(bundleId) {
+            // Browser tab classification must run BEFORE bundleMap fallback
+            // so Gmail/Outlook/Slack in Chrome get the correct category
+            category = classifyBrowserTab(pid: pid)
         } else if let mapped = bundleMap[bundleId] {
             category = mapped
-        } else if browserBundleIds.contains(bundleId) {
-            category = classifyBrowserTab(pid: pid)
         } else {
             category = .other
         }

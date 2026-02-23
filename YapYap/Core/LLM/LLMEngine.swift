@@ -9,6 +9,7 @@ struct CleanupContext {
     let appContext: AppContext?
     let cleanupLevel: CleanupLevel
     let removeFillers: Bool
+    let experimentalPrompts: Bool
 
     enum Formality: String, Codable {
         case casual, neutral, formal

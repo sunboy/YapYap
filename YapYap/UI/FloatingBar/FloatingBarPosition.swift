@@ -16,4 +16,15 @@ enum FloatingBarPosition: String, Codable, CaseIterable {
         case .topCenter: return "Top Center"
         }
     }
+
+    /// Map the settings string (e.g. "Bottom center") to enum value
+    init(fromSettingsString str: String) {
+        switch str.lowercased() {
+        case "bottom center": self = .bottomCenter
+        case "bottom left": self = .bottomLeft
+        case "bottom right": self = .bottomRight
+        case "top center": self = .topCenter
+        default: self = .bottomCenter
+        }
+    }
 }

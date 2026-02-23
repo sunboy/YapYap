@@ -44,6 +44,7 @@ struct LLMModelInfo: Identifiable, Equatable {
     let isRecommended: Bool
     let family: LLMModelFamily
     let size: LLMModelSize
+    let languages: [String]
 
     static func == (lhs: LLMModelInfo, rhs: LLMModelInfo) -> Bool {
         lhs.id == rhs.id
@@ -61,7 +62,8 @@ struct LLMModelRegistry {
             description: "Best balance of speed and quality. Recommended.",
             isRecommended: true,
             family: .qwen,
-            size: .small
+            size: .small,
+            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi"]
         ),
         LLMModelInfo(
             id: "llama-3.2-1b",
@@ -72,7 +74,8 @@ struct LLMModelRegistry {
             description: "Fastest, English-only.",
             isRecommended: false,
             family: .llama,
-            size: .small
+            size: .small,
+            languages: ["en"]
         ),
         LLMModelInfo(
             id: "qwen-2.5-3b",
@@ -83,7 +86,8 @@ struct LLMModelRegistry {
             description: "Higher quality, multilingual. Slower.",
             isRecommended: false,
             family: .qwen,
-            size: .medium
+            size: .medium,
+            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi"]
         ),
         LLMModelInfo(
             id: "qwen-2.5-7b",
@@ -94,7 +98,8 @@ struct LLMModelRegistry {
             description: "Higher quality rewrites. 16GB+ RAM.",
             isRecommended: false,
             family: .qwen,
-            size: .medium
+            size: .medium,
+            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi"]
         ),
         LLMModelInfo(
             id: "llama-3.2-3b",
@@ -105,7 +110,8 @@ struct LLMModelRegistry {
             description: "Great for English. Fast.",
             isRecommended: false,
             family: .llama,
-            size: .medium
+            size: .medium,
+            languages: ["en"]
         ),
         LLMModelInfo(
             id: "llama-3.1-8b",
@@ -116,7 +122,8 @@ struct LLMModelRegistry {
             description: "Best rewrite quality. 16GB+ RAM.",
             isRecommended: false,
             family: .llama,
-            size: .medium
+            size: .medium,
+            languages: ["en"]
         ),
     ]
 
