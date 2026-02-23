@@ -1,4 +1,4 @@
-.PHONY: build run test archive clean generate
+.PHONY: build run test archive clean generate bench-build bench
 
 # Generate Xcode project from project.yml (requires XcodeGen)
 generate:
@@ -49,6 +49,13 @@ dmg: archive
 clean:
 	xcodebuild -project YapYap.xcodeproj -scheme YapYap clean
 	rm -rf build/ DerivedData/
+
+bench-build:
+	xcodebuild -project YapYap.xcodeproj -scheme YapYapBench -configuration Debug build
+
+bench:
+	@BIN=$$(xcodebuild -project YapYap.xcodeproj -scheme YapYapBench -configuration Debug -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$3}')/YapYapBench; \
+	"$$BIN" $(ARGS)
 
 homebrew:
 	@echo "After release: brew install --cask yapyap"
