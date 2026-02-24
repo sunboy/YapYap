@@ -49,17 +49,32 @@ struct FloatingBarView: View {
                     .controlSize(.mini)
                     .tint(Color.ypWarm)
             } else if appState.isRecording {
-                WaveformView(rms: appState.currentRMS)
-                    .frame(width: 36, height: 14)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                if let liveText = appState.partialTranscription {
+                    // Streaming STT: show live transcription text
+                    Text(liveText)
+                        .font(.system(size: 10, weight: .regular))
+                        .foregroundColor(.ypText2.opacity(0.7))
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .frame(maxWidth: 180)
+                        .transition(.opacity)
 
-                // Recording timer
-                Text(formatTime(recordingSeconds))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(.ypText2)
-                    .transition(.opacity)
+                    // Small waveform indicator alongside
+                    WaveformView(rms: appState.currentRMS)
+                        .frame(width: 20, height: 12)
+                } else {
+                    // Non-streaming: show full waveform + timer
+                    WaveformView(rms: appState.currentRMS)
+                        .frame(width: 36, height: 14)
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
 
-                // Pulsing recording dot
+                    Text(formatTime(recordingSeconds))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.ypText2)
+                        .transition(.opacity)
+                }
+
+                // Pulsing recording dot — always visible during recording
                 Circle()
                     .fill(Color.ypWarm)
                     .frame(width: 5, height: 5)
@@ -67,14 +82,14 @@ struct FloatingBarView: View {
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(red: 36/255, green: 33/255, blue: 46/255))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(red: 36/255, green: 33/255, blue: 46/255).opacity(0.8))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(Color.ypWarm.opacity(0.15), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.ypWarm.opacity(0.12), lineWidth: 1)
                 )
         )
         .fixedSize()

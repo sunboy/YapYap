@@ -39,6 +39,7 @@ class MLXEngine: LLMEngine {
 
         self.modelId = id
         NSLog("[MLXEngine] Model '\(id)' loaded successfully")
+        await MainActor.run { DataManager.shared.markModelDownloaded(id) }
     }
 
     func unloadModel() {
@@ -123,8 +124,13 @@ class MLXEngine: LLMEngine {
         let startTime = Date()
         var firstTokenTime: Date?
 
+        // Stop tokens that signal end of model response — truncate output here.
+        // Gemma uses <end_of_turn>, others use <|im_end|>, <|eot_id|>, etc.
+        let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>"]
+
         // Use the AsyncStream-based generate API
         var outputText = ""
+        var stopped = false
         let stream: AsyncStream<Generation> = try generate(
             input: input,
             parameters: parameters,
@@ -132,6 +138,7 @@ class MLXEngine: LLMEngine {
         )
 
         for await generation in stream {
+            guard !stopped else { break }
             switch generation {
             case .chunk(let text):
                 if firstTokenTime == nil {
@@ -140,6 +147,14 @@ class MLXEngine: LLMEngine {
                     NSLog("[MLXEngine] Prefill: \(String(format: "%.0f", prefillMs))ms (\(encoding.count) prompt tokens)")
                 }
                 outputText += text
+                // Stop as soon as any stop sequence appears in the accumulated output
+                for stop in stopSequences {
+                    if let range = outputText.range(of: stop) {
+                        outputText = String(outputText[..<range.lowerBound])
+                        stopped = true
+                        break
+                    }
+                }
             case .info(let info):
                 let elapsed = Date().timeIntervalSince(startTime)
                 let genMs = firstTokenTime.map { Date().timeIntervalSince($0) * 1000 } ?? 0

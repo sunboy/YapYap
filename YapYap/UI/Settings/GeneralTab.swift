@@ -13,6 +13,7 @@ struct GeneralTab: View {
     @State private var floatingBarPosition = "Bottom center"
     @State private var historyLimit = "Last 100"
     @State private var micOptions: [String] = ["Default"]
+    @State private var didLoadSettings = false
 
     private let positions = ["Bottom center", "Bottom left", "Bottom right", "Top center"]
     private let historyOptions = ["Last 50", "Last 100", "Last 500", "Keep all", "Don't save"]
@@ -55,30 +56,39 @@ struct GeneralTab: View {
             loadSettings()
         }
         .onChange(of: launchAtLogin) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.launchAtLogin = newValue }
         }
         .onChange(of: showFloatingBar) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.showFloatingBar = newValue }
         }
         .onChange(of: autoPaste) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.autoPaste = newValue }
         }
         .onChange(of: copyToClipboard) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.copyToClipboard = newValue }
         }
         .onChange(of: notifyOnComplete) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.notifyOnComplete = newValue }
         }
         .onChange(of: experimentalPrompts) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.experimentalPrompts = newValue }
         }
         .onChange(of: floatingBarPosition) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.floatingBarPosition = newValue }
         }
         .onChange(of: historyLimit) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.historyLimit = historyLimitToInt(newValue) }
         }
         .onChange(of: selectedMic) { _, newValue in
+            guard didLoadSettings else { return }
             let micId = newValue == "Default" ? nil : newValue
             saveSettings { $0.microphoneId = micId }
         }
@@ -115,12 +125,13 @@ struct GeneralTab: View {
         } else {
             selectedMic = "Default"
         }
+        didLoadSettings = true
     }
 
     private func saveSettings(_ update: (AppSettings) -> Void) {
         let settings = DataManager.shared.fetchSettings()
         update(settings)
-        try? DataManager.shared.container.mainContext.save()
+        DataManager.shared.saveSettings()
     }
 
     private func historyLimitToInt(_ str: String) -> Int {

@@ -32,9 +32,9 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testSmallModelSystemPromptIsConcise() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
-        // Small model prompt should be concise (under 45 words including list hint)
+        // Small model prompt should be concise (under 65 words including list hint and self-correction rule)
         let wordCount = messages.system.split(separator: " ").count
-        XCTAssertLessThanOrEqual(wordCount, 45, "Small model system prompt should be concise")
+        XCTAssertLessThanOrEqual(wordCount, 65, "Small model system prompt should be concise")
         XCTAssertTrue(messages.system.contains("Fix dictation"))
     }
 
@@ -366,39 +366,47 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testQwenMediumSystemIncludesListInstruction() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
-        XCTAssertTrue(messages.system.contains("lists or enumerates multiple things"))
+        XCTAssertTrue(messages.system.contains("explicitly enumerates"))
+        // Must not trigger on multi-clause sentences
+        XCTAssertFalse(messages.system.contains("lists or enumerates multiple things"))
     }
 
     func testLlamaMediumSystemIncludesListInstruction() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        XCTAssertTrue(messages.system.contains("lists or enumerates multiple things"))
+        XCTAssertTrue(messages.system.contains("explicitly enumerates"))
+        XCTAssertFalse(messages.system.contains("lists or enumerates multiple things"))
     }
 
     func testSmallModelIncludesListInstruction() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
-        XCTAssertTrue(messages.system.contains("multiple items are listed"))
-        XCTAssertTrue(messages.system.contains("1. 2. 3."))
+        XCTAssertTrue(messages.system.contains("explicitly"))
+        // Old over-broad wording removed — no longer triggers on any multi-clause sentence
+        XCTAssertFalse(messages.system.contains("multiple items are listed"))
     }
 
     func testSmallModelUserMessageIncludesListExample() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
-        XCTAssertTrue(messages.user.contains("- Milk"))
-        XCTAssertTrue(messages.user.contains("- Eggs"))
+        // Grocery list example removed — it caused Gemma to echo it instead of cleaning the transcript
+        XCTAssertFalse(messages.user.contains("- Milk"))
+        XCTAssertFalse(messages.user.contains("- Eggs"))
+        // Basic IN/OUT format still present
+        XCTAssertTrue(messages.user.contains("IN:"))
+        XCTAssertTrue(messages.user.contains("OUT:"))
     }
 
     func testMediumModelIncludesListInstruction() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
-        XCTAssertTrue(messages.system.contains("lists or enumerates multiple things"))
+        XCTAssertTrue(messages.system.contains("explicitly enumerates"))
     }
 
     func testLlamaMediumIncludesListInstructionInConstraints() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        XCTAssertTrue(messages.system.contains("lists or enumerates multiple things"))
+        XCTAssertTrue(messages.system.contains("explicitly enumerates"))
     }
 
     func testLlamaMediumUserMessageIncludesListExample() {
@@ -472,7 +480,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
         // Without app context, should just have base prompt + list hint
         XCTAssertTrue(messages.system.contains("Fix dictation"))
-        XCTAssertTrue(messages.system.contains("multiple items are listed"))
+        XCTAssertTrue(messages.system.contains("explicitly"))
         XCTAssertFalse(messages.system.contains("@mentions"))
         XCTAssertFalse(messages.system.contains("proper sentences"))
     }

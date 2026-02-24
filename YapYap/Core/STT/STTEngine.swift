@@ -45,3 +45,24 @@ protocol STTEngine: AnyObject {
     /// Run a minimal inference to keep model weights resident in memory
     func warmup() async
 }
+
+// MARK: - Streaming STT
+
+/// Engines that support real-time incremental transcription while recording.
+protocol StreamingSTTEngine: STTEngine {
+    var isStreaming: Bool { get }
+
+    func startStreaming(
+        audioSamplesProvider: @escaping () -> [Float],
+        language: String,
+        onUpdate: @escaping (StreamingTranscriptionUpdate) -> Void
+    ) async throws
+
+    func stopStreaming() async throws -> TranscriptionResult
+}
+
+struct StreamingTranscriptionUpdate {
+    let confirmedText: String
+    let unconfirmedText: String
+    var currentText: String { confirmedText + (unconfirmedText.isEmpty ? "" : " " + unconfirmedText) }
+}

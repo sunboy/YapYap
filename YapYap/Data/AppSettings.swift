@@ -25,6 +25,9 @@ final class AppSettings {
     var gpuAcceleration: Bool
     var autoDownloadModels: Bool
     var experimentalPrompts: Bool
+    /// Comma-separated list of model IDs that have been successfully loaded at least once.
+    /// Used to detect downloaded models that use non-standard cache layouts (e.g. xet).
+    var downloadedModelIds: String?
 
     init(
         sttModelId: String = "whisper-small",
@@ -48,7 +51,8 @@ final class AppSettings {
         microphoneId: String? = nil,
         gpuAcceleration: Bool = true,
         autoDownloadModels: Bool = true,
-        experimentalPrompts: Bool = false
+        experimentalPrompts: Bool = false,
+        downloadedModelIds: String? = nil
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -72,6 +76,7 @@ final class AppSettings {
         self.gpuAcceleration = gpuAcceleration
         self.autoDownloadModels = autoDownloadModels
         self.experimentalPrompts = experimentalPrompts
+        self.downloadedModelIds = downloadedModelIds
     }
 
     static func defaults() -> AppSettings {

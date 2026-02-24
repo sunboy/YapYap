@@ -36,13 +36,13 @@ class FloatingBarPanel: NSPanel {
         switch position {
         case .bottomCenter:
             x = screenFrame.midX - barFrame.width / 2
-            y = screenFrame.minY + 20
+            y = screenFrame.minY + 6
         case .bottomLeft:
             x = screenFrame.minX + 20
-            y = screenFrame.minY + 20
+            y = screenFrame.minY + 6
         case .bottomRight:
             x = screenFrame.maxX - barFrame.width - 20
-            y = screenFrame.minY + 20
+            y = screenFrame.minY + 6
         case .topCenter:
             x = screenFrame.midX - barFrame.width / 2
             y = screenFrame.maxY - barFrame.height - 20

@@ -29,6 +29,28 @@ struct CleanupPromptBuilder {
         return (info.family, info.size)
     }
 
+    // MARK: - Self-Correction Patterns
+
+    /// All self-correction patterns that occur in natural speech.
+    /// Used across all prompt paths (small and medium+).
+    private static let selfCorrectionRule = """
+        Self-corrections (speaker backtracks and corrects themselves): \
+        "X no wait Y" → keep only Y; \
+        "X or not X, Y" → keep only Y; \
+        "X I mean Y" → keep only Y; \
+        "X actually Y" → keep only Y (when used as a correction, not a new fact); \
+        "X or rather Y" → keep only Y; \
+        "X scratch that Y" → keep only Y; \
+        "X strike that Y" → keep only Y; \
+        "X sorry Y" → keep only Y; \
+        "X correction Y" → keep only Y. \
+        Only apply when the speaker is clearly replacing X with Y—not when "actually" or "no" add new information.
+        """
+
+    /// Compact version for small model prompts where token budget is tight.
+    /// Covers the most common patterns; omits rare ones to stay under word budget.
+    private static let selfCorrectionRuleCompact = "Speaker corrections ('X no wait Y', 'X I mean Y', 'X or not X Y') → keep only Y."
+
     // MARK: - System Prompt
 
     private static func buildSystemPrompt(context: CleanupContext, family: LLMModelFamily, size: LLMModelSize) -> String {
@@ -59,13 +81,13 @@ struct CleanupPromptBuilder {
         case .light:
             prompt = "Fix dictation errors. Reply with only the fixed text—no preamble or labels."
         case .medium:
-            prompt = "Fix dictation errors. Remove filler words. Reply with only the fixed text—no preamble or labels."
+            prompt = "Fix dictation errors. Remove filler words. \(selfCorrectionRuleCompact) Reply with only the fixed text—no preamble or labels."
         case .heavy:
-            prompt = "Fix dictation errors. Remove fillers. Improve clarity. Reply with only the fixed text—no preamble or labels."
+            prompt = "Fix dictation errors. Remove fillers. \(selfCorrectionRuleCompact) Improve clarity. Reply with only the fixed text—no preamble or labels."
         }
 
-        // List detection — concise instruction for small models
-        prompt += " When multiple items are listed, format as a list with each item on its own line. Use 1. 2. 3. for ordered items, - for unordered."
+        // List detection — only trigger on explicit enumerations, not multi-clause sentences
+        prompt += " Only format as a list if the speaker explicitly says 'first/second/third' or lists items after a colon. Do not list-format multi-clause sentences."
 
         // Add concise app context hint
         if let appContext = context.appContext {
@@ -102,12 +124,12 @@ struct CleanupPromptBuilder {
         case .light:
             parts.append("RULES:\n1. Fix punctuation and capitalization\n2. Do NOT remove any words")
         case .medium:
-            parts.append("RULES:\n1. Remove filler words: um, uh, like, you know, I mean, basically, right, kind of, sort of\n2. Fix punctuation and capitalization\n3. Handle self-corrections: \"X no wait Y\" → output only Y")
+            parts.append("RULES:\n1. Remove filler words: um, uh, like, you know, I mean, basically, right, kind of, sort of\n2. Fix punctuation and capitalization\n3. \(selfCorrectionRule)")
         case .heavy:
-            parts.append("RULES:\n1. Remove ALL filler words and hesitations\n2. Fix punctuation, capitalization, and sentence structure\n3. Handle self-corrections: \"X no wait Y\" → output only Y\n4. Improve clarity without changing meaning")
+            parts.append("RULES:\n1. Remove ALL filler words and hesitations\n2. Fix punctuation, capitalization, and sentence structure\n3. \(selfCorrectionRule)\n4. Improve clarity without changing meaning")
         }
 
-        parts.append("STRICT CONSTRAINTS:\n- Do NOT add any words, ideas, or content not in the transcript\n- Do NOT summarize or shorten\n- Do NOT explain your changes\n- Do NOT repeat these instructions, add a preamble, or label your reply (e.g. no \"Here is the cleaned transcript:\" or similar). Start your reply with the first word of the cleaned text.\n- When the speaker lists or enumerates multiple things, format them as a list with each item on its own line. Use numbered lists (1. 2. 3.) for ordered/sequential items, bullet points (- ) for unordered items.\n- Output ONLY the cleaned text, nothing else")
+        parts.append("STRICT CONSTRAINTS:\n- Do NOT add any words, ideas, or content not in the transcript\n- Do NOT summarize or shorten\n- Do NOT explain your changes\n- Do NOT repeat these instructions, add a preamble, or label your reply (e.g. no \"Here is the cleaned transcript:\" or similar). Start your reply with the first word of the cleaned text.\n- Only format as a list if the speaker explicitly enumerates items (e.g. 'first... second... third' or lists items after a colon). Do NOT convert multi-clause sentences into lists.\n- Output ONLY the cleaned text, nothing else")
 
         if let appContext = context.appContext {
             parts.append("App: \(appContext.appName) (\(toneHint(for: appContext)))")
@@ -126,9 +148,9 @@ struct CleanupPromptBuilder {
         case .light:
             parts.append("Rules:\n- Fix punctuation and capitalization\n- Do NOT remove any words")
         case .medium:
-            parts.append("Rules:\n- Remove: um, uh, like, you know, I mean, basically, right, kind of, sort of\n- Fix punctuation and capitalization\n- \"X no wait Y\" → keep only Y")
+            parts.append("Rules:\n- Remove: um, uh, like, you know, I mean, basically, right, kind of, sort of\n- Fix punctuation and capitalization\n- \(selfCorrectionRule)")
         case .heavy:
-            parts.append("Rules:\n- Remove ALL filler words and hesitations\n- Fix punctuation, capitalization, and sentence structure\n- \"X no wait Y\" → keep only Y\n- Improve clarity without changing meaning")
+            parts.append("Rules:\n- Remove ALL filler words and hesitations\n- Fix punctuation, capitalization, and sentence structure\n- \(selfCorrectionRule)\n- Improve clarity without changing meaning")
         }
 
         switch context.formality {
@@ -148,7 +170,7 @@ struct CleanupPromptBuilder {
             parts.append("Style: \(context.stylePrompt)")
         }
 
-        parts.append("When the speaker lists or enumerates multiple things, format them as a list with each item on its own line. Use numbered lists (1. 2. 3.) for ordered/sequential items, bullet points (- ) for unordered items.\nDo NOT add new words. Do NOT summarize. Do NOT repeat instructions or add a preamble—start your reply with the first word of the cleaned text. Output only the cleaned text.")
+        parts.append("Only format as a list if the speaker explicitly enumerates items (e.g. 'first... second... third' or lists items after a colon). Do NOT convert multi-clause sentences into lists.\nDo NOT add new words. Do NOT summarize. Do NOT repeat instructions or add a preamble—start your reply with the first word of the cleaned text. Output only the cleaned text.")
 
         return parts.joined(separator: "\n")
     }
@@ -185,13 +207,6 @@ struct CleanupPromptBuilder {
 
         IN: hey so basically the thing is the api is broken and uh nobody noticed
         OUT: Hey, the API is broken and nobody noticed.
-
-        IN: so i need to buy milk eggs bread and also pick up the dry cleaning
-        OUT:
-        - Milk
-        - Eggs
-        - Bread
-        - Pick up the dry cleaning
         """)
 
         parts.append("Reply with only the fixed text (no preamble).\n\n\(rawText)")
@@ -309,11 +324,11 @@ struct CleanupPromptBuilder {
         case .light:
             instructions += "FIX: punctuation, capitalization\n"
         case .medium:
-            instructions += "REMOVE: filler words (um, uh, like, you know, I mean, basically)\nFIX: punctuation, capitalization\nSELF-CORRECTIONS: \"X no wait Y\" → keep only Y\n"
+            instructions += "REMOVE: filler words (um, uh, like, you know, I mean, basically)\nFIX: punctuation, capitalization\nSELF-CORRECTIONS: \(selfCorrectionRuleCompact)\n"
         case .heavy:
-            instructions += "REMOVE: ALL filler words and hesitations\nFIX: punctuation, capitalization, sentence structure\nSELF-CORRECTIONS: \"X no wait Y\" → keep only Y\n"
+            instructions += "REMOVE: ALL filler words and hesitations\nFIX: punctuation, capitalization, sentence structure\nSELF-CORRECTIONS: \(selfCorrectionRuleCompact)\n"
         }
-        instructions += "If the input contains a list of items (comma-separated, colon-introduced, or ordinal), format each item on its own line as a numbered list.\n"
+        instructions += "Only format as a list if the speaker explicitly enumerates items (e.g. 'first... second... third' or 'I need to: X, Y, Z'). Do NOT format as a list just because a sentence has multiple clauses.\n"
         instructions += "Do NOT add new words. Do NOT summarize. Do NOT repeat instructions or add a preamble. Output ONLY the cleaned text—start with the first word of the cleaned text."
         parts.append(instructions)
 
@@ -328,12 +343,6 @@ struct CleanupPromptBuilder {
 
         IN: hey just wanted to let you know the deploy went fine no issues everything's looking good
         OUT: Hey, just wanted to let you know the deploy went fine. No issues, everything's looking good.
-
-        IN: so i need to pick up groceries get gas and also drop off the package at the post office
-        OUT:
-        - Pick up groceries
-        - Get gas
-        - Drop off the package at the post office
         """)
 
         parts.append("Reply with only the cleaned text (no preamble, no labels).\n\nTranscript:\n\(rawText)")

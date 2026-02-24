@@ -94,6 +94,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSWorkspace.didWakeNotification,
             object: nil
         )
+
+        // Reload pipeline models when user selects a new model in Settings
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleModelSelected),
+            name: .yapModelSelected,
+            object: nil
+        )
+    }
+
+    @objc private func handleModelSelected() {
+        guard !appState.isRecording, !appState.isProcessing else { return }
+        Task {
+            do {
+                try await pipeline?.ensureModelsLoaded()
+                print("[AppDelegate] ✅ Models reloaded after model selection")
+            } catch {
+                print("[AppDelegate] ❌ Model reload failed after selection: \(error)")
+            }
+        }
     }
 
     @objc private func handleWakeFromSleep() {
