@@ -69,7 +69,14 @@ class MLXEngine: LLMEngine {
             throw YapYapError.modelNotLoaded
         }
 
-        let messages = CleanupPromptBuilder.buildMessages(rawText: rawText, context: context, modelId: modelId)
+        let userContext = UserPromptContextManager.shared.context(
+            for: context.appContext?.appName,
+            transcript: rawText
+        )
+        let messages = CleanupPromptBuilder.buildMessages(
+            rawText: rawText, context: context,
+            modelId: modelId, userContext: userContext
+        )
 
         // Use the tokenizer's chat template for correct model-specific formatting
         // This handles Llama vs Qwen vs other model template differences automatically
