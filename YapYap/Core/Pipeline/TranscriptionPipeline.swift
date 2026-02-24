@@ -37,6 +37,12 @@ class TranscriptionPipeline {
     private var cachedStyleSettings: StyleSettings?
     private var cachedAppContext: AppContext?
 
+    /// Target app captured at recording start (most reliable — user's app is frontmost)
+    private var cachedTargetApp: NSRunningApplication?
+
+    /// Whether media was paused by us and should be resumed
+    private var didPauseMedia = false
+
     init(appState: AppState, container: ModelContainer) {
         self.appState = appState
         self.container = container
@@ -178,6 +184,17 @@ class TranscriptionPipeline {
 
         SoundManager.shared.playStart()
         HapticManager.shared.tap()
+
+        // Capture target app PID now — the user's app is frontmost at recording start.
+        // This is more reliable than checking frontmostApplication later when our
+        // floating bar might have changed focus.
+        self.cachedTargetApp = NSWorkspace.shared.frontmostApplication
+
+        // Auto-pause media playback if enabled
+        if (try? fetchSettings())?.pauseMediaDuringRecording == true {
+            didPauseMedia = true
+            MediaPlaybackController.shared.pauseIfPlaying()
+        }
 
         // Pre-compute app context now — the user's app is frontmost during recording.
         // This saves ~30ms off the critical path after STT and provides cached values
@@ -368,6 +385,9 @@ class TranscriptionPipeline {
                 }
             }
 
+            // Resume media if we paused it
+            resumeMediaIfNeeded()
+
             let totalMs = Date().timeIntervalSince(pipelineStart) * 1000
             NSLog("[TranscriptionPipeline] ✅ Complete in \(String(format: "%.0f", totalMs))ms: \"\(cleanedText)\"")
             return cleanedText
@@ -377,6 +397,7 @@ class TranscriptionPipeline {
             appState.creatureState = .sleeping
             appState.isProcessing = false
             appState.partialTranscription = nil
+            resumeMediaIfNeeded()
             throw error
         }
     }
@@ -388,6 +409,7 @@ class TranscriptionPipeline {
         appState.creatureState = .sleeping
         appState.partialTranscription = nil
         isCommandMode = false
+        resumeMediaIfNeeded()
     }
 
     // MARK: - Command Mode
@@ -439,6 +461,14 @@ class TranscriptionPipeline {
         appState.isProcessing = false
         appState.lastTranscription = snippet.expansion
         return snippet.expansion
+    }
+
+    // MARK: - Media Playback
+
+    private func resumeMediaIfNeeded() {
+        guard didPauseMedia else { return }
+        didPauseMedia = false
+        MediaPlaybackController.shared.resumeIfWasPaused()
     }
 
     // MARK: - Filler Detection

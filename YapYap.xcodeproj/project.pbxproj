@@ -84,6 +84,7 @@
 		7F7048C27447F4E2053B388D /* YapYapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4100E239E1B82A3CD6C65A89 /* YapYapApp.swift */; };
 		7F7E3C6CAF326F56857F225B /* FluidAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A355C4B4AD9FE347C78BA5 /* FluidAudioEngine.swift */; };
 		8299E3700A31CD081956511B /* RunCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F4EC82F252D3D16C5B2838 /* RunCommand.swift */; };
+		83478B122CDCBBAB3A7C29EF /* MediaPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024CCF9853D8925D86A49FFE /* MediaPlaybackController.swift */; };
 		852C03F7CDCA61FDD73CBF97 /* CommandMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B7480505B9D1DFE32F0B0B5 /* CommandMode.swift */; };
 		8BA783E92781C7C48DA4F09C /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = C5FF9CCC6CD4DA1D7A236E07 /* MLXLMCommon */; };
 		8E0122D5D31B47EE9C53EBF1 /* STTEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF96A6052FF52A3A7DA1B06 /* STTEngine.swift */; };
@@ -158,6 +159,7 @@
 
 /* Begin PBXFileReference section */
 		00971EACC260CA978A6D6E09 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		024CCF9853D8925D86A49FFE /* MediaPlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackController.swift; sourceTree = "<group>"; };
 		029FCA6062AD9B55C5D01401 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		02E3EE15439E73348CB02353 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		031CB51A07A8B376C9CDCE1B /* PowerModeRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerModeRule.swift; sourceTree = "<group>"; };
@@ -492,6 +494,7 @@
 			children = (
 				BDB0E608A461EE769B2BA6AF /* CorrectionDiffer.swift */,
 				00971EACC260CA978A6D6E09 /* HapticManager.swift */,
+				024CCF9853D8925D86A49FFE /* MediaPlaybackController.swift */,
 				2CF46A2BC6B8E1D81CCFC91B /* Permissions.swift */,
 				545004FE2DCCA737DB9DC8BF /* PersonalDictionary.swift */,
 				A8CB78B6993791FE05AB3842 /* SnippetManager.swift */,
@@ -832,6 +835,7 @@
 				0875D077867FCD92E4091F40 /* LLMEngine.swift in Sources */,
 				F474B154563904DDAAF329C0 /* LLMModelRegistry.swift in Sources */,
 				0532930BE92642C3168F6CD3 /* MLXEngine.swift in Sources */,
+				83478B122CDCBBAB3A7C29EF /* MediaPlaybackController.swift in Sources */,
 				B73406F9C91FEF5042562AEF /* ModelStorage.swift in Sources */,
 				77EDF541171CADEE63D9E444 /* ModelsTab.swift in Sources */,
 				9097E6B1692B1A6375C81C25 /* OnboardingView.swift in Sources */,

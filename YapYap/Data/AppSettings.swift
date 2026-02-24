@@ -25,6 +25,7 @@ final class AppSettings {
     var gpuAcceleration: Bool
     var autoDownloadModels: Bool
     var experimentalPrompts: Bool
+    var pauseMediaDuringRecording: Bool?
 
     init(
         sttModelId: String = "whisper-small",
@@ -48,7 +49,8 @@ final class AppSettings {
         microphoneId: String? = nil,
         gpuAcceleration: Bool = true,
         autoDownloadModels: Bool = true,
-        experimentalPrompts: Bool = false
+        experimentalPrompts: Bool = false,
+        pauseMediaDuringRecording: Bool? = false
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -72,6 +74,7 @@ final class AppSettings {
         self.gpuAcceleration = gpuAcceleration
         self.autoDownloadModels = autoDownloadModels
         self.experimentalPrompts = experimentalPrompts
+        self.pauseMediaDuringRecording = pauseMediaDuringRecording
     }
 
     static func defaults() -> AppSettings {
