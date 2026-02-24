@@ -543,6 +543,58 @@ final class CleanupPromptBuilderTests: XCTestCase {
         XCTAssertFalse(messages.user.isEmpty)
     }
 
+    // MARK: - Dictation Enhancement Instructions (Numbers, Abbreviations, Spoken Punctuation)
+
+    func testMediumMediumHasNumberConversion() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("Numbers: convert spoken numbers to digits"))
+    }
+
+    func testMediumHeavyHasNumberConversion() {
+        let context = makeContext(cleanupLevel: .heavy)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("Numbers: convert spoken numbers to digits"))
+    }
+
+    func testMediumMediumHasSpokenPunctuation() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("new line"))
+        XCTAssertTrue(messages.system.contains("new paragraph"))
+    }
+
+    func testMediumMediumHasAbbreviationExpansion() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("thx → thanks"))
+        XCTAssertTrue(messages.system.contains("gonna → going to"))
+    }
+
+    func testLargeMediumHasNumberConversion() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-7b")
+        XCTAssertTrue(messages.system.contains("Numbers: convert spoken numbers to digits"))
+    }
+
+    func testLargeHeavyHasAbbreviationExpansion() {
+        let context = makeContext(cleanupLevel: .heavy)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-7b")
+        XCTAssertTrue(messages.system.contains("thx → thanks"))
+    }
+
+    func testSmallModelDoesNotHaveNumberConversion() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertFalse(messages.system.contains("Numbers: convert spoken numbers"))
+    }
+
+    func testLightCleanupDoesNotHaveNumberConversion() {
+        let context = makeContext(cleanupLevel: .light)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertFalse(messages.system.contains("Numbers: convert spoken numbers"))
+    }
+
     // MARK: - Helpers
 
     private func makeContext(

@@ -62,6 +62,11 @@ enum PromptTemplates {
         "X actually Y" / "X or rather Y" / "X scratch that Y" / \
         "X sorry Y" → keep only Y. Only when clearly correcting.
         6. Split run-ons into proper sentences
+        7. Numbers: convert spoken numbers to digits \
+        (two → 2, five thirty → 5:30, twelve fifty → $12.50)
+        8. Spoken punctuation: "new line"/"new paragraph" → line break, \
+        "period"/"comma"/"question mark" → insert punctuation
+        9. Expand: thx → thanks, pls → please, u → you, gonna → going to
 
         CONSTRAINTS:
         - Do NOT add words or content not in the transcript
@@ -82,6 +87,11 @@ enum PromptTemplates {
         5. Merge fragments into well-structured sentences
         6. Tighten phrasing: remove unnecessary words, keep meaning
         7. Keep technical terms exact
+        8. Numbers: convert spoken numbers to digits \
+        (two → 2, five thirty → 5:30, twelve fifty → $12.50)
+        9. Spoken punctuation: "new line"/"new paragraph" → line break, \
+        "period"/"comma"/"question mark" → insert punctuation
+        10. Expand: thx → thanks, pls → please, u → you, gonna → going to
 
         CONSTRAINTS:
         - Do NOT add ideas or content not in the transcript
@@ -107,11 +117,16 @@ enum PromptTemplates {
         4. Resolve self-corrections: keep only the final version
         5. Collapse stutters and repeats
         6. Split run-on speech into well-punctuated sentences
-        7. Meta-commands — execute, don't transcribe:
+        7. Numbers: convert spoken numbers to digits \
+        (two → 2, five thirty → 5:30, twelve fifty → $12.50)
+        8. Expand abbreviations: thx → thanks, pls → please, \
+        u → you, gonna → going to
+        9. Meta-commands — execute, don't transcribe:
+           "new line"/"new paragraph" → insert line break
            "scratch that" / "delete that" → remove preceding
            "period/comma/question mark" → insert punctuation
            If ambiguous → treat as content
-        8. Preserve technical terms, proper nouns, and numbers exactly
+        10. Preserve technical terms, proper nouns, and numbers exactly
 
         CONSTRAINTS:
         - Do NOT add ideas not in the transcript
@@ -131,8 +146,13 @@ enum PromptTemplates {
         4. Structure long dictation into logical paragraphs
         5. Apply appropriate formatting (lists, headings) when warranted
         6. Preserve exact technical terms and proper nouns
+        7. Numbers: convert spoken numbers to digits \
+        (two → 2, five thirty → 5:30, twelve fifty → $12.50)
+        8. Expand abbreviations: thx → thanks, pls → please, \
+        u → you, gonna → going to
 
         META-COMMANDS (execute, don't transcribe):
+        - "new line"/"new paragraph" → insert line break
         - "make that a list" / "number those" → reformat preceding
         - "scratch that" / "delete that" → remove preceding
         - "change X to Y" → apply substitution
