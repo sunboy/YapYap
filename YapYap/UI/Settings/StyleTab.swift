@@ -52,6 +52,9 @@ struct StyleTab: View {
         .onChange(of: styleSettings.documents) { _, _ in saveStyleSettings() }
         .onChange(of: styleSettings.aiChat) { _, _ in saveStyleSettings() }
         .onChange(of: styleSettings.browser) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.terminal) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.notes) { _, _ in saveStyleSettings() }
+        .onChange(of: styleSettings.social) { _, _ in saveStyleSettings() }
         .onChange(of: styleSettings.other) { _, _ in saveStyleSettings() }
         .onChange(of: ideVariableRecognition) { _, newValue in
             styleSettings.ideVariableRecognition = newValue
@@ -145,6 +148,9 @@ struct StyleSettingsData: Codable {
     var documents: OutputStyle = .formal
     var aiChat: OutputStyle = .casual
     var browser: OutputStyle = .casual
+    var terminal: OutputStyle = .casual
+    var notes: OutputStyle = .casual
+    var social: OutputStyle = .casual
     var other: OutputStyle = .casual
     var ideVariableRecognition: Bool = true
     var ideFileTagging: Bool = true
@@ -158,6 +164,9 @@ struct StyleSettingsData: Codable {
         case .documents: return documents
         case .aiChat: return aiChat
         case .browser: return browser
+        case .terminal: return terminal
+        case .notes: return notes
+        case .social: return social
         case .other: return other
         }
     }
@@ -171,6 +180,9 @@ struct StyleSettingsData: Codable {
         case .documents: documents = style
         case .aiChat: aiChat = style
         case .browser: browser = style
+        case .terminal: terminal = style
+        case .notes: notes = style
+        case .social: social = style
         case .other: other = style
         }
     }

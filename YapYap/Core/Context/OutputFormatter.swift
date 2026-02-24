@@ -141,6 +141,18 @@ struct OutputFormatter {
             result = applyEmailFormatting(result)
         }
 
+        // Terminal: strip trailing periods on commands
+        if context.category == .terminal {
+            result = applyTerminalFormatting(result)
+        }
+
+        // Social media: hashtag/mention conversion
+        if context.category == .social {
+            result = applySocialFormatting(result)
+        }
+
+        // Notes: minimal post-processing (markdown handled by LLM via AppRules)
+
         return result
     }
 
@@ -433,5 +445,44 @@ struct OutputFormatter {
         }
 
         return items
+    }
+
+    // MARK: - Terminal Formatting
+
+    /// Strip trailing periods on commands — terminals don't use sentence punctuation.
+    static func applyTerminalFormatting(_ text: String) -> String {
+        var result = text
+        // Remove trailing period (commands don't end with periods)
+        if result.hasSuffix(".") {
+            result = String(result.dropLast())
+        }
+        return result
+    }
+
+    // MARK: - Social Media Formatting
+
+    /// Convert "hashtag X" → #X and "at X" / "mention X" → @X for social media.
+    static func applySocialFormatting(_ text: String) -> String {
+        var result = text
+
+        // Convert "hashtag/hash X" → "#X"
+        let range = NSRange(result.startIndex..<result.endIndex, in: result)
+        result = channelRegex.stringByReplacingMatches(in: result, range: range, withTemplate: "#$1")
+
+        // Convert "at username" → "@username" (reuse mention logic, skip stopwords)
+        let mentionRange = NSRange(result.startIndex..<result.endIndex, in: result)
+        let matches = mentionRegex.matches(in: result, range: mentionRange)
+        for match in matches.reversed() {
+            guard match.numberOfRanges >= 2,
+                  let wordRange = Range(match.range(at: 1), in: result) else { continue }
+            let word = String(result[wordRange]).lowercased()
+            if mentionStopwords.contains(word) { continue }
+            if word.contains(".") && codeFileExtensions.contains(where: { word.hasSuffix(".\($0)") }) { continue }
+            if let fullRange = Range(match.range, in: result) {
+                result.replaceSubrange(fullRange, with: "@\(word)")
+            }
+        }
+
+        return result
     }
 }

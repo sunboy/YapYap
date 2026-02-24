@@ -8,6 +8,9 @@ enum AppCategory: String, Codable, CaseIterable, Identifiable {
     case browser
     case documents
     case aiChat
+    case terminal
+    case notes
+    case social
     case other
 
     var id: String { rawValue }
@@ -21,6 +24,9 @@ enum AppCategory: String, Codable, CaseIterable, Identifiable {
         case .browser: return "Browser"
         case .documents: return "Documents"
         case .aiChat: return "AI Chat"
+        case .terminal: return "Terminal"
+        case .notes: return "Notes"
+        case .social: return "Social Media"
         case .other: return "Other"
         }
     }
@@ -34,10 +40,13 @@ enum AppCategory: String, Codable, CaseIterable, Identifiable {
         case .browser: return "globe"
         case .documents: return "doc.fill"
         case .aiChat: return "cpu"
+        case .terminal: return "terminal.fill"
+        case .notes: return "note.text"
+        case .social: return "person.2.fill"
         case .other: return "gearshape.fill"
         }
     }
-    
+
     var emoji: String {
         switch self {
         case .personalMessaging: return "💬"
@@ -47,6 +56,9 @@ enum AppCategory: String, Codable, CaseIterable, Identifiable {
         case .browser: return "🌐"
         case .documents: return "📄"
         case .aiChat: return "🤖"
+        case .terminal: return "⌨️"
+        case .notes: return "📝"
+        case .social: return "📱"
         case .other: return "⚙️"
         }
     }
@@ -58,8 +70,11 @@ enum AppCategory: String, Codable, CaseIterable, Identifiable {
         case .email: return "Mail, Gmail, Outlook, Superhuman"
         case .codeEditor: return "Cursor, VS Code, Xcode, Windsurf"
         case .browser: return "Safari, Chrome, Firefox, Arc"
-        case .documents: return "Pages, Notion, Obsidian, Notes"
+        case .documents: return "Pages, Google Docs, Word"
         case .aiChat: return "ChatGPT, Claude, Perplexity"
+        case .terminal: return "Terminal, iTerm2, Warp"
+        case .notes: return "Notes, Obsidian, Bear"
+        case .social: return "Twitter/X, Reddit, Mastodon"
         case .other: return "Other applications"
         }
     }
@@ -73,6 +88,9 @@ enum AppCategory: String, Codable, CaseIterable, Identifiable {
         case .documents: return [.casual, .formal]
         case .aiChat: return [.casual, .formal]
         case .browser: return [.casual, .excited, .formal]
+        case .terminal: return [.casual, .formal]
+        case .notes: return [.casual, .formal]
+        case .social: return [.veryCasual, .casual, .excited]
         case .other: return [.casual, .formal]
         }
     }
@@ -86,6 +104,9 @@ enum AppCategory: String, Codable, CaseIterable, Identifiable {
         case .documents: return .formal
         case .aiChat: return .casual
         case .browser: return .casual
+        case .terminal: return .casual
+        case .notes: return .casual
+        case .social: return .casual
         case .other: return .casual
         }
     }

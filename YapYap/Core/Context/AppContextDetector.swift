@@ -33,14 +33,21 @@ class AppContextDetector {
         "com.apple.dt.Xcode": .codeEditor,
         "dev.zed.Zed": .codeEditor,
         "com.codeium.windsurf": .codeEditor,
-        "com.googlecode.iterm2": .codeEditor,
-        "com.apple.Terminal": .codeEditor,
+
+        // Terminal
+        "com.googlecode.iterm2": .terminal,
+        "com.apple.Terminal": .terminal,
+        "dev.warp.Warp-Stable": .terminal,
+        "net.kovidgoyal.kitty": .terminal,
+        "com.github.wez.wezterm": .terminal,
+
+        // Notes
+        "com.apple.Notes": .notes,
+        "md.obsidian": .notes,
 
         // Documents
         "com.apple.iWork.Pages": .documents,
         "notion.id": .documents,
-        "md.obsidian": .documents,
-        "com.apple.Notes": .documents,
 
         // AI Chat
         "com.openai.chat": .aiChat,
@@ -121,7 +128,8 @@ class AppContextDetector {
         ("confluence", .documents),
         ("github.com", .codeEditor), ("gitlab.com", .codeEditor),
         ("stackoverflow", .codeEditor),
-        ("reddit.com", .personalMessaging),
+        ("reddit.com", .social), ("twitter.com", .social), ("x.com", .social),
+        ("mastodon", .social),
     ]
 
     private static func classifyBrowserTab(pid: pid_t) -> AppCategory {

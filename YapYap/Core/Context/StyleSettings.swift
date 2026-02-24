@@ -10,6 +10,9 @@ struct StyleSettings: Codable {
     var documents: OutputStyle = .formal
     var aiChat: OutputStyle = .casual
     var browser: OutputStyle = .casual
+    var terminal: OutputStyle = .casual
+    var notes: OutputStyle = .casual
+    var social: OutputStyle = .casual
     var other: OutputStyle = .casual
 
     var ideVariableRecognition: Bool = true
@@ -26,6 +29,9 @@ struct StyleSettings: Codable {
         case .documents: return documents
         case .aiChat: return aiChat
         case .browser: return browser
+        case .terminal: return terminal
+        case .notes: return notes
+        case .social: return social
         case .other: return other
         }
     }

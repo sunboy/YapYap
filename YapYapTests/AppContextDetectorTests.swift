@@ -8,7 +8,7 @@ final class AppContextDetectorTests: XCTestCase {
     // MARK: - App Category
 
     func testAppCategoryCaseCount() {
-        XCTAssertEqual(AppCategory.allCases.count, 8)
+        XCTAssertEqual(AppCategory.allCases.count, 11)
     }
 
     func testAppCategoryDisplayNames() {
