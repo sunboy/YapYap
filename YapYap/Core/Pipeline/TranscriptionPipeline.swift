@@ -394,13 +394,18 @@ class TranscriptionPipeline {
 
     private func handleCommandMode(rawText: String, settings: AppSettings) async throws -> String {
         let selectedText = AppContextDetector.getSelectedText() ?? ""
-        guard !selectedText.isEmpty else {
-            appState.creatureState = .sleeping
-            appState.isProcessing = false
-            return rawText // Just paste the raw text if nothing is selected
+
+        let prompt: String
+        if selectedText.isEmpty {
+            // Write mode: generate new content from voice instruction
+            NSLog("[TranscriptionPipeline] Command mode: write mode (no selection)")
+            prompt = CommandMode.buildWritePrompt(instruction: rawText)
+        } else {
+            // Edit mode: transform selected text
+            NSLog("[TranscriptionPipeline] Command mode: edit mode (\(selectedText.count) chars selected)")
+            prompt = CommandMode.buildPrompt(command: rawText, selectedText: selectedText)
         }
 
-        let prompt = CommandMode.buildPrompt(command: rawText, selectedText: selectedText)
         let result = try await llmEngine!.cleanup(rawText: prompt, context: CleanupContext(
             stylePrompt: "",
             formality: .neutral,
@@ -414,6 +419,7 @@ class TranscriptionPipeline {
         pasteManager.paste(result)
         appState.creatureState = .sleeping
         appState.isProcessing = false
+        appState.partialTranscription = nil
         appState.lastTranscription = result
         return result
     }
