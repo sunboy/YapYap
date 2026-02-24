@@ -44,3 +44,7 @@ Models/
 # Playground
 timeline.xctimeline
 playground.xcworkspace
+
+# Git worktrees
+worktree_dir/
+prompt_optimizations/
