@@ -28,10 +28,12 @@ enum LLMModelFamily: String {
 
 /// Model size tier determines prompt complexity.
 /// Small models (<=2B params) need ultra-minimal prompts.
-/// Medium/large models (3B+) handle detailed prompts well.
+/// Medium models (3B-4B) handle detailed prompts well.
+/// Large models (7B+) get rich prompts with persona and meta-commands.
 enum LLMModelSize {
     case small  // <=2B — ultra-minimal prompts
-    case medium // 3B+ — detailed prompts with full rules
+    case medium // 3B-4B — detailed prompts with full rules
+    case large  // 7B+ — rich prompts with persona and meta-commands
 }
 
 struct LLMModelInfo: Identifiable, Equatable {
@@ -78,24 +80,24 @@ struct LLMModelRegistry {
             languages: ["en"]
         ),
         LLMModelInfo(
+            id: "gemma-3-1b",
+            name: "Gemma 3 1B",
+            huggingFaceId: "mlx-community/gemma-3-1b-it-4bit",
+            sizeBytes: 700_000_000,
+            sizeDescription: "~700MB",
+            description: "Ultra-fast, 140+ languages.",
+            isRecommended: false,
+            family: .gemma,
+            size: .small,
+            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi"]
+        ),
+        LLMModelInfo(
             id: "qwen-2.5-3b",
             name: "Qwen 2.5 3B",
             huggingFaceId: "mlx-community/Qwen2.5-3B-Instruct-4bit",
             sizeBytes: 2_147_483_648,
             sizeDescription: "~2.0GB",
             description: "Higher quality, multilingual. Slower.",
-            isRecommended: false,
-            family: .qwen,
-            size: .medium,
-            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi"]
-        ),
-        LLMModelInfo(
-            id: "qwen-2.5-7b",
-            name: "Qwen 2.5 7B",
-            huggingFaceId: "mlx-community/Qwen2.5-7B-Instruct-4bit",
-            sizeBytes: 5_016_021_811,
-            sizeDescription: "~4.7GB",
-            description: "Higher quality rewrites. 16GB+ RAM.",
             isRecommended: false,
             family: .qwen,
             size: .medium,
@@ -114,6 +116,30 @@ struct LLMModelRegistry {
             languages: ["en"]
         ),
         LLMModelInfo(
+            id: "gemma-3-4b",
+            name: "Gemma 3 4B",
+            huggingFaceId: "mlx-community/gemma-3-4b-it-4bit",
+            sizeBytes: 2_500_000_000,
+            sizeDescription: "~2.3GB",
+            description: "Strong instruction following, 140+ languages.",
+            isRecommended: false,
+            family: .gemma,
+            size: .medium,
+            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi"]
+        ),
+        LLMModelInfo(
+            id: "qwen-2.5-7b",
+            name: "Qwen 2.5 7B",
+            huggingFaceId: "mlx-community/Qwen2.5-7B-Instruct-4bit",
+            sizeBytes: 5_016_021_811,
+            sizeDescription: "~4.7GB",
+            description: "Higher quality rewrites. 16GB+ RAM.",
+            isRecommended: false,
+            family: .qwen,
+            size: .large,
+            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi"]
+        ),
+        LLMModelInfo(
             id: "llama-3.1-8b",
             name: "Llama 3.1 8B",
             huggingFaceId: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
@@ -122,7 +148,7 @@ struct LLMModelRegistry {
             description: "Best rewrite quality. 16GB+ RAM.",
             isRecommended: false,
             family: .llama,
-            size: .medium,
+            size: .large,
             languages: ["en"]
         ),
     ]

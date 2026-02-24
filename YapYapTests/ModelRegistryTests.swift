@@ -69,7 +69,7 @@ final class ModelRegistryTests: XCTestCase {
     }
 
     func testLLMModelCount() {
-        XCTAssertEqual(LLMModelRegistry.allModels.count, 6)
+        XCTAssertEqual(LLMModelRegistry.allModels.count, 8)
     }
 
     func testLLMModelLookup() {
@@ -131,6 +131,28 @@ final class ModelRegistryTests: XCTestCase {
 
         let qwen7b = LLMModelRegistry.model(for: "qwen-2.5-7b")
         XCTAssertEqual(qwen7b?.family, .qwen)
+
+        let gemma1b = LLMModelRegistry.model(for: "gemma-3-1b")
+        XCTAssertEqual(gemma1b?.family, .gemma)
+
+        let gemma4b = LLMModelRegistry.model(for: "gemma-3-4b")
+        XCTAssertEqual(gemma4b?.family, .gemma)
+    }
+
+    func testLLMModelSizeTiers() {
+        // Small models (<=2B)
+        XCTAssertEqual(LLMModelRegistry.model(for: "qwen-2.5-1.5b")?.size, .small)
+        XCTAssertEqual(LLMModelRegistry.model(for: "llama-3.2-1b")?.size, .small)
+        XCTAssertEqual(LLMModelRegistry.model(for: "gemma-3-1b")?.size, .small)
+
+        // Medium models (3B-4B)
+        XCTAssertEqual(LLMModelRegistry.model(for: "qwen-2.5-3b")?.size, .medium)
+        XCTAssertEqual(LLMModelRegistry.model(for: "llama-3.2-3b")?.size, .medium)
+        XCTAssertEqual(LLMModelRegistry.model(for: "gemma-3-4b")?.size, .medium)
+
+        // Large models (7B+)
+        XCTAssertEqual(LLMModelRegistry.model(for: "qwen-2.5-7b")?.size, .large)
+        XCTAssertEqual(LLMModelRegistry.model(for: "llama-3.1-8b")?.size, .large)
     }
 
     func testLLMModelFamilyInferenceParams() {
@@ -142,5 +164,20 @@ final class ModelRegistryTests: XCTestCase {
         // All should have repetition penalty
         XCTAssertGreaterThan(LLMModelFamily.llama.repetitionPenalty, 1.0)
         XCTAssertGreaterThan(LLMModelFamily.qwen.repetitionPenalty, 1.0)
+        XCTAssertGreaterThan(LLMModelFamily.gemma.repetitionPenalty, 1.0)
+    }
+
+    func testGemmaModelsRegistered() {
+        let gemma1b = LLMModelRegistry.model(for: "gemma-3-1b")
+        XCTAssertNotNil(gemma1b)
+        XCTAssertEqual(gemma1b?.name, "Gemma 3 1B")
+        XCTAssertEqual(gemma1b?.family, .gemma)
+        XCTAssertEqual(gemma1b?.size, .small)
+
+        let gemma4b = LLMModelRegistry.model(for: "gemma-3-4b")
+        XCTAssertNotNil(gemma4b)
+        XCTAssertEqual(gemma4b?.name, "Gemma 3 4B")
+        XCTAssertEqual(gemma4b?.family, .gemma)
+        XCTAssertEqual(gemma4b?.size, .medium)
     }
 }
