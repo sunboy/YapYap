@@ -104,6 +104,10 @@ class WhisperKitEngine: STTEngine {
         let whisperLang = language.components(separatedBy: "-").first ?? "en"
         NSLog("[WhisperKitEngine] Transcribing with language: \(whisperLang)")
 
+        // Build vocabulary prompt from personal dictionary to bias decoder
+        // toward user's expected terminology (e.g., names, technical terms)
+        let vocabPrompt = VocabularyBooster.whisperPrompt(from: PersonalDictionary.shared)
+
         // Speed-optimized decoding options — no temperature fallback retries
         let options = DecodingOptions(
             task: .transcribe,
@@ -115,6 +119,7 @@ class WhisperKitEngine: STTEngine {
             detectLanguage: false,
             withoutTimestamps: !needsTimestamps,
             wordTimestamps: false,
+            promptTokens: vocabPrompt.flatMap { pipe.tokenizer?.encode(text: $0) },
             suppressBlank: true,
             compressionRatioThreshold: 2.4,
             logProbThreshold: -1.0,

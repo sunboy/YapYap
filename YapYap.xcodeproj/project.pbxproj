@@ -61,6 +61,7 @@
 		5AB34B549EA1E9DD2947EF4C /* DictionaryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B99E72BA7E5665842A0EBE3 /* DictionaryTab.swift */; };
 		5C8E8FB874659E6136BACEBD /* FillerFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1FA28B90EEED15270C0B4D7 /* FillerFilter.swift */; };
 		5DE2EA4B1E8877889C68FB05 /* WhisperCppEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D83B52713A7B8D89E413A1A4 /* WhisperCppEngine.swift */; };
+		60BBA7874F9BC53EEB86ACED /* VocabularyBooster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67012EDAFFDEE4F4463DFFFD /* VocabularyBooster.swift */; };
 		621918642E8554EF03B081A0 /* OutputStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3738D62B204C5EEAF00102DD /* OutputStyle.swift */; };
 		62C0D93612C5FA9A6C700EFA /* AppCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B28CEC987D82699CC177D8 /* AppCategory.swift */; };
 		62F2C32FEC55F67EF2E403B4 /* FloatingBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0115BA186A3931DE0191E1E /* FloatingBarView.swift */; };
@@ -143,6 +144,7 @@
 		FA7CFC4A56B516EFF4A69B58 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9718F48C4D5A4065625E27F1 /* PopoverView.swift */; };
 		FC0966BBB724620CF1C0CBAF /* FluidAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A355C4B4AD9FE347C78BA5 /* FluidAudioEngine.swift */; };
 		FCFD02B54D5FFCB40F877EAE /* YapYapErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95818D9E5700BEFF8A063BBC /* YapYapErrorTests.swift */; };
+		FD0A84D8D6DFADC03C6AA181 /* VocabularyBooster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67012EDAFFDEE4F4463DFFFD /* VocabularyBooster.swift */; };
 		FE1C97CBE4DC9490C3228308 /* CorrectionDiffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB0E608A461EE769B2BA6AF /* CorrectionDiffer.swift */; };
 		FE7B992B6BE28053326C2DA9 /* UserPromptContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 936BD453DD8ED54AE7FB1BA3 /* UserPromptContext.swift */; };
 /* End PBXBuildFile section */
@@ -206,6 +208,7 @@
 		5F3628A58CAAF87EDDEAF889 /* STTModelRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = STTModelRegistry.swift; sourceTree = "<group>"; };
 		649278805EE28722F9F42B30 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		6663A7E6801BC7B3FB543648 /* FillerFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerFilterTests.swift; sourceTree = "<group>"; };
+		67012EDAFFDEE4F4463DFFFD /* VocabularyBooster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyBooster.swift; sourceTree = "<group>"; };
 		68CF1D552788A3F62A8DB72A /* VADManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VADManager.swift; sourceTree = "<group>"; };
 		698E5AA9BF6A80874D6AADA5 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		6B99E72BA7E5665842A0EBE3 /* DictionaryTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryTab.swift; sourceTree = "<group>"; };
@@ -459,6 +462,7 @@
 				5F3628A58CAAF87EDDEAF889 /* STTModelRegistry.swift */,
 				1BF404197047F870703C6CB0 /* VADConfig.swift */,
 				68CF1D552788A3F62A8DB72A /* VADManager.swift */,
+				67012EDAFFDEE4F4463DFFFD /* VocabularyBooster.swift */,
 				D83B52713A7B8D89E413A1A4 /* WhisperCppEngine.swift */,
 				17D51DC4EA4BAD23FC8725BF /* WhisperKitEngine.swift */,
 			);
@@ -789,6 +793,7 @@
 				D4EDDCCCF2818F15FF528E55 /* UserPromptContextManager.swift in Sources */,
 				5084E10F84F967D6A4396E61 /* VADConfig.swift in Sources */,
 				4D5E54CFA996043CDF6915ED /* VADManager.swift in Sources */,
+				60BBA7874F9BC53EEB86ACED /* VocabularyBooster.swift in Sources */,
 				6C3845973CA8C03F02431842 /* WAVLoader.swift in Sources */,
 				47C59B80D1FB0C28EA7E49BE /* WAVRecorder.swift in Sources */,
 				94A2586C46349C41A4DB015F /* WhisperCppEngine.swift in Sources */,
@@ -863,6 +868,7 @@
 				27D28A69DB1214F98091203B /* UserPromptContextManager.swift in Sources */,
 				AEC34FB22E6B78AC099AC883 /* VADConfig.swift in Sources */,
 				2F4E008B48AB5323C3154BF3 /* VADManager.swift in Sources */,
+				FD0A84D8D6DFADC03C6AA181 /* VocabularyBooster.swift in Sources */,
 				5A45DC19E016148CCF6C5F60 /* WaveformView.swift in Sources */,
 				5DE2EA4B1E8877889C68FB05 /* WhisperCppEngine.swift in Sources */,
 				7EF18C8D66954622E757CFE1 /* WhisperKitEngine.swift in Sources */,
