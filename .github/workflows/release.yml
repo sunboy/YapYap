@@ -106,15 +106,19 @@ jobs:
             OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH --timestamp" \
             -clonedSourcePackagesDirPath /tmp/spm-cache
 
-      - name: Export signed app
+      - name: Export and re-sign app
         run: |
-          # Re-unlock keychain and ensure it's first in search list for codesign daemon
+          mkdir -p build/release
+          # Copy app from archive
+          cp -R build/YapYap.xcarchive/Products/Applications/YapYap.app build/release/YapYap.app
+          # Re-sign deep with Developer ID using our keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
-          xcodebuild -exportArchive \
-            -archivePath build/YapYap.xcarchive \
-            -exportPath build/release \
-            -exportOptionsPlist ExportOptions.plist
+          codesign --force --deep --sign "Developer ID Application: Sandeep Thuthike (SRB6ZCP58T)" \
+            --keychain "$KEYCHAIN_PATH" \
+            --options runtime \
+            --timestamp \
+            --entitlements YapYap/YapYap.entitlements \
+            build/release/YapYap.app
 
       - name: Verify signature
         run: |
