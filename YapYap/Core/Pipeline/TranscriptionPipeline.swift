@@ -175,7 +175,9 @@ class TranscriptionPipeline {
             MediaPlaybackController.shared.pauseIfPlaying()
         }
 
-        try await audioCapture.startCapture { [weak self] rms in
+        // Pass selected microphone from settings
+        let micId = (try? fetchSettings())?.microphoneId
+        try await audioCapture.startCapture(microphoneId: micId) { [weak self] rms in
             DispatchQueue.main.async {
                 self?.appState.currentRMS = rms
             }
@@ -193,6 +195,20 @@ class TranscriptionPipeline {
                 }
             }
         }
+
+        // Monitor for device changes (mic plugged/unplugged)
+        audioCapture.onDeviceChanged = { [weak self] in
+            NSLog("[TranscriptionPipeline] Audio device changed during recording")
+            Task {
+                do {
+                    try await self?.audioCapture.recreateEngine()
+                    NSLog("[TranscriptionPipeline] Reconnected to new audio device")
+                } catch {
+                    NSLog("[TranscriptionPipeline] Failed to reconnect: \(error)")
+                }
+            }
+        }
+        audioCapture.startDeviceChangeMonitoring()
 
         // Start streaming STT if the engine supports it
         let isStreaming = await executor.isStreaming

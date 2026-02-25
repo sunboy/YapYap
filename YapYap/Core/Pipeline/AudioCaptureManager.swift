@@ -2,6 +2,7 @@
 // YapYap — Audio capture via AVAudioEngine
 import AVFoundation
 import Combine
+import CoreAudio
 
 @Observable
 class AudioCaptureManager {
@@ -27,6 +28,10 @@ class AudioCaptureManager {
     private var consecutiveErrors: Int = 0
     private let maxConsecutiveErrors = 10
     var onEngineFailure: (() -> Void)?
+
+    /// Callback when the default audio device changes (mic plugged/unplugged)
+    var onDeviceChanged: (() -> Void)?
+    private var deviceChangeListenerRegistered = false
 
     // MARK: - Microphone Permission
 
@@ -80,6 +85,104 @@ class AudioCaptureManager {
         self.audioEngine = engine
         self.isEngineWarmed = true
         NSLog("[AudioCaptureManager] Engine pre-warmed")
+    }
+
+    // MARK: - Device Selection
+
+    /// Set a specific audio input device on the engine by CoreAudio device ID.
+    /// Returns true if the device was set, false if the device wasn't found.
+    private func setInputDevice(_ microphoneId: String, on engine: AVAudioEngine) -> Bool {
+        // Find the CoreAudio device matching the AVCaptureDevice unique ID
+        var propAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var dataSize: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &propAddress, 0, nil, &dataSize) == noErr else {
+            return false
+        }
+        let deviceCount = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
+        var devices = [AudioDeviceID](repeating: 0, count: deviceCount)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &propAddress, 0, nil, &dataSize, &devices) == noErr else {
+            return false
+        }
+
+        for deviceID in devices {
+            // Get the device UID to match against AVCaptureDevice.uniqueID
+            var uidPropAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyDeviceUID,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var uid: CFString = "" as CFString
+            var uidSize = UInt32(MemoryLayout<CFString>.size)
+            guard AudioObjectGetPropertyData(deviceID, &uidPropAddress, 0, nil, &uidSize, &uid) == noErr else {
+                continue
+            }
+            if (uid as String) == microphoneId {
+                // Check if this device has input channels
+                var inputPropAddress = AudioObjectPropertyAddress(
+                    mSelector: kAudioDevicePropertyStreamConfiguration,
+                    mScope: kAudioObjectPropertyScopeInput,
+                    mElement: kAudioObjectPropertyElementMain
+                )
+                var inputSize: UInt32 = 0
+                guard AudioObjectGetPropertyDataSize(deviceID, &inputPropAddress, 0, nil, &inputSize) == noErr,
+                      inputSize > 0 else {
+                    continue
+                }
+
+                // Set this device as the engine's input
+                var deviceIDValue = deviceID
+                let status = AudioUnitSetProperty(
+                    engine.inputNode.audioUnit!,
+                    kAudioOutputUnitProperty_CurrentDevice,
+                    kAudioUnitScope_Global,
+                    0,
+                    &deviceIDValue,
+                    UInt32(MemoryLayout<AudioDeviceID>.size)
+                )
+                if status == noErr {
+                    NSLog("[AudioCaptureManager] Set input device: %@ (ID: %d)", microphoneId, deviceID)
+                    return true
+                } else {
+                    NSLog("[AudioCaptureManager] Failed to set input device: OSStatus %d", status)
+                    return false
+                }
+            }
+        }
+        NSLog("[AudioCaptureManager] Device not found: %@, using system default", microphoneId)
+        return false
+    }
+
+    // MARK: - Device Change Monitoring
+
+    /// Start listening for default audio input device changes.
+    func startDeviceChangeMonitoring() {
+        guard !deviceChangeListenerRegistered else { return }
+
+        var propAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        let status = AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject),
+            &propAddress,
+            DispatchQueue.main
+        ) { [weak self] _, _ in
+            NSLog("[AudioCaptureManager] Default input device changed")
+            self?.onDeviceChanged?()
+        }
+
+        if status == noErr {
+            deviceChangeListenerRegistered = true
+            NSLog("[AudioCaptureManager] Device change monitoring started")
+        } else {
+            NSLog("[AudioCaptureManager] Failed to register device listener: %d", status)
+        }
     }
 
     // MARK: - Tap Installation with Format Retry
@@ -163,6 +266,11 @@ class AudioCaptureManager {
         let engine = AVAudioEngine()
         self.audioEngine = engine
         self.isEngineWarmed = false
+
+        // Set specific input device if requested
+        if let micId = microphoneId, !micId.isEmpty {
+            _ = setInputDevice(micId, on: engine)
+        }
 
         guard let fmt = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
