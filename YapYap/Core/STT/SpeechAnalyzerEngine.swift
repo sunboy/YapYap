@@ -2,11 +2,14 @@
 // YapYap — Apple SpeechAnalyzer STT backend (macOS 26+)
 // Zero-setup, fastest option — uses Apple's on-device Neural Engine model.
 // Trade-off: ~8% WER vs Whisper's ~1%, but 2x faster and no model download.
+//
+// SpeechTranscriber/AssetInventory/AnalyzerInput are macOS 26 SDK only (Swift 6.2+).
+// Wrap entire implementation so it compiles cleanly on Xcode 16 / macOS 15 runners.
+
 import AVFoundation
 
-#if canImport(Speech)
+#if compiler(>=6.2)
 import Speech
-#endif
 
 @available(macOS 26, *)
 class SpeechAnalyzerEngine: STTEngine {
@@ -155,3 +158,4 @@ class SpeechAnalyzerEngine: STTEngine {
         )
     }
 }
+#endif
