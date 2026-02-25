@@ -50,6 +50,12 @@ bench-results/*.json
 bench-results/*.log
 bench-results/latest.json
 
+# Build/test logs and profiling artifacts
+*.log
+*.profraw
+*.profdata
+
 # Git worktrees
 worktree_dir/
 prompt_optimizations/
+feature/

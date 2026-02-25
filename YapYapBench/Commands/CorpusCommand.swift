@@ -60,11 +60,17 @@ struct CorpusCommand: AsyncParsableCommand {
 
             // Load model
             log("Downloading/loading model...")
-            try await llmRunner.loadModel(id: llmModelId) { progress in
-                let pct = Int(progress * 100)
-                if pct % 25 == 0 { self.log("  Loading: \(pct)%") }
+            do {
+                try await llmRunner.loadModel(id: llmModelId) { progress in
+                    let pct = Int(progress * 100)
+                    if pct % 25 == 0 { self.log("  Loading: \(pct)%") }
+                }
+                log("Model loaded.")
+            } catch {
+                log("ERROR: Failed to load model '\(llmModelId)': \(error.localizedDescription)")
+                log("  Skipping this model and continuing...")
+                continue
             }
-            log("Model loaded.")
 
             var modelRuns: [CorpusRunResult] = []
 
