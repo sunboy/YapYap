@@ -25,13 +25,17 @@ class HotkeyManager {
         self.pipeline = pipeline
         self.appState = appState
 
-        // Check accessibility permission - required for global hotkeys
-        let trusted = AXIsProcessTrusted()
-        print("[HotkeyManager] Accessibility trusted: \(trusted)")
+        // Check accessibility permission - required for global hotkeys and paste
+        // Using AXIsProcessTrustedWithOptions with prompt=true ensures the app
+        // appears in System Settings → Accessibility even on first launch
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        NSLog("[HotkeyManager] Accessibility trusted: %@", trusted ? "YES" : "NO")
 
         if !trusted {
-            print("[HotkeyManager] WARNING: Accessibility not trusted - hotkeys may not work")
-            print("[HotkeyManager] Request accessibility permission to enable hotkeys")
+            NSLog("[HotkeyManager] ⚠️ Accessibility NOT trusted — user must grant in System Settings → Accessibility")
+            NSLog("[HotkeyManager] If YapYap doesn't appear, click '+' and add: %@",
+                  Bundle.main.bundlePath)
         }
 
         registerHotkeys()

@@ -5,6 +5,19 @@ import Carbon.HIToolbox
 
 class PasteManager {
 
+    /// Terminal emulators that silently accept AX writes but never render them.
+    /// For these apps, always use clipboard + Cmd+V.
+    private let terminalBundleIds: Set<String> = [
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+        "dev.warp.Warp-Stable", "dev.warp.Warp",
+        "com.github.alacritty",
+        "io.alacritty",
+        "net.kovidgoyal.kitty",
+        "co.zeit.hyper",
+        "com.panic.Prompt",
+    ]
+
     /// Cascading paste: try Accessibility API first (cleanest), then clipboard + Cmd+V
     /// - Parameters:
     ///   - text: The text to paste
@@ -15,9 +28,15 @@ class PasteManager {
         NSLog("[PasteManager] Paste requested: \(text.count) chars → \(appName)")
 
         // Strategy 1: Accessibility API setValue (no clipboard pollution)
-        if tryAccessibilitySetValue(text, targetApp: resolvedApp) {
+        // Skip for terminal apps — they accept AX writes silently but don't render them
+        let bundleId = resolvedApp?.bundleIdentifier ?? ""
+        let isTerminal = terminalBundleIds.contains(bundleId)
+        if !isTerminal, tryAccessibilitySetValue(text, targetApp: resolvedApp) {
             NSLog("[PasteManager] Pasted via Accessibility API")
             return
+        }
+        if isTerminal {
+            NSLog("[PasteManager] Terminal app detected (\(bundleId)), skipping AX paste")
         }
 
         // Strategy 2: Clipboard + synthetic Cmd+V (most compatible)
@@ -53,7 +72,22 @@ class PasteManager {
             // Insert at selection point using selected text attribute
             let setResult = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFTypeRef)
             if setResult == .success {
-                return true
+                // Verify the text actually landed — some apps (terminals, Electron)
+                // return .success but silently ignore the write
+                var readBack: CFTypeRef?
+                if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &readBack) == .success,
+                   let readStr = readBack as? String, readStr.isEmpty {
+                    // Text was consumed (selection collapsed) — likely worked
+                    return true
+                }
+                // Can't verify, but AX said success — trust it for non-terminal apps
+                // Terminal emulators lie about AX writes, so check the role
+                var role: CFTypeRef?
+                if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role) == .success,
+                   let roleStr = role as? String, roleStr == "AXTextArea" || roleStr == "AXTextField" {
+                    return true
+                }
+                NSLog("[PasteManager] AX set returned success but element role is suspicious, falling through")
             }
         }
 
@@ -63,7 +97,15 @@ class PasteManager {
         if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentValue) == .success {
             if let current = currentValue as? String, current.count < 500 {
                 let result = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, text as CFTypeRef)
-                return result == .success
+                if result == .success {
+                    // Verify write took effect
+                    var afterValue: CFTypeRef?
+                    if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &afterValue) == .success,
+                       let afterStr = afterValue as? String, afterStr.contains(text) {
+                        return true
+                    }
+                    NSLog("[PasteManager] AX setValue returned success but verification failed")
+                }
             }
         }
 
