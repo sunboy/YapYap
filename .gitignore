@@ -28,7 +28,11 @@ Package.resolved
 ._*
 
 # AI Models (large files — download at runtime)
-Models/
+# Note: YapYap/Core/Models/ contains source code and must NOT be ignored
+huggingface/
+whisperkit-coreml/
+*.mlmodelc
+*.mlpackage
 
 # Secrets
 *.env
