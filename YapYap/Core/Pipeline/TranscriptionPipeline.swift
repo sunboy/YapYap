@@ -37,11 +37,15 @@ class TranscriptionPipeline {
     private var cachedStyleSettings: StyleSettings?
     private var cachedAppContext: AppContext?
 
-    /// Target app captured at recording start (most reliable — user's app is frontmost)
-    private var cachedTargetApp: NSRunningApplication?
+    /// Target app for paste: captured at recording start when the user's app is frontmost.
+    /// This prevents pasting into YapYap itself if processing takes a long time.
+    private var targetApp: NSRunningApplication?
 
     /// Whether media was paused by us and should be resumed
     private var didPauseMedia = false
+
+    /// In-flight model loading task — concurrent callers await this instead of launching a second load.
+    private var modelLoadingTask: Task<Void, Error>?
 
     init(appState: AppState, container: ModelContainer) {
         self.appState = appState
@@ -101,6 +105,23 @@ class TranscriptionPipeline {
     }
 
     func ensureModelsLoaded() async throws {
+        // If a load is already in-flight, await it instead of starting a second one.
+        // This prevents concurrent MLX downloads/reads that corrupt partial files.
+        if let existing = modelLoadingTask {
+            NSLog("[TranscriptionPipeline] Model load already in-flight, awaiting...")
+            try await existing.value
+            return
+        }
+
+        let task = Task<Void, Error> {
+            defer { modelLoadingTask = nil }
+            try await _ensureModelsLoadedImpl()
+        }
+        modelLoadingTask = task
+        try await task.value
+    }
+
+    private func _ensureModelsLoadedImpl() async throws {
         let settings = try fetchSettings()
 
         // Reload STT if not loaded OR if user switched to a different model in Settings
@@ -136,13 +157,24 @@ class TranscriptionPipeline {
             appState.modelLoadingProgress = 0.5
             NSLog("[TranscriptionPipeline] Loading LLM model: \(settings.llmModelId)")
 
-            llmEngine = MLXEngine()
-            try await llmEngine!.loadModel(id: settings.llmModelId) { [weak self] progress in
-                Task { @MainActor in
-                    self?.appState.modelLoadingProgress = 0.5 + (progress * 0.5) // Next 50%
+            let engine = MLXEngine()
+            do {
+                try await engine.loadModel(id: settings.llmModelId) { [weak self] progress in
+                    Task { @MainActor in
+                        self?.appState.modelLoadingProgress = 0.5 + (progress * 0.5)
+                    }
                 }
+                llmEngine = engine
+                appState.activeLLMModelId = settings.llmModelId
+                NSLog("[TranscriptionPipeline] ✅ LLM model loaded")
+            } catch {
+                // LLM load failure is non-fatal — STT still works, cleanup is skipped.
+                // This happens when the model isn't downloaded yet or the cache is corrupt.
+                llmEngine = nil
+                appState.activeLLMModelId = nil
+                NSLog("[TranscriptionPipeline] ⚠️ LLM model failed to load, cleanup will be skipped: \(error)")
+                appState.modelLoadingStatus = "Cleanup model unavailable — recording still works"
             }
-            NSLog("[TranscriptionPipeline] ✅ LLM model loaded")
         }
 
         appState.modelLoadingProgress = 1.0
@@ -166,13 +198,14 @@ class TranscriptionPipeline {
 
         NSLog("[TranscriptionPipeline] ✅ Microphone permission granted")
 
-        // CHECK IF MODELS ARE READY - should already be loaded at startup
+        // Always call ensureModelsLoaded — it's a no-op if the right models are already
+        // loaded, but it detects model ID changes from Settings and reloads as needed.
         if !appState.modelsReady {
             NSLog("[TranscriptionPipeline] ⚠️ Models not ready, loading now...")
             appState.modelLoadingStatus = "Loading models..."
-            try await ensureModelsLoaded()
-            appState.modelsReady = true
         }
+        try await ensureModelsLoaded()
+        appState.modelsReady = true
 
         NSLog("[TranscriptionPipeline] ✅ Models ready, starting capture")
 
@@ -188,7 +221,7 @@ class TranscriptionPipeline {
         // Capture target app PID now — the user's app is frontmost at recording start.
         // This is more reliable than checking frontmostApplication later when our
         // floating bar might have changed focus.
-        self.cachedTargetApp = NSWorkspace.shared.frontmostApplication
+        self.targetApp = NSWorkspace.shared.frontmostApplication
 
         // Auto-pause media playback if enabled
         if (try? fetchSettings())?.pauseMediaDuringRecording == true {
@@ -203,7 +236,7 @@ class TranscriptionPipeline {
         let appContext = AppContextDetector.detect(settings: styleSettings)
         self.cachedStyleSettings = styleSettings
         self.cachedAppContext = appContext
-        NSLog("[TranscriptionPipeline] Pre-cached context: \(appContext.appName) (\(appContext.category.rawValue))")
+        NSLog("[TranscriptionPipeline] Pre-cached context: \(appContext.appName) (\(appContext.category.rawValue)), target app pid: \(self.targetApp?.processIdentifier ?? -1)")
 
         try await audioCapture.startCapture { [weak self] rms in
             DispatchQueue.main.async {
@@ -211,22 +244,28 @@ class TranscriptionPipeline {
             }
         }
         print("[TranscriptionPipeline] Audio capture started")
+
+        // Start streaming STT if the engine supports it
+        if let streamingEngine = sttEngine as? StreamingSTTEngine {
+            let settings = try fetchSettings()
+            try await streamingEngine.startStreaming(
+                audioSamplesProvider: { [weak self] in
+                    self?.audioCapture.currentAudioSamples() ?? []
+                },
+                language: settings.language,
+                onUpdate: { [weak self] update in
+                    Task { @MainActor in
+                        self?.appState.partialTranscription = update.currentText.isEmpty ? nil : update.currentText
+                    }
+                }
+            )
+            NSLog("[TranscriptionPipeline] Streaming STT started")
+        }
     }
 
     func stopRecordingAndProcess() async throws -> String {
         let pipelineStart = Date()
         NSLog("[TranscriptionPipeline] stopRecordingAndProcess() called")
-
-        // Stop recording
-        guard let audioBuffer = audioCapture.stopCapture() else {
-            NSLog("[TranscriptionPipeline] ❌ No audio buffer captured (too short or empty)")
-            appState.isRecording = false
-            appState.creatureState = .sleeping
-            throw YapYapError.noAudioRecorded
-        }
-
-        let audioDuration = Double(audioBuffer.frameLength) / audioCapture.sampleRate
-        NSLog("[TranscriptionPipeline] ✅ Audio buffer: \(audioBuffer.frameLength) frames (\(String(format: "%.1f", audioDuration))s)")
 
         appState.isRecording = false
         appState.creatureState = .processing
@@ -236,15 +275,40 @@ class TranscriptionPipeline {
         HapticManager.shared.tap()
 
         do {
-            // SKIP VAD — WhisperKit handles silence natively, VAD adds 100-300ms latency
-            // Feed raw audio directly to STT
-
-            // STT transcription — pass user's language setting to the engine
+            var rawText: String
+            var audioDuration: Double
+            var detectedLanguage: String
             var stageStart = Date()
             let settings = try fetchSettings()
-            let transcription = try await sttEngine!.transcribe(audioBuffer: audioBuffer, language: settings.language)
-            let rawText = transcription.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-            NSLog("[TranscriptionPipeline] STT: \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+
+            // Streaming path: finalize STT first (needs to read final audio), then stop capture
+            if let streamingEngine = sttEngine as? StreamingSTTEngine, streamingEngine.isStreaming {
+                let result = try await streamingEngine.stopStreaming()
+                let tailMs = Date().timeIntervalSince(stageStart) * 1000
+                NSLog("[TranscriptionPipeline] Streaming STT finalized in \(String(format: "%.0f", tailMs))ms")
+
+                // Now stop audio capture (after streaming read final samples)
+                let audioBuffer = audioCapture.stopCapture()
+                audioDuration = audioBuffer.map { Double($0.frameLength) / audioCapture.sampleRate } ?? 0
+                rawText = Self.stripWhisperArtifacts(result.text.trimmingCharacters(in: .whitespacesAndNewlines))
+                detectedLanguage = result.language ?? settings.language
+                NSLog("[TranscriptionPipeline] STT (streaming): \"\(rawText)\" (\(String(format: "%.0f", tailMs))ms)")
+            } else {
+                // Batch path: stop capture first, then run STT on full buffer
+                guard let audioBuffer = audioCapture.stopCapture() else {
+                    NSLog("[TranscriptionPipeline] ❌ No audio buffer captured (too short or empty)")
+                    appState.creatureState = .sleeping
+                    appState.isProcessing = false
+                    throw YapYapError.noAudioRecorded
+                }
+                audioDuration = Double(audioBuffer.frameLength) / audioCapture.sampleRate
+                NSLog("[TranscriptionPipeline] ✅ Audio buffer: \(audioBuffer.frameLength) frames (\(String(format: "%.1f", audioDuration))s)")
+
+                let transcription = try await sttEngine!.transcribe(audioBuffer: audioBuffer, language: settings.language)
+                rawText = Self.stripWhisperArtifacts(transcription.text.trimmingCharacters(in: .whitespacesAndNewlines))
+                detectedLanguage = transcription.language ?? settings.language
+                NSLog("[TranscriptionPipeline] STT (batch): \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+            }
 
             guard !rawText.isEmpty else {
                 NSLog("[TranscriptionPipeline] ❌ Empty transcription")
@@ -307,8 +371,16 @@ class TranscriptionPipeline {
                     experimentalPrompts: settings.experimentalPrompts
                 )
 
-                cleanedText = try await llmEngine!.cleanup(rawText: correctedText, context: context)
-                NSLog("[TranscriptionPipeline] LLM: \"\(cleanedText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+                if let engine = llmEngine {
+                    cleanedText = try await engine.cleanup(rawText: correctedText, context: context)
+                    NSLog("[TranscriptionPipeline] LLM: \"\(cleanedText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+                } else {
+                    NSLog("[TranscriptionPipeline] ⚠️ LLM not loaded, using raw STT output")
+                    cleanedText = correctedText
+                    if let first = cleanedText.first, first.isLowercase {
+                        cleanedText = first.uppercased() + cleanedText.dropFirst()
+                    }
+                }
 
                 // Strip example echo: small models sometimes echo few-shot examples before the actual output
                 cleanedText = Self.stripExampleEcho(output: cleanedText, input: correctedText)
@@ -331,7 +403,7 @@ class TranscriptionPipeline {
 
             // Paste and/or copy
             if settings.autoPaste {
-                pasteManager.paste(cleanedText)
+                pasteManager.paste(cleanedText, targetApp: self.targetApp)
             }
             if settings.copyToClipboard {
                 NSPasteboard.general.clearContents()
@@ -367,7 +439,7 @@ class TranscriptionPipeline {
                         sttModel: sttModelId,
                         llmModel: self?.llmEngine?.modelId ?? "unknown",
                         sourceApp: sourceApp,
-                        language: transcription.language ?? "en"
+                        language: detectedLanguage
                     )
                     context.insert(entry)
                     try context.save()
@@ -403,6 +475,12 @@ class TranscriptionPipeline {
     }
 
     func cancelRecording() {
+        // Stop streaming if active before cancelling audio
+        if let streamingEngine = sttEngine as? StreamingSTTEngine, streamingEngine.isStreaming {
+            Task {
+                _ = try? await streamingEngine.stopStreaming()
+            }
+        }
         audioCapture.cancelCapture()
         appState.isRecording = false
         appState.isProcessing = false
@@ -428,7 +506,12 @@ class TranscriptionPipeline {
             prompt = CommandMode.buildPrompt(command: rawText, selectedText: selectedText)
         }
 
-        let result = try await llmEngine!.cleanup(rawText: prompt, context: CleanupContext(
+        guard let llmEngine = llmEngine else {
+            appState.creatureState = .sleeping
+            appState.isProcessing = false
+            return rawText
+        }
+        let result = try await llmEngine.cleanup(rawText: prompt, context: CleanupContext(
             stylePrompt: "",
             formality: .neutral,
             language: settings.language,
@@ -438,7 +521,7 @@ class TranscriptionPipeline {
             experimentalPrompts: settings.experimentalPrompts
         ))
 
-        pasteManager.paste(result)
+        pasteManager.paste(result, targetApp: self.targetApp)
         appState.creatureState = .sleeping
         appState.isProcessing = false
         appState.partialTranscription = nil
@@ -450,7 +533,7 @@ class TranscriptionPipeline {
 
     private func handleSnippet(snippet: VoiceSnippet, settings: AppSettings) async throws -> String {
         if settings.autoPaste {
-            pasteManager.paste(snippet.expansion)
+            pasteManager.paste(snippet.expansion, targetApp: self.targetApp)
         }
         if settings.copyToClipboard {
             NSPasteboard.general.clearContents()
@@ -469,6 +552,28 @@ class TranscriptionPipeline {
         guard didPauseMedia else { return }
         didPauseMedia = false
         MediaPlaybackController.shared.resumeIfWasPaused()
+    }
+
+    // MARK: - STT Artifact Stripping
+
+    /// Removes Whisper hallucination artifacts from raw STT output.
+    /// Whisper is trained on YouTube subtitles and generates bracketed tags like
+    /// [BLANK_AUDIO], [no audio], [Music], [Applause] when it detects silence or noise.
+    static let whisperArtifactRegex: NSRegularExpression = {
+        // Matches bracketed tags: [BLANK_AUDIO], [no audio from the video], [Music], etc.
+        // Also matches parenthesized equivalents: (sighs), (laughs), etc.
+        try! NSRegularExpression(pattern: "\\[([^\\]]{0,60})\\]|\\(([^\\)]{0,40})\\)", options: .caseInsensitive)
+    }()
+
+    static func stripWhisperArtifacts(_ text: String) -> String {
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        var result = whisperArtifactRegex.stringByReplacingMatches(in: text, range: range, withTemplate: "")
+        // Strip Whisper trailing-pause ellipsis: "word..." → "word"
+        // Uses a capture group to keep the last word character and discard the "..."
+        result = result.replacingOccurrences(of: "(\\w)\\.\\.\\.", with: "$1", options: .regularExpression)
+        // Collapse multiple spaces left by removed tags
+        result = result.replacingOccurrences(of: "  +", with: " ", options: .regularExpression)
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Filler Detection

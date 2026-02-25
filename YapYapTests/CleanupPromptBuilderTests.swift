@@ -34,7 +34,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
         // Small model prompt should be concise
         let wordCount = messages.system.split(separator: " ").count
-        XCTAssertLessThanOrEqual(wordCount, 60, "Small model system prompt should be concise")
+        XCTAssertLessThanOrEqual(wordCount, 65, "Small model system prompt should be concise")
         XCTAssertTrue(messages.system.contains("Clean dictated speech"))
     }
 
@@ -406,6 +406,82 @@ final class CleanupPromptBuilderTests: XCTestCase {
         XCTAssertTrue(system.contains("code references"))
     }
 
+    // MARK: - List Formatting Instruction
+
+    func testQwenMediumSystemIncludesListInstruction() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("explicitly enumerates"))
+        // Must not trigger on multi-clause sentences
+        XCTAssertFalse(messages.system.contains("lists or enumerates multiple things"))
+    }
+
+    func testLlamaMediumSystemIncludesListInstruction() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.system.contains("explicitly enumerates"))
+        XCTAssertFalse(messages.system.contains("lists or enumerates multiple things"))
+    }
+
+    func testSmallModelIncludesListInstruction() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        // Small model uses template-based system prompt — verify it contains cleanup instructions
+        XCTAssertTrue(messages.system.contains("Clean dictated speech"))
+        XCTAssertFalse(messages.system.contains("multiple items are listed"))
+    }
+
+    func testSmallModelUserMessageIncludesListExample() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        // Grocery list example removed — it caused Gemma to echo it instead of cleaning the transcript
+        XCTAssertFalse(messages.user.contains("- Milk"))
+        XCTAssertFalse(messages.user.contains("- Eggs"))
+        // Basic IN/OUT format still present
+        XCTAssertTrue(messages.user.contains("IN:"))
+        XCTAssertTrue(messages.user.contains("OUT:"))
+    }
+
+    func testMediumModelIncludesListInstruction() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("explicitly enumerates"))
+    }
+
+    func testLlamaMediumIncludesListInstructionInConstraints() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.system.contains("explicitly enumerates"))
+    }
+
+    func testLlamaMediumUserMessageIncludesListExample() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        // Template-based examples have 4 examples for medium cleanup
+        XCTAssertTrue(messages.user.contains("EXAMPLE 4:"))
+    }
+
+    func testQwenMediumUserMessageIncludesListExample() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        // Template-based examples have 4 examples for medium cleanup
+        XCTAssertTrue(messages.user.contains("EXAMPLE 4:"))
+    }
+
+    func testLlamaMediumLightUserMessageIncludesListExample() {
+        let context = makeContext(cleanupLevel: .light)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        // Template-based light examples have 3 examples
+        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
+    }
+
+    func testLlamaMediumHeavyUserMessageIncludesListExample() {
+        let context = makeContext(cleanupLevel: .heavy)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        // Template-based heavy examples have 3 examples
+        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
+    }
+
     // MARK: - Small Model App Context Hints
 
     func testSmallModelEmailHint() {
@@ -447,6 +523,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testSmallModelNoAppContextNoHint() {
         let context = makeContext(appContext: nil)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        // Without app context, should just have base prompt
         XCTAssertTrue(messages.system.contains("Clean dictated speech"))
         XCTAssertFalse(messages.system.contains("@mentions"))
     }

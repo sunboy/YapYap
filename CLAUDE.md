@@ -42,13 +42,45 @@ make dmg
 make clean
 ```
 
+### Post-Build: Restart App with Accessibility Reset
+
+After every `make build`, the ad-hoc code signature changes and macOS silently invalidates the accessibility grant (the toggle in System Settings still appears ON but CGEvent posting is blocked). You **must** reset and re-grant accessibility after each rebuild:
+
+```bash
+# 1. Kill running app
+pkill -x YapYap
+
+# 2. Reset stale accessibility grant
+tccutil reset Accessibility dev.yapyap.app
+
+# 3. Launch the new build (from terminal to capture logs)
+/Users/sandeep/Library/Developer/Xcode/DerivedData/YapYap-fgocbvsmqtadmncqpdsycxzkwxrc/Build/Products/Debug/YapYap.app/Contents/MacOS/YapYap > /tmp/yapyap_log.txt 2>&1 &
+
+# 4. Open System Settings → Privacy & Security → Accessibility and toggle YapYap ON
+open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+```
+
+Without this, paste (synthetic Cmd+V via CGEvent) will fail silently even though `AXIsProcessTrusted()` may still return true.
+
 ### Development Workflow
 
+Use `dev.sh` for the standard build-test-restart cycle:
+
+```bash
+./dev.sh build    # build + tests must pass + restart app + open accessibility settings
+./dev.sh restart  # restart only (no build/test)
+./dev.sh logs     # tail live logs at /tmp/yapyap_log.txt
+./dev.sh test     # run tests only
+```
+
+**`./dev.sh build` is the correct command after making code changes.** It enforces that tests pass before the app is restarted. Never skip the test step — prompt and pipeline regressions have shipped multiple times because tests were not run.
+
+For first-time setup:
 1. Install XcodeGen: `brew install xcodegen`
 2. Generate the Xcode project: `xcodegen generate`
-3. Open in Xcode: `open YapYap.xcodeproj` or use `make run`
+3. Open in Xcode: `open YapYap.xcodeproj`
 4. Make changes to source files in `YapYap/`
-5. Run tests with `make test`
+5. Use `./dev.sh build` to build, test, and restart
 
 ## Architecture Overview
 

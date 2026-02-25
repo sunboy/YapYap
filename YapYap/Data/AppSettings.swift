@@ -26,6 +26,9 @@ final class AppSettings {
     var autoDownloadModels: Bool
     var experimentalPrompts: Bool
     var pauseMediaDuringRecording: Bool?
+    /// Comma-separated list of model IDs that have been successfully loaded at least once.
+    /// Used to detect downloaded models that use non-standard cache layouts (e.g. xet).
+    var downloadedModelIds: String?
 
     init(
         sttModelId: String = "whisper-small",
@@ -50,7 +53,8 @@ final class AppSettings {
         gpuAcceleration: Bool = true,
         autoDownloadModels: Bool = true,
         experimentalPrompts: Bool = false,
-        pauseMediaDuringRecording: Bool? = false
+        pauseMediaDuringRecording: Bool? = false,
+        downloadedModelIds: String? = nil
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -75,6 +79,7 @@ final class AppSettings {
         self.autoDownloadModels = autoDownloadModels
         self.experimentalPrompts = experimentalPrompts
         self.pauseMediaDuringRecording = pauseMediaDuringRecording
+        self.downloadedModelIds = downloadedModelIds
     }
 
     static func defaults() -> AppSettings {

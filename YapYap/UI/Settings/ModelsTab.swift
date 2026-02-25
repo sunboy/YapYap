@@ -15,6 +15,8 @@ struct ModelsTab: View {
     @State private var modelToDelete: String?
     @State private var showDeleteConfirm = false
     @State private var modelSizes: [String: String] = [:]
+    @State private var didLoadSettings = false
+    @State private var downloadError: String?
 
     private var llmCacheDir: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache/huggingface/hub")
@@ -70,9 +72,11 @@ struct ModelsTab: View {
             checkDownloadedModels()
         }
         .onChange(of: autoDownload) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.autoDownloadModels = newValue }
         }
         .onChange(of: gpuAcceleration) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.gpuAcceleration = newValue }
         }
         .alert("Delete Model", isPresented: $showDeleteConfirm) {
@@ -89,6 +93,16 @@ struct ModelsTab: View {
                     ?? STTModelRegistry.model(for: id)?.name
                     ?? id
                 Text("Delete \(name)? This will free up disk space. The model can be re-downloaded later.")
+            }
+        }
+        .alert("Download Failed", isPresented: Binding(
+            get: { downloadError != nil },
+            set: { if !$0 { downloadError = nil } }
+        )) {
+            Button("OK", role: .cancel) { downloadError = nil }
+        } message: {
+            if let error = downloadError {
+                Text(error)
             }
         }
     }
@@ -461,6 +475,7 @@ struct ModelsTab: View {
     private func selectLLMModel(_ id: String) {
         selectedLLM = id
         saveSettings { $0.llmModelId = id }
+        NotificationCenter.default.post(name: .yapModelSelected, object: nil)
     }
 
     private func downloadAndSelectLLMModel(_ model: LLMModelInfo) {
@@ -490,9 +505,23 @@ struct ModelsTab: View {
                     downloadedModels.insert(model.id)
                     downloadingModel = nil
                     downloadProgress = 0
-                    computeModelSizes()
                     if selectAfterDownload {
                         selectLLMModel(model.id)
+                    }
+                }
+
+                // Compute size of the newly downloaded model off-main
+                let hfId = model.huggingFaceId
+                let modelId = model.id
+                let cache = llmCacheDir
+                DispatchQueue.global(qos: .utility).async {
+                    let repoName = "models--" + hfId.replacingOccurrences(of: "/", with: "--")
+                    let modelDir = cache.appendingPathComponent(repoName)
+                    if let size = Self.directorySize(at: modelDir) {
+                        let formatted = Self.formatBytes(size)
+                        DispatchQueue.main.async {
+                            self.modelSizes[modelId] = formatted
+                        }
                     }
                 }
             } catch {
@@ -500,17 +529,20 @@ struct ModelsTab: View {
                 await MainActor.run {
                     downloadingModel = nil
                     downloadProgress = 0
+                    downloadError = "Failed to download \(model.name): \(error.localizedDescription)"
                 }
             }
         }
     }
 
     private func deleteModel(_ id: String) {
-        Task {
+        let llmCache = llmCacheDir
+        let whisperCache = whisperCacheDir
+        Task.detached(priority: .utility) {
             // Try LLM model deletion
             if let llmModel = LLMModelRegistry.model(for: id) {
                 let repoName = "models--" + llmModel.huggingFaceId.replacingOccurrences(of: "/", with: "--")
-                let modelDir = llmCacheDir.appendingPathComponent(repoName)
+                let modelDir = llmCache.appendingPathComponent(repoName)
                 if FileManager.default.fileExists(atPath: modelDir.path) {
                     do {
                         try FileManager.default.removeItem(at: modelDir)
@@ -524,10 +556,10 @@ struct ModelsTab: View {
             // Try STT (WhisperKit) model deletion
             if let sttModel = STTModelRegistry.model(for: id), sttModel.backend == .whisperKit {
                 let whisperName = id.replacingOccurrences(of: "whisper-", with: "openai_whisper-")
-                if FileManager.default.fileExists(atPath: whisperCacheDir.path),
-                   let contents = try? FileManager.default.contentsOfDirectory(atPath: whisperCacheDir.path) {
+                if FileManager.default.fileExists(atPath: whisperCache.path),
+                   let contents = try? FileManager.default.contentsOfDirectory(atPath: whisperCache.path) {
                     for name in contents where name.lowercased().contains(whisperName.lowercased()) || name.lowercased().contains(id.lowercased()) {
-                        let fullPath = whisperCacheDir.appendingPathComponent(name)
+                        let fullPath = whisperCache.appendingPathComponent(name)
                         do {
                             try FileManager.default.removeItem(at: fullPath)
                             NSLog("[ModelsTab] Deleted STT model: \(id) at \(fullPath.path)")
@@ -539,8 +571,8 @@ struct ModelsTab: View {
             }
 
             await MainActor.run {
-                downloadedModels.remove(id)
-                modelSizes.removeValue(forKey: id)
+                self.downloadedModels.remove(id)
+                self.modelSizes.removeValue(forKey: id)
             }
         }
     }
@@ -553,19 +585,24 @@ struct ModelsTab: View {
         selectedLLM = settings.llmModelId
         autoDownload = settings.autoDownloadModels
         gpuAcceleration = settings.gpuAcceleration
+        didLoadSettings = true
     }
 
     private func saveSettings(_ update: (AppSettings) -> Void) {
         let settings = DataManager.shared.fetchSettings()
         update(settings)
-        try? DataManager.shared.container.mainContext.save()
+        DataManager.shared.saveSettings()
     }
 
     // MARK: - Download Detection
 
     private func checkDownloadedModels() {
-        Task.detached(priority: .utility) {
+        // All file I/O runs on a background dispatch queue to guarantee
+        // it never touches the main thread (Task.detached can still
+        // resume on main under Swift concurrency).
+        DispatchQueue.global(qos: .utility).async {
             var downloaded: Set<String> = []
+            var sizes: [String: String] = [:]
             let homeDir = FileManager.default.homeDirectoryForCurrentUser
 
             // Check LLM models in ~/.cache/huggingface/hub/
@@ -578,6 +615,9 @@ struct ModelsTab: View {
                     if let snapshots = try? FileManager.default.contentsOfDirectory(at: snapshotsDir, includingPropertiesForKeys: nil),
                        !snapshots.isEmpty {
                         downloaded.insert(model.id)
+                        if let size = Self.directorySize(at: modelDir) {
+                            sizes[model.id] = Self.formatBytes(size)
+                        }
                     }
                 }
             }
@@ -588,51 +628,32 @@ struct ModelsTab: View {
                 if let contents = try? FileManager.default.contentsOfDirectory(atPath: whisperDir.path) {
                     for name in contents {
                         let lower = name.lowercased()
-                        if lower.contains("whisper-small") || lower.contains("whisper_small") { downloaded.insert("whisper-small") }
-                        if lower.contains("whisper-medium") || lower.contains("whisper_medium") { downloaded.insert("whisper-medium") }
-                        if lower.contains("whisper-large") || lower.contains("whisper_large") { downloaded.insert("whisper-large-v3-turbo") }
+                        let fullPath = whisperDir.appendingPathComponent(name)
+                        let dirSize = Self.directorySize(at: fullPath)
+                        let formatted = dirSize.map { Self.formatBytes($0) }
+
+                        if lower.contains("whisper-small") || lower.contains("whisper_small") {
+                            downloaded.insert("whisper-small")
+                            if let f = formatted { sizes["whisper-small"] = f }
+                        }
+                        if lower.contains("whisper-medium") || lower.contains("whisper_medium") {
+                            downloaded.insert("whisper-medium")
+                            if let f = formatted { sizes["whisper-medium"] = f }
+                        }
+                        if lower.contains("whisper-large") || lower.contains("whisper_large") {
+                            downloaded.insert("whisper-large-v3-turbo")
+                            if let f = formatted { sizes["whisper-large-v3-turbo"] = f }
+                        }
                     }
                 }
             }
 
-            await MainActor.run { [downloaded] in
-                self.downloadedModels = downloaded
-                self.computeModelSizes()
-            }
-        }
-    }
+            // Also include models that were successfully loaded before (e.g. xet-cached models
+            // that don't appear in the standard hub directory structure).
+            let persistedDownloads = DataManager.shared.downloadedModelIds()
 
-    private func computeModelSizes() {
-        let downloaded = downloadedModels
-        let llmCache = llmCacheDir
-        let whisperCache = whisperCacheDir
-        Task.detached(priority: .utility) {
-            var sizes: [String: String] = [:]
-
-            // LLM model sizes
-            for model in LLMModelRegistry.allModels where downloaded.contains(model.id) {
-                let repoName = "models--" + model.huggingFaceId.replacingOccurrences(of: "/", with: "--")
-                let modelDir = llmCache.appendingPathComponent(repoName)
-                if let size = Self.directorySize(at: modelDir) {
-                    sizes[model.id] = Self.formatBytes(size)
-                }
-            }
-
-            // WhisperKit model sizes
-            if FileManager.default.fileExists(atPath: whisperCache.path),
-               let contents = try? FileManager.default.contentsOfDirectory(atPath: whisperCache.path) {
-                for name in contents {
-                    let lower = name.lowercased()
-                    let fullPath = whisperCache.appendingPathComponent(name)
-                    guard let size = Self.directorySize(at: fullPath) else { continue }
-                    let formatted = Self.formatBytes(size)
-                    if lower.contains("whisper-small") || lower.contains("whisper_small") { sizes["whisper-small"] = formatted }
-                    if lower.contains("whisper-medium") || lower.contains("whisper_medium") { sizes["whisper-medium"] = formatted }
-                    if lower.contains("whisper-large") || lower.contains("whisper_large") { sizes["whisper-large-v3-turbo"] = formatted }
-                }
-            }
-
-            await MainActor.run { [sizes] in
+            DispatchQueue.main.async { [downloaded, sizes] in
+                self.downloadedModels = downloaded.union(persistedDownloads)
                 self.modelSizes = sizes
             }
         }

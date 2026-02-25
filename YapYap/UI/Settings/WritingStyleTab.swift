@@ -7,6 +7,7 @@ struct WritingStyleTab: View {
     @State private var stylePrompt = "Write like a senior engineer — concise, direct, no fluff. Prefer short sentences. Skip pleasantries."
     @State private var cleanupLevel = "Medium — restructure sentences, improve clarity"
     @State private var availableLanguages: [String] = ["English (US)"]
+    @State private var didLoadSettings = false
 
     private let formalities = [
         "Casual — like texting a friend",
@@ -78,15 +79,19 @@ struct WritingStyleTab: View {
             loadSettings()
         }
         .onChange(of: language) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.language = languageToCode(newValue) }
         }
         .onChange(of: formality) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.formality = formalityToValue(newValue) }
         }
         .onChange(of: stylePrompt) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.stylePrompt = newValue }
         }
         .onChange(of: cleanupLevel) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.cleanupLevel = cleanupLevelToValue(newValue) }
         }
     }
@@ -111,12 +116,13 @@ struct WritingStyleTab: View {
             language = "English (US)"
             saveSettings { $0.language = "en" }
         }
+        didLoadSettings = true
     }
 
     private func saveSettings(_ update: @escaping (AppSettings) -> Void) {
         let settings = DataManager.shared.fetchSettings()
         update(settings)
-        try? DataManager.shared.container.mainContext.save()
+        DataManager.shared.saveSettings()
     }
 
     /// Compute available languages as the intersection of the selected STT and LLM models

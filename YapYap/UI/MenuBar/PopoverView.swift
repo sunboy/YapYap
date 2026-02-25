@@ -37,12 +37,20 @@ struct PopoverView: View {
             appState.updateStats()
             refreshSettingsState()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .yapSettingsChanged)) { _ in
+            refreshSettingsState()
+        }
     }
 
     private func refreshSettingsState() {
         let settings = DataManager.shared.fetchSettings()
         currentSTTModelName = STTModelRegistry.model(for: settings.sttModelId)?.name ?? settings.sttModelId
-        currentLLMModelName = LLMModelRegistry.model(for: settings.llmModelId)?.name ?? settings.llmModelId
+        // Only show the LLM model name if it's actually loaded and active
+        if let activeId = appState.activeLLMModelId {
+            currentLLMModelName = LLMModelRegistry.model(for: activeId)?.name ?? activeId
+        } else {
+            currentLLMModelName = "Not loaded"
+        }
         currentLanguage = Self.languageDisplayName(for: settings.language)
         copyToClipboard = settings.copyToClipboard
     }
@@ -379,7 +387,7 @@ struct PopoverView: View {
                         copyToClipboard = newValue
                         let settings = DataManager.shared.fetchSettings()
                         settings.copyToClipboard = newValue
-                        try? DataManager.shared.container.mainContext.save()
+                        DataManager.shared.saveSettings()
                     }
                 ))
                 .toggleStyle(YPToggleStyle())

@@ -1,11 +1,17 @@
 import Foundation
 import SwiftData
 
+extension Notification.Name {
+    static let yapSettingsChanged = Notification.Name("dev.yapyap.settingsChanged")
+    static let yapModelSelected = Notification.Name("dev.yapyap.modelSelected")
+}
+
 @MainActor
 final class DataManager {
     static let shared = DataManager()
 
     let container: ModelContainer
+    private var _cachedSettings: AppSettings?
 
     private init() {
         let schema = Schema([
@@ -55,23 +61,61 @@ final class DataManager {
         }
     }
 
+    /// Returns the single AppSettings instance, cached after first fetch.
+    /// All callers get the same object so mutations + save always work on mainContext.
     func fetchSettings() -> AppSettings {
-        let context = ModelContext(container)
+        if let cached = _cachedSettings {
+            return cached
+        }
+        let context = container.mainContext
         let descriptor = FetchDescriptor<AppSettings>()
-        if let settings = try? context.fetch(descriptor).first {
+        if let allSettings = try? context.fetch(descriptor), let settings = allSettings.first {
+            // Delete duplicate rows (bug from earlier code creating new contexts)
+            if allSettings.count > 1 {
+                for duplicate in allSettings.dropFirst() {
+                    context.delete(duplicate)
+                }
+                try? context.save()
+            }
+
             // Migrate invalid LLM model IDs to recommended default
             if LLMModelRegistry.model(for: settings.llmModelId) == nil {
                 let newDefault = LLMModelRegistry.recommendedModel.id
-                print("[DataManager] Migrating invalid LLM: \(settings.llmModelId) → \(newDefault)")
                 settings.llmModelId = newDefault
                 try? context.save()
             }
+            _cachedSettings = settings
             return settings
         }
         let defaults = AppSettings.defaults()
         context.insert(defaults)
         try? context.save()
+        _cachedSettings = defaults
         return defaults
+    }
+
+    /// Marks a model ID as successfully downloaded/loaded.
+    func markModelDownloaded(_ modelId: String) {
+        let settings = fetchSettings()
+        var ids = settings.downloadedModelIds.flatMap { $0.isEmpty ? nil : $0.components(separatedBy: ",") } ?? []
+        if !ids.contains(modelId) {
+            ids.append(modelId)
+            settings.downloadedModelIds = ids.joined(separator: ",")
+            saveSettings()
+        }
+    }
+
+    /// Returns the set of model IDs that have been successfully downloaded.
+    func downloadedModelIds() -> Set<String> {
+        let settings = fetchSettings()
+        guard let raw = settings.downloadedModelIds, !raw.isEmpty else { return [] }
+        return Set(raw.components(separatedBy: ","))
+    }
+
+    /// Persists any pending changes on the cached AppSettings to disk.
+    func saveSettings() {
+        try? container.mainContext.save()
+        NotificationCenter.default.post(name: .yapSettingsChanged, object: nil)
     }
 
     func saveTranscription(raw: String, cleaned: String, duration: Double, sttModel: String, llmModel: String, sourceApp: String?) {

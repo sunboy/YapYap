@@ -6,20 +6,23 @@ import Carbon.HIToolbox
 class PasteManager {
 
     /// Cascading paste: try Accessibility API first (cleanest), then clipboard + Cmd+V
-    func paste(_ text: String) {
-        let targetApp = NSWorkspace.shared.frontmostApplication
-        let appName = targetApp?.localizedName ?? "unknown"
+    /// - Parameters:
+    ///   - text: The text to paste
+    ///   - targetApp: The app to paste into (captured at recording start). Falls back to frontmost app.
+    func paste(_ text: String, targetApp: NSRunningApplication? = nil) {
+        let resolvedApp = targetApp ?? NSWorkspace.shared.frontmostApplication
+        let appName = resolvedApp?.localizedName ?? "unknown"
         NSLog("[PasteManager] Paste requested: \(text.count) chars → \(appName)")
 
         // Strategy 1: Accessibility API setValue (no clipboard pollution)
-        if tryAccessibilitySetValue(text, targetApp: targetApp) {
-            NSLog("[PasteManager] ✅ Pasted via Accessibility API")
+        if tryAccessibilitySetValue(text, targetApp: resolvedApp) {
+            NSLog("[PasteManager] Pasted via Accessibility API")
             return
         }
 
         // Strategy 2: Clipboard + synthetic Cmd+V (most compatible)
         NSLog("[PasteManager] Accessibility API failed, falling back to clipboard paste")
-        pasteViaClipboard(text, targetApp: targetApp)
+        pasteViaClipboard(text, targetApp: resolvedApp)
     }
 
     // MARK: - Strategy 1: Accessibility API
@@ -79,14 +82,30 @@ class PasteManager {
         let setOk = pasteboard.setString(text, forType: .string)
         NSLog("[PasteManager] Clipboard set: \(setOk), text length: \(text.count)")
 
-        // Ensure the frontmost app is ready to receive the paste.
-        // YapYap's floating bar is a non-activating panel, so the user's app
-        // should still be frontmost. Brief delay for pasteboard sync.
+        // Ensure the target app is ready to receive the paste.
+        // Use the pre-captured target app from recording start (prevents pasting into
+        // YapYap itself when processing takes a long time and YapYap becomes frontmost).
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-            // Activate the target app to make sure it can receive key events
-            if let app = targetApp ?? NSWorkspace.shared.frontmostApplication {
-                NSLog("[PasteManager] Activating app: \(app.localizedName ?? "unknown") (pid: \(app.processIdentifier))")
-                app.activate()
+            // Activate the target app to make sure it can receive key events.
+            // Detect self-paste: if target is YapYap itself, fall back to another active app.
+            let appToActivate = targetApp ?? NSWorkspace.shared.frontmostApplication
+            if let app = appToActivate {
+                let isSelf = app.processIdentifier == ProcessInfo.processInfo.processIdentifier
+                if isSelf {
+                    NSLog("[PasteManager] Target is YapYap itself, looking for previous app")
+                    // Fall back to frontmost non-self app
+                    if let fallback = NSWorkspace.shared.runningApplications.first(where: {
+                        $0.isActive && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
+                    }) {
+                        NSLog("[PasteManager] Activating fallback app: \(fallback.localizedName ?? "unknown") (pid: \(fallback.processIdentifier))")
+                        fallback.activate()
+                    } else {
+                        NSLog("[PasteManager] No suitable target app found")
+                    }
+                } else {
+                    NSLog("[PasteManager] Activating app: \(app.localizedName ?? "unknown") (pid: \(app.processIdentifier))")
+                    app.activate()
+                }
             } else {
                 NSLog("[PasteManager] ⚠️ No target app found")
             }

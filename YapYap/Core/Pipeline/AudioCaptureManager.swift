@@ -246,6 +246,16 @@ class AudioCaptureManager {
         }
     }
 
+    // MARK: - Audio Sample Access
+
+    /// Thread-safe snapshot of accumulated audio frames for streaming STT.
+    func currentAudioSamples() -> [Float] {
+        audioLock.lock()
+        let copy = accumulatedFrames
+        audioLock.unlock()
+        return copy
+    }
+
     // MARK: - RMS Calculation
 
     static func calculateRMS(_ samples: [Float]) -> Float {

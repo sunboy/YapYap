@@ -83,13 +83,13 @@ struct LLMModelRegistry {
             id: "gemma-3-1b",
             name: "Gemma 3 1B",
             huggingFaceId: "mlx-community/gemma-3-1b-it-4bit",
-            sizeBytes: 700_000_000,
-            sizeDescription: "~700MB",
+            sizeBytes: 733_000_000,
+            sizeDescription: "~733MB",
             description: "Ultra-fast, 140+ languages.",
             isRecommended: false,
             family: .gemma,
             size: .small,
-            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi"]
+            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi", "ar", "ru"]
         ),
         LLMModelInfo(
             id: "qwen-2.5-3b",
@@ -119,13 +119,13 @@ struct LLMModelRegistry {
             id: "gemma-3-4b",
             name: "Gemma 3 4B",
             huggingFaceId: "mlx-community/gemma-3-4b-it-4bit",
-            sizeBytes: 2_500_000_000,
-            sizeDescription: "~2.3GB",
+            sizeBytes: 3_000_000_000,
+            sizeDescription: "~3.0GB",
             description: "Strong instruction following, 140+ languages.",
             isRecommended: false,
             family: .gemma,
             size: .medium,
-            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi"]
+            languages: ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "hi", "ar", "ru"]
         ),
         LLMModelInfo(
             id: "qwen-2.5-7b",

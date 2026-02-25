@@ -21,6 +21,8 @@ final class AppState {
     var modelLoadingProgress: Double = 0.0
     var modelLoadingStatus: String = ""
     var modelsReady: Bool = false
+    /// The LLM model ID that is actually loaded and ready. Nil if LLM failed to load.
+    var activeLLMModelId: String? = nil
 
     // Quick stats for popover
     var todayCount: Int = 0

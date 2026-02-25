@@ -3,11 +3,32 @@
 import WhisperKit
 import AVFoundation
 
-class WhisperKitEngine: STTEngine {
+/// Lightweight segment storage to avoid referencing WhisperKit's TranscriptionSegment
+/// by module-qualified name (module and class are both named "WhisperKit").
+private struct StreamSegment {
+    let text: String
+    let start: Float
+    let end: Float
+}
+
+class WhisperKitEngine: STTEngine, StreamingSTTEngine {
     let modelInfo: STTModelInfo
     private var pipe: WhisperKit?
 
     var isLoaded: Bool { pipe != nil }
+
+    // MARK: - Streaming State
+
+    private(set) var isStreaming: Bool = false
+    private var streamingTask: Task<Void, Never>?
+    private var lastBufferSize: Int = 0
+    private var lastConfirmedSegmentEndSeconds: Float = 0
+    private var confirmedSegments: [StreamSegment] = []
+    private var unconfirmedSegments: [StreamSegment] = []
+    private var audioProvider: (() -> [Float])?
+    private var updateCallback: ((StreamingTranscriptionUpdate) -> Void)?
+    private var streamingLanguage: String = "en"
+    private let requiredSegmentsForConfirmation = 2
 
     init(modelInfo: STTModelInfo) {
         self.modelInfo = modelInfo
@@ -137,6 +158,188 @@ class WhisperKitEngine: STTEngine {
             segments: [],
             processingTime: processingTime
         )
+    }
+
+    // MARK: - Streaming STT
+
+    func startStreaming(
+        audioSamplesProvider: @escaping () -> [Float],
+        language: String,
+        onUpdate: @escaping (StreamingTranscriptionUpdate) -> Void
+    ) async throws {
+        guard pipe != nil else { throw YapYapError.modelNotLoaded }
+
+        // Reset streaming state
+        isStreaming = true
+        lastBufferSize = 0
+        lastConfirmedSegmentEndSeconds = 0
+        confirmedSegments = []
+        unconfirmedSegments = []
+        audioProvider = audioSamplesProvider
+        updateCallback = onUpdate
+        streamingLanguage = language.components(separatedBy: "-").first ?? "en"
+
+        NSLog("[WhisperKitEngine] Streaming started (language: \(streamingLanguage))")
+
+        // Launch background transcription loop
+        streamingTask = Task { [weak self] in
+            while let self = self, self.isStreaming, !Task.isCancelled {
+                do {
+                    try await self.transcribeCurrentBuffer(isFinal: false)
+                } catch {
+                    NSLog("[WhisperKitEngine] Streaming loop error: \(error)")
+                }
+                // Small yield to avoid tight-looping; actual throttle is inside
+                // transcribeCurrentBuffer (skips if <1s new audio)
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            }
+        }
+    }
+
+    func stopStreaming() async throws -> TranscriptionResult {
+        let stopStart = Date()
+        NSLog("[WhisperKitEngine] Stopping streaming...")
+
+        // Signal the loop to stop
+        isStreaming = false
+        streamingTask?.cancel()
+        streamingTask = nil
+
+        // One final pass to catch tail-end audio
+        try await transcribeCurrentBuffer(isFinal: true)
+
+        // Promote all remaining unconfirmed → confirmed
+        confirmedSegments.append(contentsOf: unconfirmedSegments)
+        unconfirmedSegments = []
+
+        // Build final text — Whisper segments often have leading spaces,
+        // so join without separator and just trim
+        let fullText = confirmedSegments.map { $0.text }.joined()
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        let processingTime = Date().timeIntervalSince(stopStart)
+
+        NSLog("[WhisperKitEngine] Streaming finalized in \(String(format: "%.0f", processingTime * 1000))ms, segments: \(confirmedSegments.count)")
+
+        let result = TranscriptionResult(
+            text: fullText,
+            language: streamingLanguage,
+            segments: confirmedSegments.map {
+                TranscriptionSegment(text: $0.text, start: TimeInterval($0.start), end: TimeInterval($0.end))
+            },
+            processingTime: processingTime
+        )
+
+        // Clean up
+        audioProvider = nil
+        updateCallback = nil
+        confirmedSegments = []
+        unconfirmedSegments = []
+        lastBufferSize = 0
+        lastConfirmedSegmentEndSeconds = 0
+
+        return result
+    }
+
+    private func transcribeCurrentBuffer(isFinal: Bool) async throws {
+        guard let pipe = pipe, let audioProvider = audioProvider else { return }
+
+        let samples = audioProvider()
+        let sampleCount = samples.count
+        let newSamples = sampleCount - lastBufferSize
+
+        // Skip if less than 1 second of new audio (unless finalizing)
+        if !isFinal && newSamples < Int(16000) {
+            return
+        }
+
+        // Skip if no audio at all
+        guard sampleCount > 0 else { return }
+
+        lastBufferSize = sampleCount
+
+        // Speed-optimized options for streaming — fewer retries, timestamps enabled
+        // clipTimestamps tells Whisper to only decode audio after the confirmed point
+        // skipSpecialTokens strips <|startoftranscript|>, <|en|>, <|0.00|> etc. from output
+        let options = DecodingOptions(
+            task: .transcribe,
+            language: streamingLanguage,
+            temperature: 0.0,
+            temperatureFallbackCount: 1,
+            usePrefillPrompt: true,
+            usePrefillCache: true,
+            detectLanguage: false,
+            skipSpecialTokens: true,
+            withoutTimestamps: false,
+            wordTimestamps: false,
+            clipTimestamps: [lastConfirmedSegmentEndSeconds],
+            suppressBlank: true,
+            compressionRatioThreshold: 2.4,
+            logProbThreshold: -1.0,
+            firstTokenLogProbThreshold: -1.5,
+            noSpeechThreshold: 0.6
+        )
+
+        let results = try await pipe.transcribe(audioArray: samples, decodeOptions: options)
+
+        // Collect all segments from all result chunks, converting to local type.
+        // Strip any Whisper special tokens that leak through (e.g. <|startoftranscript|>).
+        let newSegments = results.flatMap { $0.segments }.map {
+            StreamSegment(
+                text: Self.stripSpecialTokens($0.text),
+                start: $0.start,
+                end: $0.end
+            )
+        }
+
+        guard !newSegments.isEmpty else { return }
+
+        if isFinal {
+            // On final pass, everything is confirmed
+            unconfirmedSegments = newSegments
+        } else {
+            // Segment confirmation: segments that have appeared consistently across
+            // multiple iterations get promoted to "confirmed" and won't be re-processed.
+            // Only the trailing segments remain "unconfirmed" (may change with more audio).
+            let segmentCount = newSegments.count
+            if segmentCount > requiredSegmentsForConfirmation {
+                let confirmCount = segmentCount - requiredSegmentsForConfirmation
+                let newlyConfirmed = Array(newSegments.prefix(confirmCount))
+                confirmedSegments.append(contentsOf: newlyConfirmed)
+
+                // Advance the seek point past confirmed audio
+                if let lastConfirmed = newlyConfirmed.last {
+                    lastConfirmedSegmentEndSeconds = lastConfirmed.end
+                }
+
+                unconfirmedSegments = Array(newSegments.suffix(requiredSegmentsForConfirmation))
+            } else {
+                unconfirmedSegments = newSegments
+            }
+        }
+
+        // Publish update to UI — Whisper segments have leading spaces, join without separator
+        let confirmedText = confirmedSegments.map { $0.text }.joined()
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        let unconfirmedText = unconfirmedSegments.map { $0.text }.joined()
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        let update = StreamingTranscriptionUpdate(
+            confirmedText: confirmedText,
+            unconfirmedText: unconfirmedText
+        )
+
+        let callback = self.updateCallback
+        await MainActor.run {
+            callback?(update)
+        }
+
+        NSLog("[WhisperKitEngine] Streaming: confirmed=\(confirmedSegments.count) unconfirmed=\(unconfirmedSegments.count) seek=\(String(format: "%.1f", lastConfirmedSegmentEndSeconds))s")
+    }
+
+    // MARK: - Helpers
+
+    /// Strip Whisper special tokens like <|startoftranscript|>, <|en|>, <|0.00|>, <|endoftext|>
+    private static func stripSpecialTokens(_ text: String) -> String {
+        text.replacingOccurrences(of: "<\\|[^|]*\\|>", with: "", options: .regularExpression)
     }
 
     private func bufferToFloatArray(_ buffer: AVAudioPCMBuffer) -> [Float] {

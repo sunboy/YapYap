@@ -5,6 +5,7 @@ struct HotkeysTab: View {
     @State private var doubleTap = false
     @State private var soundFeedback = true
     @State private var hapticFeedback = true
+    @State private var didLoadSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -36,13 +37,16 @@ struct HotkeysTab: View {
             loadSettings()
         }
         .onChange(of: doubleTap) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.doubleTapActivation = newValue }
         }
         .onChange(of: soundFeedback) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.soundFeedback = newValue }
             SoundManager.shared.setEnabled(newValue)
         }
         .onChange(of: hapticFeedback) { _, newValue in
+            guard didLoadSettings else { return }
             saveSettings { $0.hapticFeedback = newValue }
             HapticManager.shared.setEnabled(newValue)
         }
@@ -54,6 +58,7 @@ struct HotkeysTab: View {
             doubleTap = settings.doubleTapActivation
             soundFeedback = settings.soundFeedback
             hapticFeedback = settings.hapticFeedback
+            didLoadSettings = true
         }
     }
 
@@ -61,7 +66,7 @@ struct HotkeysTab: View {
         Task { @MainActor in
             let settings = DataManager.shared.fetchSettings()
             update(settings)
-            try? DataManager.shared.container.mainContext.save()
+            DataManager.shared.saveSettings()
         }
     }
 
