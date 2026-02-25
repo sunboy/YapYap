@@ -20,6 +20,14 @@ struct STTEngineFactory {
             return FluidAudioEngine(modelInfo: model)
         case .whisperCpp:
             return WhisperCppEngine(modelInfo: model)
+        case .speechAnalyzer:
+            if #available(macOS 26, *) {
+                return SpeechAnalyzerEngine(modelInfo: model)
+            } else {
+                // Fall back to recommended model on older macOS
+                let fallback = STTModelRegistry.recommendedModel
+                return createEngine(for: fallback)
+            }
         }
     }
 }

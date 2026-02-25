@@ -10,6 +10,10 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>YapYap needs microphone access to transcribe your voice into text.</string>
 
+    <!-- Speech recognition usage (for Apple SpeechAnalyzer backend) -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>YapYap uses on-device speech recognition to transcribe your voice into text. All processing happens locally.</string>
+
     <!-- Accessibility usage (for paste and context detection) -->
     <key>NSAppleEventsUsageDescription</key>
     <string>YapYap needs accessibility access to paste transcribed text into your apps.</string>

@@ -652,6 +652,11 @@ struct ModelsTab: View {
             // that don't appear in the standard hub directory structure).
             let persistedDownloads = DataManager.shared.downloadedModelIds()
 
+            // SpeechAnalyzer is always available on macOS 26+ (system framework)
+            if #available(macOS 26, *) {
+                downloaded.insert("apple-speech-analyzer")
+            }
+
             DispatchQueue.main.async { [downloaded, sizes] in
                 self.downloadedModels = downloaded.union(persistedDownloads)
                 self.modelSizes = sizes

@@ -12,7 +12,12 @@ final class ModelRegistryTests: XCTestCase {
     }
 
     func testSTTModelCount() {
-        XCTAssertEqual(STTModelRegistry.allModels.count, 5)
+        // 5 base models + SpeechAnalyzer on macOS 26+
+        if #available(macOS 26, *) {
+            XCTAssertEqual(STTModelRegistry.allModels.count, 6)
+        } else {
+            XCTAssertEqual(STTModelRegistry.allModels.count, 5)
+        }
     }
 
     func testSTTModelLookup() {
@@ -34,6 +39,16 @@ final class ModelRegistryTests: XCTestCase {
         XCTAssertEqual(voxtral?.backend, .whisperCpp)
     }
 
+    func testSTTModelSpeechAnalyzerOnlyOnMacOS26() {
+        let model = STTModelRegistry.model(for: "apple-speech-analyzer")
+        if #available(macOS 26, *) {
+            XCTAssertNotNil(model)
+            XCTAssertEqual(model?.backend, .speechAnalyzer)
+        } else {
+            XCTAssertNil(model, "SpeechAnalyzer should not be available on macOS < 26")
+        }
+    }
+
     func testSTTModelLookupInvalid() {
         let result = STTModelRegistry.model(for: "nonexistent-model")
         XCTAssertNil(result)
@@ -52,7 +67,12 @@ final class ModelRegistryTests: XCTestCase {
 
     func testSTTModelSizesPositive() {
         for model in STTModelRegistry.allModels {
-            XCTAssertGreaterThan(model.sizeBytes, 0, "\(model.name) should have positive size")
+            if model.backend == .speechAnalyzer {
+                // System framework — no download, 0 bytes is correct
+                XCTAssertEqual(model.sizeBytes, 0, "\(model.name) is a system framework")
+            } else {
+                XCTAssertGreaterThan(model.sizeBytes, 0, "\(model.name) should have positive size")
+            }
         }
     }
 

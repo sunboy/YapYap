@@ -34,6 +34,7 @@ enum STTBackend: String, Codable {
     case whisperKit
     case fluidAudio
     case whisperCpp
+    case speechAnalyzer
 }
 
 protocol STTEngine: AnyObject {
