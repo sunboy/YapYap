@@ -1,8 +1,8 @@
-.PHONY: build run test archive sign notarize staple dmg release clean generate bench-build bench bench-corpus
+.PHONY: build run test archive sign sign-dmg notarize staple dmg release clean generate bench-build bench bench-corpus
 
 VERSION := $(shell /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" YapYap/Info.plist 2>/dev/null || echo "0.1.0")
 APPLE_ID ?= sandeeptnvs@gmail.com
-TEAM_ID  := C4HCL432GF
+TEAM_ID  := SRB6ZCP58T
 DMG_NAME := YapYap-v$(VERSION).dmg
 
 # Generate Xcode project from project.yml (requires XcodeGen)
@@ -86,6 +86,21 @@ staple:
 	xcrun stapler staple build/$(DMG_NAME)
 	xcrun stapler validate build/$(DMG_NAME)
 	@echo "✅ Stapled"
+
+# Generate Sparkle EdDSA signature for the DMG.
+# Requires sign_update binary (from Sparkle release tarball at /tmp/sparkle/bin/sign_update)
+# Usage: make sign-dmg SPARKLE_SIGN_UPDATE=/tmp/sparkle/bin/sign_update
+sign-dmg:
+	@if [ -z "$(SPARKLE_SIGN_UPDATE)" ]; then \
+		echo "❌ SPARKLE_SIGN_UPDATE path is required"; \
+		echo "   Download Sparkle, extract, pass path:"; \
+		echo "   make sign-dmg SPARKLE_SIGN_UPDATE=/tmp/sparkle/bin/sign_update"; \
+		exit 1; \
+	fi
+	@echo "Signing build/$(DMG_NAME) with Sparkle EdDSA key..."
+	@SIG=$$($(SPARKLE_SIGN_UPDATE) build/$(DMG_NAME)); \
+	echo "edSignature: $$SIG"
+	@echo "✅ Signature generated (copy into appcast.xml)"
 
 # Full release pipeline: archive → DMG → notarize → staple
 # Usage: make release APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
