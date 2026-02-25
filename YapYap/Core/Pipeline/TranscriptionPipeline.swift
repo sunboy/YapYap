@@ -43,6 +43,15 @@ class TranscriptionPipeline {
     /// Whether media was paused by us and should be resumed
     private var didPauseMedia = false
 
+    /// Reentrancy guard: prevents concurrent startRecording calls (e.g. from key auto-repeat
+    /// while model loading is blocking). Set true at entry, false when recording is running.
+    private var isStartingRecording = false
+
+    /// Deferred stop: set when stopRecordingAndProcess() is called while startRecording()
+    /// is still in-flight (model loading). startRecording() checks this after model load
+    /// and aborts instead of starting capture.
+    var pendingStop = false
+
     init(appState: AppState, container: ModelContainer) {
         self.appState = appState
         self.container = container
@@ -129,7 +138,15 @@ class TranscriptionPipeline {
 
     func startRecording(isCommandMode: Bool = false) async throws {
         NSLog("[TranscriptionPipeline] startRecording() called, isCommandMode: \(isCommandMode)")
-        print("[TranscriptionPipeline] startRecording() called, isCommandMode: \(isCommandMode)")
+
+        // Reentrancy guard: reject concurrent calls (key auto-repeat during model load)
+        guard !isStartingRecording else {
+            NSLog("[TranscriptionPipeline] ⚠️ startRecording() already in-flight, ignoring duplicate call")
+            return
+        }
+        isStartingRecording = true
+        pendingStop = false
+        defer { isStartingRecording = false }
 
         // CHECK MICROPHONE PERMISSION FIRST - gives instant feedback if denied
         let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -145,12 +162,28 @@ class TranscriptionPipeline {
 
         // Always call ensureModelsLoaded — it's a no-op if the right models are already
         // loaded, but it detects model ID changes from Settings and reloads as needed.
-        if !appState.modelsReady {
-            NSLog("[TranscriptionPipeline] ⚠️ Models not ready, loading now...")
-            appState.modelLoadingStatus = "Loading models..."
+        // Show loading UI if models aren't ready or if the model ID changed.
+        let settings = try fetchSettings()
+        let sttChanged = await executor.sttModelId != settings.sttModelId
+        let llmChanged = await executor.llmModelId != settings.llmModelId
+        if !appState.modelsReady || sttChanged || llmChanged {
+            let what = sttChanged ? "speech model" : llmChanged ? "language model" : "models"
+            NSLog("[TranscriptionPipeline] ⚠️ Loading \(what)...")
+            appState.isLoadingModels = true
+            appState.modelLoadingStatus = "Loading \(what)..."
         }
         try await ensureModelsLoaded()
         appState.modelsReady = true
+        appState.isLoadingModels = false
+
+        // Check if user released the hotkey while we were loading models.
+        // If so, abort — don't start recording when the user already let go.
+        if pendingStop {
+            NSLog("[TranscriptionPipeline] ⚠️ Hotkey released during model load, aborting recording")
+            pendingStop = false
+            appState.creatureState = .sleeping
+            return
+        }
 
         NSLog("[TranscriptionPipeline] ✅ Models ready, starting capture")
 

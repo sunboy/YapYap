@@ -35,7 +35,7 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
     }
 
     func loadModel(progressHandler: @escaping (Double) -> Void) async throws {
-        print("[WhisperKitEngine] Loading model '\(modelInfo.id)'")
+        NSLog("[WhisperKitEngine] Loading model '\(modelInfo.id)'")
 
         // Convert our model ID to WhisperKit's expected format
         // "whisper-small" -> "small", "whisper-large-v3-turbo" -> "large-v3-turbo"
@@ -45,6 +45,9 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
         let cacheURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             .appendingPathComponent("huggingface/models/argmaxinc/whisperkit-coreml", isDirectory: true)
         try? FileManager.default.createDirectory(at: cacheURL, withIntermediateDirectories: true)
+
+        // Report indeterminate progress so the UI shows a spinner immediately
+        progressHandler(0.0)
 
         // Use ANE for encoder/decoder — fastest inference on Apple Silicon.
         // First launch triggers ANE compilation (~2 min), but the ANE cache
@@ -68,10 +71,11 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
 
         // WhisperKit will auto-download the model if it doesn't exist
         // Retry once if download fails
+        NSLog("[WhisperKitEngine] Downloading/compiling '\(whisperKitModel)' (this may take a few minutes on first use)...")
         do {
             pipe = try await WhisperKit(config)
         } catch {
-            print("[WhisperKitEngine] First attempt failed: \(error). Retrying after cleaning cache...")
+            NSLog("[WhisperKitEngine] First attempt failed: \(error). Retrying after cleaning cache...")
             // Clean incomplete downloads
             let incompletePath = cacheURL.appendingPathComponent(".cache", isDirectory: true)
             try? FileManager.default.removeItem(at: incompletePath)
@@ -80,7 +84,7 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
         }
 
         progressHandler(1.0)
-        print("[WhisperKitEngine] Model '\(whisperKitModel)' loaded successfully")
+        NSLog("[WhisperKitEngine] Model '\(whisperKitModel)' loaded successfully")
     }
 
     func unloadModel() {

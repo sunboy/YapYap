@@ -122,7 +122,15 @@ class HotkeyManager {
 
     private func handlePushToTalkUp() {
         guard let pipeline = pipeline else { return }
-        guard let appState = appState, appState.isRecording else { return }
+        guard let appState = appState else { return }
+
+        // If recording hasn't started yet (still loading models), set pendingStop
+        // so startRecording() aborts after the load completes instead of recording.
+        if !appState.isRecording {
+            pipeline.pendingStop = true
+            NSLog("[HotkeyManager] Key released before recording started — set pendingStop")
+            return
+        }
 
         Task { @MainActor in
             do {

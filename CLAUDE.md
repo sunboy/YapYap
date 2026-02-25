@@ -125,10 +125,15 @@ The main transcription flow is orchestrated by `TranscriptionPipeline.swift`:
 
 **LLM Models** are registered in `LLMModelRegistry.swift`:
 - Qwen 2.5 1.5B/3B/7B (multilingual, default)
-- Llama 3.2 1B/3B (English-focused)
-- Gemma 2 2B (instruction-following)
+- Llama 3.2 1B/3B, Llama 3.1 8B (English-focused)
+- Gemma 3 1B/4B (instruction-following, 140+ languages)
 
-Models are downloaded from HuggingFace to `~/Library/Application Support/YapYap/Models/` on first use.
+**LLM Model Size Tiers** (`LLMModelSize`):
+- `.small` (≤2B): Ultra-minimal prompts to avoid echo/contamination
+- `.medium` (3B-4B): Full prompts with detailed rules
+- `.large` (7B+): Rich prompts with persona, requires 16GB+ RAM
+
+Models are downloaded from HuggingFace. STT models go to `~/Documents/huggingface/models/argmaxinc/whisperkit-coreml/`, LLM models go to `~/.cache/huggingface/hub/` (Swift HubApi path).
 
 ### UI Architecture
 
@@ -278,8 +283,9 @@ All dependencies are fetched automatically during Xcode build. No manual install
 
 **Critical Performance Path**: User releases hotkey → text must appear in <3 seconds
 
-- STT models are lazy-loaded (not at app startup)
-- LLM models are kept in memory once loaded (avoid reload latency)
+- STT and LLM models are loaded eagerly at startup (not lazy)
+- Models are kept in memory once loaded (avoid reload latency)
+- Keep-alive timer runs warmup inference every 30 min to prevent OS eviction
 - VAD pre-processing reduces STT time by 40-60% by stripping silence
 - MLX achieves ~200-500 tok/s on M1+ for 1-3B models
 - Parakeet is faster than Whisper (runs on ANE, not GPU)
@@ -302,8 +308,34 @@ See `YapYap.entitlements` for full entitlement configuration.
 1. **Don't modify project.yml without regenerating**: After changing `project.yml`, always run `xcodegen generate`
 2. **VAD must run before STT**: Whisper will hallucinate on silence if VAD is skipped
 3. **Accessibility permission required**: Paste will fail silently without it
-4. **Model paths are user-specific**: Models go in `~/Library/Application Support/YapYap/Models/`, not bundled
+4. **Model paths**: STT → `~/Documents/huggingface/models/argmaxinc/whisperkit-coreml/`, LLM → `~/.cache/huggingface/hub/`
 5. **LLM cleanup is optional**: User can disable cleanup and get raw STT output
+6. **Hotkey reentrancy**: macOS key auto-repeat fires duplicate keyDown events. `isStartingRecording` flag in TranscriptionPipeline guards against concurrent `startRecording()` calls
+7. **Deferred stop (pendingStop)**: If user releases hotkey during model load, `pendingStop` flag aborts recording after load completes instead of leaving it stuck
+8. **Model hot-swap**: `startRecording()` always calls `ensureModelsLoaded()` to detect settings changes. It compares loaded model IDs against saved settings
+
+## Benchmarking
+
+YapYapBench is a companion CLI tool for testing STT and LLM quality:
+
+```bash
+# Build benchmark tool
+make bench-build
+
+# Run corpus benchmark (saves results to bench-results/)
+make bench-corpus
+
+# Run individual benchmark
+make bench ARGS="run --model qwen-2.5-1.5b"
+```
+
+Key files:
+- `YapYapBench/YapYapBench.swift`: CLI entry point (ArgumentParser)
+- `YapYapBench/Commands/CorpusCommand.swift`: Corpus-based quality benchmarks
+- `YapYapBench/Core/QualityScorer.swift`: Automated quality scoring
+- `YapYapBench/Core/TestCorpus.swift`: Test case definitions
+- `benchmarks/datasets/`: Test audio/text datasets
+- `bench-results/`: JSON output (gitignored except .gitkeep)
 
 ## Architecture Documents
 
