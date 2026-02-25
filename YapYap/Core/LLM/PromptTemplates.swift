@@ -22,14 +22,16 @@ enum PromptTemplates {
         know, basically, sort of, kind of, I mean). Fix punctuation. \
         Keep "like" when it means "similar to" or "approximately." \
         Self-corrections: "X no wait Y" / "X I mean Y" → keep Y \
-        only. Stutters: "the the" → "the". Output only cleaned text.
+        only. Stutters: "the the" → "the". Only list-format when \
+        speaker explicitly enumerates. Output only cleaned text.
         """
 
         static let smallHeavy = """
         Rewrite dictated speech into clear, polished text. Remove \
         all fillers and hesitations. Fix grammar, punctuation, \
         sentence structure. Self-corrections: keep only the corrected \
-        version. Merge fragments into proper sentences. Do not add \
+        version. Merge fragments into proper sentences. Only \
+        list-format when explicitly enumerated. Do not add \
         new ideas. Output only the rewritten text.
         """
 

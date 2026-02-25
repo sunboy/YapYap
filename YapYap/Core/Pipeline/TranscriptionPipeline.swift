@@ -11,8 +11,7 @@ class TranscriptionPipeline {
     let audioCapture: AudioCaptureManager
     let pasteManager: PasteManager
 
-    private var sttEngine: (any STTEngine)?
-    private var llmEngine: (any LLMEngine)?
+    let executor = TranscriptionExecutor()
     private let container: ModelContainer
     private var isCommandMode: Bool = false
 
@@ -43,9 +42,6 @@ class TranscriptionPipeline {
 
     /// Whether media was paused by us and should be resumed
     private var didPauseMedia = false
-
-    /// In-flight model loading task — concurrent callers await this instead of launching a second load.
-    private var modelLoadingTask: Task<Void, Error>?
 
     init(appState: AppState, container: ModelContainer) {
         self.appState = appState
@@ -91,8 +87,7 @@ class TranscriptionPipeline {
             guard let self = self else { return }
             Task {
                 NSLog("[TranscriptionPipeline] Keep-alive: warming up models")
-                await self.sttEngine?.warmup()
-                await self.llmEngine?.warmup()
+                await self.executor.warmupEngines()
                 NSLog("[TranscriptionPipeline] Keep-alive: warmup complete")
             }
         }
@@ -105,78 +100,24 @@ class TranscriptionPipeline {
     }
 
     func ensureModelsLoaded() async throws {
-        // If a load is already in-flight, await it instead of starting a second one.
-        // This prevents concurrent MLX downloads/reads that corrupt partial files.
-        if let existing = modelLoadingTask {
-            NSLog("[TranscriptionPipeline] Model load already in-flight, awaiting...")
-            try await existing.value
-            return
-        }
-
-        let task = Task<Void, Error> {
-            defer { modelLoadingTask = nil }
-            try await _ensureModelsLoadedImpl()
-        }
-        modelLoadingTask = task
-        try await task.value
-    }
-
-    private func _ensureModelsLoadedImpl() async throws {
         let settings = try fetchSettings()
-
-        // Reload STT if not loaded OR if user switched to a different model in Settings
-        let needsSTTReload = sttEngine == nil || !sttEngine!.isLoaded
-            || sttEngine!.modelInfo.id != settings.sttModelId
-        if needsSTTReload {
-            if let existing = sttEngine, existing.isLoaded {
-                NSLog("[TranscriptionPipeline] STT model changed: \(existing.modelInfo.id) → \(settings.sttModelId), unloading old")
-                existing.unloadModel()
+        try await executor.ensureModelsLoaded(
+            sttModelId: settings.sttModelId,
+            llmModelId: settings.llmModelId,
+            onSTTProgress: { [weak self] progress in
+                Task { @MainActor in self?.appState.modelLoadingProgress = progress * 0.5 }
+            },
+            onLLMProgress: { [weak self] progress in
+                Task { @MainActor in self?.appState.modelLoadingProgress = 0.5 + progress * 0.5 }
+            },
+            onStatus: { [weak self] status in
+                Task { @MainActor in self?.appState.modelLoadingStatus = status }
             }
-            appState.modelLoadingStatus = "Loading speech model..."
-            appState.modelLoadingProgress = 0.0
-            NSLog("[TranscriptionPipeline] Loading STT model: \(settings.sttModelId)")
-
-            sttEngine = STTEngineFactory.create(modelId: settings.sttModelId)
-            try await sttEngine!.loadModel { [weak self] progress in
-                Task { @MainActor in
-                    self?.appState.modelLoadingProgress = progress * 0.5 // First 50%
-                }
-            }
-            NSLog("[TranscriptionPipeline] ✅ STT model loaded")
+        )
+        let activeLLM = await executor.activeLLMModelId
+        await MainActor.run { [weak self] in
+            self?.appState.activeLLMModelId = activeLLM
         }
-
-        // Reload LLM if not loaded OR if user switched to a different model in Settings
-        let needsLLMReload = llmEngine == nil || !llmEngine!.isLoaded
-            || llmEngine!.modelId != settings.llmModelId
-        if needsLLMReload {
-            if let existing = llmEngine, existing.isLoaded {
-                NSLog("[TranscriptionPipeline] LLM model changed: \(existing.modelId ?? "unknown") → \(settings.llmModelId), unloading old")
-                existing.unloadModel()
-            }
-            appState.modelLoadingStatus = "Loading language model..."
-            appState.modelLoadingProgress = 0.5
-            NSLog("[TranscriptionPipeline] Loading LLM model: \(settings.llmModelId)")
-
-            let engine = MLXEngine()
-            do {
-                try await engine.loadModel(id: settings.llmModelId) { [weak self] progress in
-                    Task { @MainActor in
-                        self?.appState.modelLoadingProgress = 0.5 + (progress * 0.5)
-                    }
-                }
-                llmEngine = engine
-                appState.activeLLMModelId = settings.llmModelId
-                NSLog("[TranscriptionPipeline] ✅ LLM model loaded")
-            } catch {
-                // LLM load failure is non-fatal — STT still works, cleanup is skipped.
-                // This happens when the model isn't downloaded yet or the cache is corrupt.
-                llmEngine = nil
-                appState.activeLLMModelId = nil
-                NSLog("[TranscriptionPipeline] ⚠️ LLM model failed to load, cleanup will be skipped: \(error)")
-                appState.modelLoadingStatus = "Cleanup model unavailable — recording still works"
-            }
-        }
-
         appState.modelLoadingProgress = 1.0
     }
 
@@ -218,17 +159,6 @@ class TranscriptionPipeline {
         SoundManager.shared.playStart()
         HapticManager.shared.tap()
 
-        // Capture target app PID now — the user's app is frontmost at recording start.
-        // This is more reliable than checking frontmostApplication later when our
-        // floating bar might have changed focus.
-        self.targetApp = NSWorkspace.shared.frontmostApplication
-
-        // Auto-pause media playback if enabled
-        if (try? fetchSettings())?.pauseMediaDuringRecording == true {
-            didPauseMedia = true
-            MediaPlaybackController.shared.pauseIfPlaying()
-        }
-
         // Pre-compute app context now — the user's app is frontmost during recording.
         // This saves ~30ms off the critical path after STT and provides cached values
         // for future speculative LLM prefill.
@@ -236,7 +166,14 @@ class TranscriptionPipeline {
         let appContext = AppContextDetector.detect(settings: styleSettings)
         self.cachedStyleSettings = styleSettings
         self.cachedAppContext = appContext
+        self.targetApp = NSWorkspace.shared.frontmostApplication
         NSLog("[TranscriptionPipeline] Pre-cached context: \(appContext.appName) (\(appContext.category.rawValue)), target app pid: \(self.targetApp?.processIdentifier ?? -1)")
+
+        // Auto-pause media playback if enabled
+        if (try? fetchSettings())?.pauseMediaDuringRecording == true {
+            didPauseMedia = true
+            MediaPlaybackController.shared.pauseIfPlaying()
+        }
 
         try await audioCapture.startCapture { [weak self] rms in
             DispatchQueue.main.async {
@@ -245,21 +182,37 @@ class TranscriptionPipeline {
         }
         print("[TranscriptionPipeline] Audio capture started")
 
-        // Start streaming STT if the engine supports it
-        if let streamingEngine = sttEngine as? StreamingSTTEngine {
-            let settings = try fetchSettings()
-            try await streamingEngine.startStreaming(
-                audioSamplesProvider: { [weak self] in
-                    self?.audioCapture.currentAudioSamples() ?? []
-                },
-                language: settings.language,
-                onUpdate: { [weak self] update in
-                    Task { @MainActor in
-                        self?.appState.partialTranscription = update.currentText.isEmpty ? nil : update.currentText
-                    }
+        // Wire up audio engine failure recovery
+        audioCapture.onEngineFailure = { [weak self] in
+            Task {
+                do {
+                    try await self?.audioCapture.recreateEngine()
+                    NSLog("[TranscriptionPipeline] Audio engine recovered")
+                } catch {
+                    NSLog("[TranscriptionPipeline] Audio engine recovery failed: \(error)")
                 }
-            )
-            NSLog("[TranscriptionPipeline] Streaming STT started")
+            }
+        }
+
+        // Start streaming STT if the engine supports it
+        let isStreaming = await executor.isStreaming
+        if !isStreaming {
+            let settings = try fetchSettings()
+            let hasStreamingSupport = await executor.streamingEngine != nil
+            if hasStreamingSupport {
+                try await executor.startStreaming(
+                    audioSamplesProvider: { [weak self] in
+                        self?.audioCapture.currentAudioSamples() ?? []
+                    },
+                    language: settings.language,
+                    onUpdate: { [weak self] update in
+                        Task { @MainActor in
+                            self?.appState.partialTranscription = update.currentText.isEmpty ? nil : update.currentText
+                        }
+                    }
+                )
+                NSLog("[TranscriptionPipeline] Streaming STT started")
+            }
         }
     }
 
@@ -282,16 +235,19 @@ class TranscriptionPipeline {
             let settings = try fetchSettings()
 
             // Streaming path: finalize STT first (needs to read final audio), then stop capture
-            if let streamingEngine = sttEngine as? StreamingSTTEngine, streamingEngine.isStreaming {
-                let result = try await streamingEngine.stopStreaming()
+            let isCurrentlyStreaming = await executor.isStreaming
+            if isCurrentlyStreaming {
+                let result = try await executor.stopStreaming()
                 let tailMs = Date().timeIntervalSince(stageStart) * 1000
                 NSLog("[TranscriptionPipeline] Streaming STT finalized in \(String(format: "%.0f", tailMs))ms")
 
                 // Now stop audio capture (after streaming read final samples)
                 let audioBuffer = audioCapture.stopCapture()
                 audioDuration = audioBuffer.map { Double($0.frameLength) / audioCapture.sampleRate } ?? 0
-                rawText = Self.stripWhisperArtifacts(result.text.trimmingCharacters(in: .whitespacesAndNewlines))
-                detectedLanguage = result.language ?? settings.language
+
+                let resultText = result?.text ?? ""
+                rawText = Self.stripWhisperArtifacts(resultText.trimmingCharacters(in: .whitespacesAndNewlines))
+                detectedLanguage = result?.language ?? settings.language
                 NSLog("[TranscriptionPipeline] STT (streaming): \"\(rawText)\" (\(String(format: "%.0f", tailMs))ms)")
             } else {
                 // Batch path: stop capture first, then run STT on full buffer
@@ -304,7 +260,7 @@ class TranscriptionPipeline {
                 audioDuration = Double(audioBuffer.frameLength) / audioCapture.sampleRate
                 NSLog("[TranscriptionPipeline] ✅ Audio buffer: \(audioBuffer.frameLength) frames (\(String(format: "%.1f", audioDuration))s)")
 
-                let transcription = try await sttEngine!.transcribe(audioBuffer: audioBuffer, language: settings.language)
+                let transcription = try await executor.transcribe(audioBuffer: audioBuffer, language: settings.language)
                 rawText = Self.stripWhisperArtifacts(transcription.text.trimmingCharacters(in: .whitespacesAndNewlines))
                 detectedLanguage = transcription.language ?? settings.language
                 NSLog("[TranscriptionPipeline] STT (batch): \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
@@ -371,8 +327,9 @@ class TranscriptionPipeline {
                     experimentalPrompts: settings.experimentalPrompts
                 )
 
-                if let engine = llmEngine {
-                    cleanedText = try await engine.cleanup(rawText: correctedText, context: context)
+                let isLLMLoaded = await executor.isLLMLoaded
+                if isLLMLoaded {
+                    cleanedText = try await executor.cleanup(rawText: correctedText, context: context)
                     NSLog("[TranscriptionPipeline] LLM: \"\(cleanedText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
                 } else {
                     NSLog("[TranscriptionPipeline] ⚠️ LLM not loaded, using raw STT output")
@@ -425,7 +382,8 @@ class TranscriptionPipeline {
             // Move history save + analytics off the critical path.
             // Text is already pasted, no need to block on disk I/O.
             let finalWordCount = cleanedText.split(separator: " ").count
-            let sttModelId = sttEngine?.modelInfo.id ?? "unknown"
+            let sttModelId = await executor.sttModelId ?? "unknown"
+            let llmModelId = await executor.llmModelId ?? "unknown"
             let sourceApp = appContext.appName
             let container = self.container
             Task.detached { [weak self] in
@@ -437,7 +395,7 @@ class TranscriptionPipeline {
                         durationSeconds: audioDuration,
                         wordCount: finalWordCount,
                         sttModel: sttModelId,
-                        llmModel: self?.llmEngine?.modelId ?? "unknown",
+                        llmModel: llmModelId,
                         sourceApp: sourceApp,
                         language: detectedLanguage
                     )
@@ -476,9 +434,10 @@ class TranscriptionPipeline {
 
     func cancelRecording() {
         // Stop streaming if active before cancelling audio
-        if let streamingEngine = sttEngine as? StreamingSTTEngine, streamingEngine.isStreaming {
-            Task {
-                _ = try? await streamingEngine.stopStreaming()
+        Task {
+            let isStreaming = await executor.isStreaming
+            if isStreaming {
+                _ = try? await executor.stopStreaming()
             }
         }
         audioCapture.cancelCapture()
@@ -488,6 +447,14 @@ class TranscriptionPipeline {
         appState.partialTranscription = nil
         isCommandMode = false
         resumeMediaIfNeeded()
+    }
+
+    // MARK: - Media Playback
+
+    private func resumeMediaIfNeeded() {
+        guard didPauseMedia else { return }
+        didPauseMedia = false
+        MediaPlaybackController.shared.resumeIfWasPaused()
     }
 
     // MARK: - Command Mode
@@ -506,12 +473,13 @@ class TranscriptionPipeline {
             prompt = CommandMode.buildPrompt(command: rawText, selectedText: selectedText)
         }
 
-        guard let llmEngine = llmEngine else {
+        let isLLMLoaded = await executor.isLLMLoaded
+        guard isLLMLoaded else {
             appState.creatureState = .sleeping
             appState.isProcessing = false
             return rawText
         }
-        let result = try await llmEngine.cleanup(rawText: prompt, context: CleanupContext(
+        let result = try await executor.cleanup(rawText: prompt, context: CleanupContext(
             stylePrompt: "",
             formality: .neutral,
             language: settings.language,
@@ -544,14 +512,6 @@ class TranscriptionPipeline {
         appState.isProcessing = false
         appState.lastTranscription = snippet.expansion
         return snippet.expansion
-    }
-
-    // MARK: - Media Playback
-
-    private func resumeMediaIfNeeded() {
-        guard didPauseMedia else { return }
-        didPauseMedia = false
-        MediaPlaybackController.shared.resumeIfWasPaused()
     }
 
     // MARK: - STT Artifact Stripping

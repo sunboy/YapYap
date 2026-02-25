@@ -1,0 +1,166 @@
+// TranscriptionExecutor.swift
+// YapYap — Actor-isolated engine management for STT and LLM
+import AVFoundation
+import Foundation
+
+actor TranscriptionExecutor {
+    private var sttEngine: (any STTEngine)?
+    private var llmEngine: (any LLMEngine)?
+    private var modelLoadingTask: Task<Void, Error>?
+
+    var sttModelId: String? { sttEngine?.modelInfo.id }
+    var llmModelId: String? { llmEngine?.modelId }
+    var isSTTLoaded: Bool { sttEngine?.isLoaded ?? false }
+    var isLLMLoaded: Bool { llmEngine?.isLoaded ?? false }
+    var activeLLMModelId: String? { llmEngine?.isLoaded == true ? llmEngine?.modelId : nil }
+
+    /// Access the streaming engine if the current STT supports it.
+    var streamingEngine: (any StreamingSTTEngine)? {
+        sttEngine as? (any StreamingSTTEngine)
+    }
+
+    // MARK: - Model Loading
+
+    func ensureModelsLoaded(
+        sttModelId: String,
+        llmModelId: String,
+        onSTTProgress: @escaping (Double) -> Void,
+        onLLMProgress: @escaping (Double) -> Void,
+        onStatus: @escaping (String) -> Void
+    ) async throws {
+        // Await in-flight load if any
+        if let existing = modelLoadingTask {
+            try await existing.value
+            return
+        }
+
+        let task = Task<Void, Error> { [weak self] in
+            guard let self = self else { return }
+            defer { Task { await self.clearModelLoadingTask() } }
+            try await self.loadModelsImpl(
+                sttModelId: sttModelId, llmModelId: llmModelId,
+                onSTTProgress: onSTTProgress, onLLMProgress: onLLMProgress,
+                onStatus: onStatus
+            )
+        }
+        modelLoadingTask = task
+        try await task.value
+    }
+
+    private func clearModelLoadingTask() {
+        modelLoadingTask = nil
+    }
+
+    private func loadModelsImpl(
+        sttModelId: String,
+        llmModelId: String,
+        onSTTProgress: @escaping (Double) -> Void,
+        onLLMProgress: @escaping (Double) -> Void,
+        onStatus: @escaping (String) -> Void
+    ) async throws {
+        // STT
+        let needsSTTReload = sttEngine == nil || !sttEngine!.isLoaded
+            || sttEngine!.modelInfo.id != sttModelId
+        if needsSTTReload {
+            if let existing = sttEngine, existing.isLoaded {
+                NSLog("[TranscriptionExecutor] STT model changed: \(existing.modelInfo.id) → \(sttModelId)")
+                existing.unloadModel()
+            }
+            onStatus("Loading speech model...")
+            NSLog("[TranscriptionExecutor] Loading STT: \(sttModelId)")
+
+            let newEngine = STTEngineFactory.create(modelId: sttModelId)
+            sttEngine = newEngine
+            try await StderrSuppressor.suppressing {
+                try await newEngine.loadModel(progressHandler: onSTTProgress)
+            }
+            NSLog("[TranscriptionExecutor] ✅ STT loaded")
+        }
+
+        // LLM
+        let needsLLMReload = llmEngine == nil || !llmEngine!.isLoaded
+            || llmEngine!.modelId != llmModelId
+        if needsLLMReload {
+            if let existing = llmEngine, existing.isLoaded {
+                NSLog("[TranscriptionExecutor] LLM model changed: \(existing.modelId ?? "?") → \(llmModelId)")
+                existing.unloadModel()
+            }
+            onStatus("Loading language model...")
+            NSLog("[TranscriptionExecutor] Loading LLM: \(llmModelId)")
+
+            let engine = MLXEngine()
+            do {
+                try await StderrSuppressor.suppressing {
+                    try await engine.loadModel(id: llmModelId, progressHandler: onLLMProgress)
+                }
+                llmEngine = engine
+                NSLog("[TranscriptionExecutor] ✅ LLM loaded")
+            } catch {
+                llmEngine = nil
+                NSLog("[TranscriptionExecutor] ⚠️ LLM failed: \(error)")
+                onStatus("Cleanup model unavailable — recording still works")
+            }
+        }
+    }
+
+    // MARK: - Transcription
+
+    func transcribe(audioBuffer: AVAudioPCMBuffer, language: String) async throws -> TranscriptionResult {
+        guard let engine = sttEngine, engine.isLoaded else {
+            throw YapYapError.modelNotLoaded
+        }
+        return try await engine.transcribe(audioBuffer: audioBuffer, language: language)
+    }
+
+    // MARK: - Cleanup
+
+    func cleanup(rawText: String, context: CleanupContext) async throws -> String {
+        guard let engine = llmEngine, engine.isLoaded else {
+            throw YapYapError.modelNotLoaded
+        }
+        return try await engine.cleanup(rawText: rawText, context: context)
+    }
+
+    // MARK: - Streaming
+
+    func startStreaming(
+        audioSamplesProvider: @escaping () -> [Float],
+        language: String,
+        onUpdate: @escaping (StreamingTranscriptionUpdate) -> Void
+    ) async throws {
+        guard let streaming = streamingEngine else {
+            NSLog("[TranscriptionExecutor] STT engine does not support streaming")
+            return
+        }
+        try await streaming.startStreaming(
+            audioSamplesProvider: audioSamplesProvider,
+            language: language,
+            onUpdate: onUpdate
+        )
+    }
+
+    func stopStreaming() async throws -> TranscriptionResult? {
+        guard let streaming = streamingEngine, streaming.isStreaming else {
+            return nil
+        }
+        return try await streaming.stopStreaming()
+    }
+
+    var isStreaming: Bool {
+        (sttEngine as? (any StreamingSTTEngine))?.isStreaming ?? false
+    }
+
+    // MARK: - Warmup
+
+    func warmupEngines() async {
+        await sttEngine?.warmup()
+        await llmEngine?.warmup()
+    }
+
+    func unloadAll() {
+        sttEngine?.unloadModel()
+        sttEngine = nil
+        llmEngine?.unloadModel()
+        llmEngine = nil
+    }
+}
