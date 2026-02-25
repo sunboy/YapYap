@@ -103,7 +103,8 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath build/YapYap.xcarchive \
             -exportPath build/release \
-            -exportOptionsPlist ExportOptions.plist
+            -exportOptionsPlist ExportOptions.plist \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN_PATH --timestamp"
 
       - name: Verify signature
         run: |
