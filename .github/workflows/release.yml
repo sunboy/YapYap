@@ -61,7 +61,7 @@ jobs:
             -a "ed25519" \
             -s "Sparkle Key" \
             -w "$SPARKLE_PRIVATE_KEY" \
-            -k "$KEYCHAIN_PATH"
+            "$KEYCHAIN_PATH"
 
       - name: Extract version from tag
         run: |
