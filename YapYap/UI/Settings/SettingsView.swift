@@ -9,6 +9,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case dictionary = "Dictionary"
     case history = "History"
     case analytics = "Analytics"
+    case promptTest = "Prompt Test"
     case about = "About"
 
     var id: String { rawValue }
@@ -23,6 +24,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .dictionary: return "📖"
         case .history: return "📜"
         case .analytics: return "📊"
+        case .promptTest: return "🔬"
         case .about: return "💜"
         }
     }
@@ -30,7 +32,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var section: String {
         switch self {
         case .writingStyle, .models, .hotkeys, .general, .style, .dictionary: return "CONFIGURATION"
-        case .history, .analytics: return "INSIGHTS"
+        case .history, .analytics, .promptTest: return "INSIGHTS"
         case .about: return "APP"
         }
     }
@@ -106,7 +108,7 @@ struct SettingsView: View {
             // Navigation
             VStack(alignment: .leading, spacing: 0) {
                 navSection("CONFIGURATION", tabs: [.writingStyle, .models, .hotkeys, .general, .style, .dictionary])
-                navSection("INSIGHTS", tabs: [.history, .analytics])
+                navSection("INSIGHTS", tabs: [.history, .analytics, .promptTest])
                 navSection("APP", tabs: [.about])
             }
             .padding(.horizontal, 8)
@@ -170,6 +172,7 @@ struct SettingsView: View {
         case .dictionary: DictionaryTab()
         case .history: HistoryTab()
         case .analytics: AnalyticsTab()
+        case .promptTest: PromptTestTab()
         case .about: AboutTab()
         }
     }
