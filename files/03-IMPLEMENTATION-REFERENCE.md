@@ -917,7 +917,7 @@ class TranscriptionPipeline {
     
     <!-- Sparkle feed URL -->
     <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/yapyap-app/yapyap/main/appcast.xml</string>
+    <string>https://raw.githubusercontent.com/sunboy/yapyap/main/appcast.xml</string>
 </dict>
 </plist>
 ```

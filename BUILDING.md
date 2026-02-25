@@ -16,7 +16,7 @@
 
 2. **Clone the repository:**
    ```bash
-   git clone https://github.com/yapyap-app/yapyap.git
+   git clone https://github.com/sunboy/yapyap.git
    cd yapyap
    ```
 

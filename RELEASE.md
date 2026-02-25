@@ -143,7 +143,7 @@ git push origin v0.1.0
 
 ### 2. Create GitHub Release
 
-Go to https://github.com/yourusername/yapyap/releases/new
+Go to https://github.com/sunboy/yapyap/releases/new
 
 **Release Title**: `v0.1.0 - Initial Release`
 
@@ -168,7 +168,7 @@ First public release of YapYap — an open-source, offline macOS voice-to-text a
 
 ### 📦 Installation
 
-**Download**: [YapYap-v0.1.0.dmg](https://github.com/yourusername/yapyap/releases/download/v0.1.0/YapYap-v0.1.0.dmg)
+**Download**: [YapYap-v0.1.0.dmg](https://github.com/sunboy/yapyap/releases/download/v0.1.0/YapYap-v0.1.0.dmg)
 
 **Homebrew** (coming soon):
 ```bash
@@ -177,7 +177,7 @@ brew install --cask yapyap
 
 **From Source**:
 ```bash
-git clone https://github.com/yourusername/yapyap.git
+git clone https://github.com/sunboy/yapyap.git
 cd yapyap
 make build
 ```
@@ -198,7 +198,7 @@ make build
 
 ### 📚 Documentation
 
-- [README](https://github.com/yourusername/yapyap#readme)
+- [README](https://github.com/sunboy/yapyap#readme)
 - [Testing Guide](TESTING.md)
 - [Architecture](docs/ARCHITECTURE.md)
 
@@ -214,7 +214,7 @@ make build
 - Whisper Large v3 Turbo requires 16GB RAM
 - Command Mode requires pre-selecting text (no automatic selection yet)
 
-Report issues: https://github.com/yourusername/yapyap/issues
+Report issues: https://github.com/sunboy/yapyap/issues
 
 ---
 
@@ -232,7 +232,7 @@ Edit `Distribution/appcast.xml`:
 ```xml
 <item>
     <title>Version 0.1.0</title>
-    <link>https://github.com/yourusername/yapyap/releases/tag/v0.1.0</link>
+    <link>https://github.com/sunboy/yapyap/releases/tag/v0.1.0</link>
     <sparkle:version>0.1.0</sparkle:version>
     <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
     <description><![CDATA[
@@ -246,7 +246,7 @@ Edit `Distribution/appcast.xml`:
     ]]></description>
     <pubDate>Thu, 13 Feb 2026 12:00:00 +0000</pubDate>
     <enclosure
-        url="https://github.com/yourusername/yapyap/releases/download/v0.1.0/YapYap-v0.1.0.dmg"
+        url="https://github.com/sunboy/yapyap/releases/download/v0.1.0/YapYap-v0.1.0.dmg"
         sparkle:version="0.1.0"
         sparkle:shortVersionString="0.1.0"
         length="FILE_SIZE_IN_BYTES"
@@ -275,10 +275,10 @@ cask "yapyap" do
   version "0.1.0"
   sha256 "DMG_SHA256_HERE"
 
-  url "https://github.com/yourusername/yapyap/releases/download/v#{version}/YapYap-v#{version}.dmg"
+  url "https://github.com/sunboy/yapyap/releases/download/v#{version}/YapYap-v#{version}.dmg"
   name "YapYap"
   desc "Offline macOS voice-to-text with AI cleanup"
-  homepage "https://github.com/yourusername/yapyap"
+  homepage "https://github.com/sunboy/yapyap"
 
   depends_on macos: ">= :sonoma"
   depends_on arch: :arm64

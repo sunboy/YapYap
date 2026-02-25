@@ -32,7 +32,7 @@ An open-source, offline, macOS voice-to-text app with AI-powered cleanup. A cozy
 ## Installation
 
 ### Download
-Get the latest release from [GitHub Releases](https://github.com/yapyap-app/yapyap/releases).
+Get the latest release from [GitHub Releases](https://github.com/sunboy/yapyap/releases).
 
 ### Homebrew
 ```bash
@@ -43,7 +43,7 @@ brew install --cask yapyap
 See [BUILDING.md](BUILDING.md) for detailed instructions.
 
 ```bash
-git clone https://github.com/yapyap-app/yapyap.git
+git clone https://github.com/sunboy/yapyap.git
 cd yapyap
 make build
 open build/Debug/YapYap.app
