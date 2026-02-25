@@ -50,16 +50,34 @@ class MLXEngine: LLMEngine {
     func warmup() async {
         guard let lmContext = lmContext else { return }
         do {
-            let tokens = lmContext.tokenizer.encode(text: "Hello")
+            // Use a realistic prompt size (~250 tokens) to force all model weights
+            // into memory. A tiny "Hello" only touches a small subset of weights,
+            // leaving the rest to be paged from disk on the first real inference.
+            let warmupPrompt = """
+            <|im_start|>system
+            You clean up dictated speech. Remove fillers. Fix punctuation. Output only cleaned text.<|im_end|>
+            <|im_start|>user
+            EXAMPLE 1:
+            Input: um so I was thinking we should like meet on tuesday
+            Output: I was thinking we should meet on Tuesday.
+
+            Reply with only the cleaned text.
+
+            um hello this is a warmup prompt to keep the model weights in memory<|im_end|>
+            <|im_start|>assistant
+            """
+            let tokens = lmContext.tokenizer.encode(text: warmupPrompt)
             let input = LMInput(tokens: MLXArray(tokens))
             let parameters = GenerateParameters(maxTokens: 1)
+            let startTime = Date()
             let stream: AsyncStream<Generation> = try generate(
                 input: input,
                 parameters: parameters,
                 context: lmContext
             )
             for await _ in stream { break }
-            NSLog("[MLXEngine] Keep-alive warmup complete")
+            let elapsed = Date().timeIntervalSince(startTime) * 1000
+            NSLog("[MLXEngine] Keep-alive warmup complete (\(String(format: "%.0f", elapsed))ms, \(tokens.count) tokens)")
         } catch {
             NSLog("[MLXEngine] Keep-alive warmup failed: \(error)")
         }

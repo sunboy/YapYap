@@ -1,12 +1,21 @@
 // FluidAudioEngine.swift
-// YapYap — FluidAudio/Parakeet TDT STT backend
+// YapYap — FluidAudio/Parakeet TDT STT backend with streaming support
 import FluidAudio
 import AVFoundation
 import CoreML
 
-class FluidAudioEngine: STTEngine {
+class FluidAudioEngine: STTEngine, StreamingSTTEngine {
     let modelInfo: STTModelInfo
     private var asrManager: AsrManager?
+
+    // MARK: - Streaming State
+
+    private(set) var isStreaming: Bool = false
+    private var streamingTask: Task<Void, Never>?
+    private var audioProvider: (() -> [Float])?
+    private var updateCallback: ((StreamingTranscriptionUpdate) -> Void)?
+    private var lastTranscribedSampleCount: Int = 0
+    private var lastTranscribedText: String = ""
 
     var isLoaded: Bool { asrManager != nil }
 
@@ -45,7 +54,6 @@ class FluidAudioEngine: STTEngine {
             let frameCount = AVAudioFrameCount(16000)
             guard let silenceBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return }
             silenceBuffer.frameLength = frameCount
-            // Buffer is zero-initialized by default (silence)
             _ = try await asrManager.transcribe(silenceBuffer, source: .microphone)
             NSLog("[FluidAudioEngine] Keep-alive warmup complete")
         } catch {
@@ -59,17 +67,116 @@ class FluidAudioEngine: STTEngine {
         }
 
         let startTime = Date()
-
-        // Transcribe using the audio buffer directly
         let result = try await asrManager.transcribe(audioBuffer, source: .microphone)
-
         let processingTime = Date().timeIntervalSince(startTime)
 
         return TranscriptionResult(
             text: result.text,
-            language: "en", // FluidAudio doesn't expose language detection yet
-            segments: [],   // Simplified for now - can add segment support later
+            language: "en",
+            segments: [],
             processingTime: processingTime
+        )
+    }
+
+    // MARK: - Streaming STT
+    //
+    // Uses a lightweight polling approach: periodically runs batch transcription
+    // on accumulated audio using the already-loaded AsrManager. This avoids
+    // creating a new StreamingAsrManager (which re-initializes ASR models each
+    // dictation, causing memory pressure that evicts LLM weights from RAM).
+
+    func startStreaming(
+        audioSamplesProvider: @escaping () -> [Float],
+        language: String,
+        onUpdate: @escaping (StreamingTranscriptionUpdate) -> Void
+    ) async throws {
+        guard asrManager != nil else { throw YapYapError.modelNotLoaded }
+
+        isStreaming = true
+        lastTranscribedSampleCount = 0
+        lastTranscribedText = ""
+        audioProvider = audioSamplesProvider
+        updateCallback = onUpdate
+
+        NSLog("[FluidAudioEngine] Streaming started (poll-based, reusing loaded AsrManager)")
+
+        // Poll audio buffer every ~2s and run batch transcription for partial results
+        streamingTask = Task { [weak self] in
+            guard let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: 16000,
+                channels: 1,
+                interleaved: false
+            ) else { return }
+
+            while let self = self, self.isStreaming, !Task.isCancelled {
+                // Wait 2 seconds between transcription attempts
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard self.isStreaming, !Task.isCancelled else { break }
+
+                guard let provider = self.audioProvider,
+                      let asr = self.asrManager else { break }
+
+                let allSamples = provider()
+                let sampleCount = allSamples.count
+
+                // Need at least 1.5s of audio and 0.5s of new audio since last run
+                guard sampleCount >= 24000,
+                      sampleCount - self.lastTranscribedSampleCount >= 8000 else { continue }
+
+                // Convert [Float] to AVAudioPCMBuffer
+                let frameCount = AVAudioFrameCount(sampleCount)
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { continue }
+                buffer.frameLength = frameCount
+                if let channelData = buffer.floatChannelData?[0] {
+                    allSamples.withUnsafeBufferPointer { src in
+                        channelData.initialize(from: src.baseAddress!, count: sampleCount)
+                    }
+                }
+
+                // Run batch transcription on accumulated audio
+                do {
+                    let result = try await asr.transcribe(buffer, source: .microphone)
+                    self.lastTranscribedSampleCount = sampleCount
+                    self.lastTranscribedText = result.text
+
+                    let update = StreamingTranscriptionUpdate(
+                        confirmedText: "",
+                        unconfirmedText: result.text
+                    )
+                    let callback = self.updateCallback
+                    await MainActor.run {
+                        callback?(update)
+                    }
+                } catch {
+                    NSLog("[FluidAudioEngine] Streaming poll error: \(error)")
+                }
+            }
+        }
+    }
+
+    func stopStreaming() async throws -> TranscriptionResult {
+        NSLog("[FluidAudioEngine] Stopping streaming...")
+
+        isStreaming = false
+        streamingTask?.cancel()
+        streamingTask = nil
+
+        // Clean up — final transcription is handled by the batch path in
+        // TranscriptionPipeline (stopRecordingAndProcess runs on the full buffer)
+        let text = lastTranscribedText
+        audioProvider = nil
+        updateCallback = nil
+        lastTranscribedSampleCount = 0
+        lastTranscribedText = ""
+
+        NSLog("[FluidAudioEngine] Streaming stopped")
+
+        return TranscriptionResult(
+            text: text,
+            language: "en",
+            segments: [],
+            processingTime: 0
         )
     }
 }

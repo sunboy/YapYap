@@ -61,9 +61,13 @@ class TranscriptionPipeline {
 
         do {
             try await ensureModelsLoaded()
+            // Immediately warm up engines to page model weights into memory.
+            // Without this, the first real inference suffers a 10-13s cold-start
+            // penalty as weights are paged from disk.
+            await executor.warmupEngines()
             appState.modelsReady = true
             appState.modelLoadingStatus = "Ready to transcribe"
-            NSLog("[TranscriptionPipeline] ✅ Models loaded at startup, app ready")
+            NSLog("[TranscriptionPipeline] ✅ Models loaded and warmed up at startup")
         } catch {
             appState.modelLoadingStatus = "Model loading failed"
             NSLog("[TranscriptionPipeline] ❌ Model loading failed at startup: \(error)")
@@ -250,37 +254,28 @@ class TranscriptionPipeline {
             var stageStart = Date()
             let settings = try fetchSettings()
 
-            // Streaming path: finalize STT first (needs to read final audio), then stop capture
+            // Stop streaming if active (cleans up polling task), then always
+            // use batch transcription on the full audio buffer for accuracy.
             let isCurrentlyStreaming = await executor.isStreaming
             if isCurrentlyStreaming {
-                let result = try await executor.stopStreaming()
-                let tailMs = Date().timeIntervalSince(stageStart) * 1000
-                NSLog("[TranscriptionPipeline] Streaming STT finalized in \(String(format: "%.0f", tailMs))ms")
-
-                // Now stop audio capture (after streaming read final samples)
-                let audioBuffer = audioCapture.stopCapture()
-                audioDuration = audioBuffer.map { Double($0.frameLength) / audioCapture.sampleRate } ?? 0
-
-                let resultText = result?.text ?? ""
-                rawText = Self.stripWhisperArtifacts(resultText.trimmingCharacters(in: .whitespacesAndNewlines))
-                detectedLanguage = result?.language ?? settings.language
-                NSLog("[TranscriptionPipeline] STT (streaming): \"\(rawText)\" (\(String(format: "%.0f", tailMs))ms)")
-            } else {
-                // Batch path: stop capture first, then run STT on full buffer
-                guard let audioBuffer = audioCapture.stopCapture() else {
-                    NSLog("[TranscriptionPipeline] ❌ No audio buffer captured (too short or empty)")
-                    appState.creatureState = .sleeping
-                    appState.isProcessing = false
-                    throw YapYapError.noAudioRecorded
-                }
-                audioDuration = Double(audioBuffer.frameLength) / audioCapture.sampleRate
-                NSLog("[TranscriptionPipeline] ✅ Audio buffer: \(audioBuffer.frameLength) frames (\(String(format: "%.1f", audioDuration))s)")
-
-                let transcription = try await executor.transcribe(audioBuffer: audioBuffer, language: settings.language)
-                rawText = Self.stripWhisperArtifacts(transcription.text.trimmingCharacters(in: .whitespacesAndNewlines))
-                detectedLanguage = transcription.language ?? settings.language
-                NSLog("[TranscriptionPipeline] STT (batch): \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+                _ = try? await executor.stopStreaming()
+                NSLog("[TranscriptionPipeline] Streaming stopped, using batch for final result")
             }
+
+            // Batch path: stop capture, then run STT on full buffer
+            guard let audioBuffer = audioCapture.stopCapture() else {
+                NSLog("[TranscriptionPipeline] ❌ No audio buffer captured (too short or empty)")
+                appState.creatureState = .sleeping
+                appState.isProcessing = false
+                throw YapYapError.noAudioRecorded
+            }
+            audioDuration = Double(audioBuffer.frameLength) / audioCapture.sampleRate
+            NSLog("[TranscriptionPipeline] ✅ Audio buffer: \(audioBuffer.frameLength) frames (\(String(format: "%.1f", audioDuration))s)")
+
+            let transcription = try await executor.transcribe(audioBuffer: audioBuffer, language: settings.language)
+            rawText = Self.stripWhisperArtifacts(transcription.text.trimmingCharacters(in: .whitespacesAndNewlines))
+            detectedLanguage = transcription.language ?? settings.language
+            NSLog("[TranscriptionPipeline] STT (batch): \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
 
             guard !rawText.isEmpty else {
                 NSLog("[TranscriptionPipeline] ❌ Empty transcription")
