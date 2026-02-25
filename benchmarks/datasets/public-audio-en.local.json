@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "name": "public-audio-en-librispeech-local",
+  "items": [
+    {
+      "id": "librispeech-test-clean-001",
+      "wavPath": "/Users/sandeep/Projects/yapyap/YapYap/benchmarks/audio/public/6930-75918-0000.wav",
+      "language": "en",
+      "contexts": [
+        "other"
+      ],
+      "cleanupLevels": [
+        "light",
+        "medium"
+      ],
+      "goldOutputs": [
+        {
+          "context": "other",
+          "cleanupLevel": "light",
+          "output": "CONCORD RETURNED TO ITS PLACE AMIDST THE TENTS"
+        },
+        {
+          "context": "other",
+          "cleanupLevel": "medium",
+          "output": "CONCORD RETURNED TO ITS PLACE AMIDST THE TENTS"
+        }
+      ]
+    },
+    {
+      "id": "librispeech-test-clean-002",
+      "wavPath": "/Users/sandeep/Projects/yapyap/YapYap/benchmarks/audio/public/6930-75918-0001.wav",
+      "language": "en",
+      "contexts": [
+        "other"
+      ],
+      "cleanupLevels": [
+        "light"
+      ],
+      "goldOutputs": [
+        {
+          "context": "other",
+          "cleanupLevel": "light",
+          "output": "THE ENGLISH FORWARDED TO THE FRENCH BASKETS OF FLOWERS OF WHICH THEY HAD MADE A PLENTIFUL PROVISION TO GREET THE ARRIVAL OF THE YOUNG PRINCESS THE FRENCH IN RETURN INVITED THE ENGLISH TO A SUPPER WHICH WAS TO BE GIVEN THE NEXT DAY"
+        }
+      ]
+    }
+  ]
+}

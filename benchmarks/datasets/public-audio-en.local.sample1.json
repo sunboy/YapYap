@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "name": "public-audio-en-librispeech-local-sample1",
+  "items": [
+    {
+      "id": "librispeech-test-clean-001",
+      "wavPath": "/Users/sandeep/Projects/yapyap/YapYap/benchmarks/audio/public/6930-75918-0000.wav",
+      "language": "en",
+      "contexts": [
+        "other"
+      ],
+      "cleanupLevels": [
+        "light",
+        "medium"
+      ],
+      "goldOutputs": [
+        {
+          "context": "other",
+          "cleanupLevel": "light",
+          "output": "CONCORD RETURNED TO ITS PLACE AMIDST THE TENTS"
+        },
+        {
+          "context": "other",
+          "cleanupLevel": "medium",
+          "output": "CONCORD RETURNED TO ITS PLACE AMIDST THE TENTS"
+        }
+      ]
+    }
+  ]
+}
