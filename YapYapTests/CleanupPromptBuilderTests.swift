@@ -321,15 +321,15 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let context = makeContext(cleanupLevel: .medium)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
         XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
-        XCTAssertTrue(messages.user.contains("EXAMPLE 4:"))
+        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
     }
 
     func testMediumHeavyExamplesShowAggressiveCleanup() {
         let context = makeContext(cleanupLevel: .heavy)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
         XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
-        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
-        XCTAssertFalse(messages.user.contains("EXAMPLE 4:"))
+        XCTAssertTrue(messages.user.contains("EXAMPLE 2:"))
+        XCTAssertFalse(messages.user.contains("EXAMPLE 3:"))
     }
 
     // MARK: - Cross-Size Consistency
@@ -457,15 +457,15 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testLlamaMediumUserMessageIncludesListExample() {
         let context = makeContext(cleanupLevel: .medium)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        // Template-based examples have 4 examples for medium cleanup
-        XCTAssertTrue(messages.user.contains("EXAMPLE 4:"))
+        // Template-based examples have 3 examples for medium cleanup
+        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
     }
 
     func testQwenMediumUserMessageIncludesListExample() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
-        // Template-based examples have 4 examples for medium cleanup
-        XCTAssertTrue(messages.user.contains("EXAMPLE 4:"))
+        // Template-based examples have 3 examples for medium cleanup
+        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
     }
 
     func testLlamaMediumLightUserMessageIncludesListExample() {
@@ -478,8 +478,8 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testLlamaMediumHeavyUserMessageIncludesListExample() {
         let context = makeContext(cleanupLevel: .heavy)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        // Template-based heavy examples have 3 examples
-        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
+        // Template-based heavy examples have 2 examples
+        XCTAssertTrue(messages.user.contains("EXAMPLE 2:"))
     }
 
     // MARK: - Small Model App Context Hints

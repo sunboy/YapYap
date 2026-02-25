@@ -578,10 +578,10 @@ class TranscriptionPipeline {
 
         // Check for known example phrases from few-shot prompts
         let exampleMarkers = [
-            "I was thinking we should have a meeting tomorrow to discuss the project timeline.",
-            "An iOS app\n2. A website\n3. API documentation",
-            "Pick up groceries",
-            "Fix the auth bug",
+            "I was thinking we should meet on Tuesday",
+            "Can you grab the spreadsheet from the shared folder",
+            "I told her we should move the meeting to Thursday",
+            "The package got delivered to the wrong address",
         ]
         for marker in exampleMarkers {
             if cleaned.contains(marker), !input.lowercased().contains(marker.lowercased().prefix(20)) {

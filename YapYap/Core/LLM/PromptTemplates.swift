@@ -357,20 +357,12 @@ enum PromptTemplates {
 
         static let small: [Example] = [
             Example(
-                input: "um so the the server went down at like 3 am and nobody was monitoring it",
-                output: "The server went down at 3 AM and nobody was monitoring it."
+                input: "um so I was thinking we should like meet on tuesday to uh go over the plan",
+                output: "I was thinking we should meet on Tuesday to go over the plan."
             ),
             Example(
-                input: "we need to update the config file no wait the env file before deploying",
-                output: "We need to update the env file before deploying."
-            ),
-            Example(
-                input: "it looks like a memory leak in the auth service",
-                output: "It looks like a memory leak in the auth service."
-            ),
-            Example(
-                input: "she wants like 50 units of each item",
-                output: "She wants like 50 units of each item."
+                input: "can you grab the the report no wait the spreadsheet from the shared folder",
+                output: "Can you grab the spreadsheet from the shared folder?"
             ),
         ]
 
@@ -393,16 +385,12 @@ enum PromptTemplates {
 
         static let mediumMedium: [Example] = [
             Example(
-                input: "um so basically the the server went down at like 3 am you know and nobody was monitoring it",
-                output: "The server went down at 3 AM and nobody was monitoring it."
+                input: "um so basically I told her we should like move the meeting to thursday you know because everyone is busy on wednesday",
+                output: "I told her we should move the meeting to Thursday because everyone is busy on Wednesday."
             ),
             Example(
-                input: "we need to update the config no wait the env file before we deploy to production",
-                output: "We need to update the env file before we deploy to production."
-            ),
-            Example(
-                input: "it looks like a memory leak in the auth service probably related to the session handling",
-                output: "It looks like a memory leak in the auth service, probably related to the session handling."
+                input: "we need to pick up the the cake no wait the flowers before the party starts at like 5",
+                output: "We need to pick up the flowers before the party starts at 5."
             ),
             Example(
                 input: "she said she wants like 50 units so we should order that many",
@@ -412,16 +400,12 @@ enum PromptTemplates {
 
         static let mediumHeavy: [Example] = [
             Example(
-                input: "um so basically like what happened was the server went down at like 3 am and you know nobody was monitoring it so it was actually down for like two hours before anyone noticed",
-                output: "The server went down at 3 AM. Nobody was monitoring it, so it was down for two hours before anyone noticed."
+                input: "um so basically like what happened was the the package got delivered to the wrong address and you know they didn't even like leave a note or anything so we had to call them",
+                output: "The package got delivered to the wrong address. They didn't leave a note, so we had to call them."
             ),
             Example(
-                input: "i was thinking we should probably you know schedule a meeting tomorrow to discuss the project timeline because things are kind of slipping",
-                output: "We should schedule a meeting tomorrow to discuss the project timeline — things are slipping."
-            ),
-            Example(
-                input: "the function returns null i mean undefined when you pass an empty array",
-                output: "The function returns undefined when you pass an empty array."
+                input: "the reservation is at 7 no wait 7 30 and we need to like confirm the number of guests before tomorrow",
+                output: "The reservation is at 7:30, and we need to confirm the number of guests before tomorrow."
             ),
         ]
 
