@@ -45,6 +45,11 @@ Models/
 timeline.xctimeline
 playground.xcworkspace
 
+# Benchmark results (generated, large JSON files)
+bench-results/*.json
+bench-results/*.log
+bench-results/latest.json
+
 # Git worktrees
 worktree_dir/
 prompt_optimizations/

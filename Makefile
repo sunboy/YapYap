@@ -1,4 +1,4 @@
-.PHONY: build run test archive sign notarize staple dmg release clean generate bench-build bench
+.PHONY: build run test archive sign notarize staple dmg release clean generate bench-build bench bench-corpus
 
 VERSION := $(shell /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" YapYap/Info.plist 2>/dev/null || echo "0.1.0")
 APPLE_ID ?= sandeeptnvs@gmail.com
@@ -114,3 +114,16 @@ bench-build:
 bench:
 	@BIN=$$(xcodebuild -project YapYap.xcodeproj -scheme YapYapBench -configuration Debug -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$3}')/YapYapBench; \
 	"$$BIN" $(ARGS)
+
+bench-corpus: bench-build
+	@TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+	BIN=$$(xcodebuild -project YapYap.xcodeproj -scheme YapYapBench -configuration Debug -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$3}')/YapYapBench; \
+	mkdir -p bench-results; \
+	echo "Running corpus benchmark..."; \
+	"$$BIN" corpus --table --output bench-results/corpus_$$TIMESTAMP.json $(ARGS); \
+	if [ -L bench-results/latest.json ]; then \
+		echo "Comparing against previous run..."; \
+		"$$BIN" corpus --output /dev/null --compare bench-results/latest.json $(ARGS) 2>&1 || true; \
+	fi; \
+	ln -sf corpus_$$TIMESTAMP.json bench-results/latest.json; \
+	echo "Results: bench-results/corpus_$$TIMESTAMP.json"

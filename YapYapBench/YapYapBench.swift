@@ -14,6 +14,7 @@ struct YapYapBench: AsyncParsableCommand {
             STTCommand.self,
             RunCommand.self,
             BatchCommand.self,
+            CorpusCommand.self,
         ],
         defaultSubcommand: ListCommand.self
     )

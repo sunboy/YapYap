@@ -114,12 +114,14 @@ targets:
     sources:
       - path: YapYapBench
       - path: YapYap/Core/LLM
+        excludes:
+          - "MLXEngine.swift"
       - path: YapYap/Core/STT
       - path: YapYap/Core/Context
-        excludes:
-          - "AppContextDetector.swift"
       - path: YapYap/Core/Models/ModelStorage.swift
       - path: YapYap/Utilities/YapYapError.swift
+      - path: YapYap/Utilities/PersonalDictionary.swift
+      - path: YapYap/Utilities/CorrectionDiffer.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.yapyap.bench

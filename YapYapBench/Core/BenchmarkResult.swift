@@ -169,3 +169,89 @@ struct ModelComparisonEntry: Codable {
     let avgTokPerSec: Double
     let validationPassRate: Double
 }
+
+// MARK: - Corpus Benchmark Types
+
+struct CorpusRunResult: Codable {
+    let corpusId: String
+    let corpusCategory: String
+    let llmModelId: String
+    let llmModelFamily: String
+    let llmModelSize: String
+    let context: ContextInfo
+    let cleanupLevel: String
+    let experimentalPrompts: Bool
+    let prompt: PromptInfo
+    let rawInput: String
+    let output: OutputStages
+    let timing: TimingInfo
+    let tokens: TokenInfo
+    let validation: ValidationInfo
+    let scoring: QualityScore
+}
+
+struct CorpusModelSummary: Codable {
+    let modelId: String
+    let modelFamily: String
+    let modelSize: String
+    let totalRuns: Int
+    let passCount: Int
+    let passRate: Double
+    let avgScore: Double
+    let avgTotalMs: Int
+    let avgTokPerSec: Double
+    let failureBreakdown: [String: Int]
+}
+
+struct CorpusBenchmarkResult: Codable {
+    let benchmarkVersion: String
+    let timestamp: String
+    let machine: MachineInfo
+    let totalRuns: Int
+    let runs: [CorpusRunResult]
+    let modelSummaries: [CorpusModelSummary]
+
+    init(runs: [CorpusRunResult]) {
+        self.benchmarkVersion = "1.0"
+        self.timestamp = ISO8601DateFormatter().string(from: Date())
+        self.machine = MachineInfo.current()
+        self.totalRuns = runs.count
+        self.runs = runs
+
+        // Build per-model summaries
+        var byModel: [String: [CorpusRunResult]] = [:]
+        for run in runs {
+            byModel[run.llmModelId, default: []].append(run)
+        }
+
+        var summaries: [CorpusModelSummary] = []
+        for (modelId, modelRuns) in byModel {
+            let passCount = modelRuns.filter { $0.scoring.passed }.count
+            let avgScore = modelRuns.isEmpty ? 0.0 : modelRuns.map(\.scoring.score).reduce(0, +) / Double(modelRuns.count)
+            let avgTotal = modelRuns.isEmpty ? 0 : modelRuns.map(\.timing.totalLLMMs).reduce(0, +) / modelRuns.count
+            let avgTok = modelRuns.isEmpty ? 0.0 : modelRuns.map(\.tokens.tokensPerSecond).reduce(0, +) / Double(modelRuns.count)
+            let first = modelRuns[0]
+            // Build failure breakdown: count how often each check fails
+            var breakdown: [String: Int] = [:]
+            for run in modelRuns {
+                for check in run.scoring.failedChecks {
+                    breakdown[check, default: 0] += 1
+                }
+            }
+
+            summaries.append(CorpusModelSummary(
+                modelId: modelId,
+                modelFamily: first.llmModelFamily,
+                modelSize: first.llmModelSize,
+                totalRuns: modelRuns.count,
+                passCount: passCount,
+                passRate: modelRuns.isEmpty ? 0.0 : Double(passCount) / Double(modelRuns.count),
+                avgScore: avgScore,
+                avgTotalMs: avgTotal,
+                avgTokPerSec: avgTok,
+                failureBreakdown: breakdown
+            ))
+        }
+        self.modelSummaries = summaries.sorted { $0.modelId < $1.modelId }
+    }
+}
