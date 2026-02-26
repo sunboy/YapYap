@@ -143,13 +143,42 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APP_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
+        timeout-minutes: 30
         run: |
-          xcrun notarytool submit "build/$DMG_NAME" \
+          # Submit and capture submission ID
+          SUBMIT_OUTPUT=$(xcrun notarytool submit "build/$DMG_NAME" \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$APP_SPECIFIC_PASSWORD" \
-            --wait \
-            --output-format json
+            --output-format json)
+          echo "$SUBMIT_OUTPUT"
+          SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          echo "Submission ID: $SUBMISSION_ID"
+
+          # Poll until accepted or rejected (max 25 min, 30s intervals)
+          for i in $(seq 1 50); do
+            sleep 30
+            STATUS_JSON=$(xcrun notarytool info "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$TEAM_ID" \
+              --password "$APP_SPECIFIC_PASSWORD" \
+              --output-format json)
+            STATUS=$(echo "$STATUS_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+            echo "[$i/50] Status: $STATUS"
+            if [ "$STATUS" = "Accepted" ]; then
+              echo "✅ Notarization accepted"
+              exit 0
+            elif [ "$STATUS" = "Rejected" ] || [ "$STATUS" = "Invalid" ]; then
+              echo "❌ Notarization failed: $STATUS"
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --team-id "$TEAM_ID" \
+                --password "$APP_SPECIFIC_PASSWORD"
+              exit 1
+            fi
+          done
+          echo "❌ Timed out waiting for notarization"
+          exit 1
 
       - name: Staple notarization ticket
         run: |
