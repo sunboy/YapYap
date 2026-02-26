@@ -193,13 +193,27 @@ jobs:
           echo "Submission ID: $SUBMISSION_ID"
 
           # Poll until accepted or rejected (max 115 min, 30s intervals)
+          # Retries up to 5 times on transient network errors before giving up
           for i in $(seq 1 230); do
             sleep 30
-            STATUS_JSON=$(xcrun notarytool info "$SUBMISSION_ID" \
-              --apple-id "$APPLE_ID" \
-              --team-id "$TEAM_ID" \
-              --password "$APP_SPECIFIC_PASSWORD" \
-              --output-format json)
+            NET_ERRORS=0
+            while true; do
+              STATUS_JSON=$(xcrun notarytool info "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --team-id "$TEAM_ID" \
+                --password "$APP_SPECIFIC_PASSWORD" \
+                --output-format json 2>&1)
+              if echo "$STATUS_JSON" | python3 -c "import sys,json; json.load(sys.stdin)" >/dev/null 2>&1; then
+                break
+              fi
+              NET_ERRORS=$((NET_ERRORS + 1))
+              if [ $NET_ERRORS -ge 5 ]; then
+                echo "❌ Network error after 5 retries: $STATUS_JSON"
+                exit 1
+              fi
+              echo "⚠️  Network error (attempt $NET_ERRORS/5), retrying in 30s..."
+              sleep 30
+            done
             STATUS=$(echo "$STATUS_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
             echo "[$i/230] Status: $STATUS"
             if [ "$STATUS" = "Accepted" ]; then
