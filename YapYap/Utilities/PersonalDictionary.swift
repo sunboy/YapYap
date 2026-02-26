@@ -128,19 +128,126 @@ class PersonalDictionary: ObservableObject {
 
     // MARK: - Auto-Detect Corrections
 
-    /// Monitor the focused text field after pasting and auto-learn corrections
-    func monitorAndLearn(pastedText: String, afterDelay: TimeInterval = 5.0) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + afterDelay) { [weak self] in
-            guard let currentText = AppContextDetector.getFocusedFieldText() else { return }
-            let candidates = CorrectionDiffer.diff(original: pastedText, corrected: currentText)
-            for candidate in candidates {
-                self?.learnCorrection(
-                    spoken: candidate.original,
-                    corrected: candidate.corrected,
-                    source: .autoLearned
-                )
+    /// Poll the focused text field after pasting and auto-learn any corrections the user makes.
+    ///
+    /// Strategy:
+    /// - Poll every second for up to 60 seconds
+    /// - Each poll, find the pasted text (or an edited version of it) within the field
+    /// - When the region containing the paste differs from what we pasted, diff it and learn
+    /// - Stop as soon as corrections are learned, or when the window/field changes
+    func monitorAndLearn(pastedText: String, appName: String? = nil) {
+        guard !pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        let pollInterval: TimeInterval = 1.0
+        let maxPolls = 60
+        var pollCount = 0
+
+        // Snapshot the field immediately after paste so we have a baseline.
+        // This lets us detect the exact location of our paste in the field.
+        let baselineFieldText = AppContextDetector.getFocusedFieldText() ?? ""
+
+        NSLog("[PersonalDictionary] monitorAndLearn started — watching for edits to \(pastedText.count)-char paste")
+
+        func poll() {
+            guard pollCount < maxPolls else {
+                NSLog("[PersonalDictionary] monitorAndLearn: timeout after \(pollCount)s, no corrections detected")
+                return
+            }
+            pollCount += 1
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + pollInterval) { [weak self] in
+                guard let self else { return }
+
+                guard let currentFieldText = AppContextDetector.getFocusedFieldText() else {
+                    // Field gone or focus moved away — stop watching
+                    NSLog("[PersonalDictionary] monitorAndLearn: field no longer readable, stopping after \(pollCount)s")
+                    return
+                }
+
+                // Extract the region of the field that corresponds to our paste.
+                // We anchor on the baseline: find where the paste sat, then read that window.
+                guard let editedRegion = Self.extractEditedRegion(
+                    pastedText: pastedText,
+                    baselineField: baselineFieldText,
+                    currentField: currentFieldText
+                ) else {
+                    // Paste region not found — user may have deleted it entirely, stop
+                    if pollCount > 3 {
+                        NSLog("[PersonalDictionary] monitorAndLearn: paste region gone after \(pollCount)s, stopping")
+                        return
+                    }
+                    poll()
+                    return
+                }
+
+                // No change yet — keep polling
+                guard editedRegion != pastedText else {
+                    poll()
+                    return
+                }
+
+                // Region changed — diff and learn
+                let candidates = CorrectionDiffer.diff(original: pastedText, corrected: editedRegion)
+                guard !candidates.isEmpty else {
+                    // Changed but diff found nothing learnable (e.g. user added new sentences)
+                    // Keep polling in case they fix more words
+                    poll()
+                    return
+                }
+
+                NSLog("[PersonalDictionary] monitorAndLearn: learned \(candidates.count) correction(s) after \(pollCount)s")
+                for candidate in candidates {
+                    NSLog("[PersonalDictionary]   \"\(candidate.original)\" → \"\(candidate.corrected)\"")
+                    self.learnCorrection(
+                        spoken: candidate.original,
+                        corrected: candidate.corrected,
+                        source: .autoLearned,
+                        appName: appName
+                    )
+                }
+                // Continue polling — user may correct more words in the same paste
+                poll()
             }
         }
+
+        poll()
+    }
+
+    /// Find the portion of `currentField` that corresponds to where `pastedText` was pasted.
+    ///
+    /// Uses the baseline field snapshot to locate the paste offset, then reads that
+    /// same window from the current field — capturing only user edits to the pasted region,
+    /// not text typed before or after the paste.
+    ///
+    /// Returns nil if the paste region can't be located (e.g. user deleted it).
+    static func extractEditedRegion(pastedText: String, baselineField: String, currentField: String) -> String? {
+        // Find where the paste starts in the baseline field
+        guard let pasteRange = baselineField.range(of: pastedText) else {
+            // Exact match not found — try fuzzy: find the first word of the paste
+            let firstWords = pastedText.split(separator: " ").prefix(3).joined(separator: " ")
+            guard !firstWords.isEmpty,
+                  let approxStart = baselineField.range(of: firstWords, options: .caseInsensitive) else {
+                return nil
+            }
+            // Calculate offset from start of baseline field
+            let offset = baselineField.distance(from: baselineField.startIndex, to: approxStart.lowerBound)
+            return extractWindow(from: currentField, offset: offset, approximateLength: pastedText.count)
+        }
+
+        let offset = baselineField.distance(from: baselineField.startIndex, to: pasteRange.lowerBound)
+        return extractWindow(from: currentField, offset: offset, approximateLength: pastedText.count)
+    }
+
+    /// Extract a window of `approximateLength` characters from `text` starting at `offset`.
+    /// Extends to the nearest sentence/word boundary to avoid cutting mid-word.
+    private static func extractWindow(from text: String, offset: Int, approximateLength: Int) -> String? {
+        guard offset < text.count else { return nil }
+        let startIndex = text.index(text.startIndex, offsetBy: min(offset, text.count))
+        // Give a 50% length buffer for cases where editing added words
+        let endOffset = min(offset + Int(Double(approximateLength) * 1.5), text.count)
+        let endIndex = text.index(text.startIndex, offsetBy: endOffset)
+        let window = String(text[startIndex..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return window.isEmpty ? nil : window
     }
 
     // MARK: - Regex Cache

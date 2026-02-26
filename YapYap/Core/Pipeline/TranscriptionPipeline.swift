@@ -418,9 +418,9 @@ class TranscriptionPipeline {
             appState.lastTranscription = cleanedText
             appState.lastRawTranscription = rawText
 
-            // Auto-learn corrections: monitor the focused text field for user edits
+            // Auto-learn corrections: poll the focused text field for user edits to our paste
             if settings.autoPaste {
-                personalDict.monitorAndLearn(pastedText: cleanedText)
+                personalDict.monitorAndLearn(pastedText: cleanedText, appName: appContext.appName)
             }
 
             // Move history save + analytics off the critical path.

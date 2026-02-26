@@ -159,4 +159,54 @@ final class PersonalDictionaryTests: XCTestCase {
         XCTAssertEqual(dict.globalEntries.count, 1)
         XCTAssertEqual(dict.appsWithEntries.count, 2)
     }
+
+    // MARK: - extractEditedRegion
+
+    func testExtractEditedRegionExactMatch() {
+        // Paste is the entire field — common case (fresh empty field)
+        let pasted = "Hello world."
+        let baseline = "Hello world."
+        let current = "Hello world."
+        let result = PersonalDictionary.extractEditedRegion(
+            pastedText: pasted, baselineField: baseline, currentField: current
+        )
+        XCTAssertEqual(result, "Hello world.")
+    }
+
+    func testExtractEditedRegionWithPrefixText() {
+        // Field had existing text before the paste
+        let pasted = "Hello world."
+        let baseline = "Prior text. Hello world."
+        let current  = "Prior text. Hello World."   // user capitalised World
+        let result = PersonalDictionary.extractEditedRegion(
+            pastedText: pasted, baselineField: baseline, currentField: current
+        )
+        XCTAssertNotNil(result)
+        XCTAssertTrue(result!.contains("Hello"))
+    }
+
+    func testExtractEditedRegionReturnsNilWhenFieldShorterThanOffset() {
+        // Paste was at offset 50 in the baseline, but current field is only 5 chars
+        // (user cleared the field) — should return nil
+        let pasted = "Hello world."
+        let baseline = "Very long prefix text here before the paste. Hello world."
+        let current = "Hi"   // user cleared everything
+        let result = PersonalDictionary.extractEditedRegion(
+            pastedText: pasted, baselineField: baseline, currentField: current
+        )
+        XCTAssertNil(result)
+    }
+
+    func testExtractEditedRegionIsolatesCorrection() {
+        // Field: some prefix + pasted text. User edits only within the pasted region.
+        let pasted = "I work at anthropick."
+        let baseline = "Meeting notes: I work at anthropick."
+        let current  = "Meeting notes: I work at Anthropic."
+        let result = PersonalDictionary.extractEditedRegion(
+            pastedText: pasted, baselineField: baseline, currentField: current
+        )
+        XCTAssertNotNil(result)
+        // Result should contain the corrected word, not the prefix
+        XCTAssertFalse(result!.contains("Meeting notes"))
+    }
 }
