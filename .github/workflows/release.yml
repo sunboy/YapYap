@@ -111,14 +111,49 @@ jobs:
           mkdir -p build/release
           # Copy app from archive
           cp -R build/YapYap.xcarchive/Products/Applications/YapYap.app build/release/YapYap.app
-          # Re-sign deep with Developer ID using our keychain
+          APP=build/release/YapYap.app
+          ID="Developer ID Application: Sandeep Thuthike (SRB6ZCP58T)"
+
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          codesign --force --deep --sign "Developer ID Application: Sandeep Thuthike (SRB6ZCP58T)" \
+
+          # Sign all nested binaries first (frameworks, XPC services, dylibs)
+          # with hardened runtime — Apple's notarization scanner requires this on each component
+          find "$APP/Contents/Frameworks" "$APP/Contents/XPCServices" \
+               "$APP/Contents/PlugIns" "$APP/Contents/MacOS" \
+               -type f \( -name "*.dylib" -o -name "*.so" -o -perm +111 \) \
+               2>/dev/null | while read f; do
+            codesign --force --sign "$ID" \
+              --keychain "$KEYCHAIN_PATH" \
+              --options runtime \
+              --timestamp \
+              "$f" 2>/dev/null || true
+          done
+
+          # Sign framework bundles
+          find "$APP/Contents/Frameworks" -name "*.framework" -type d | while read fw; do
+            codesign --force --sign "$ID" \
+              --keychain "$KEYCHAIN_PATH" \
+              --options runtime \
+              --timestamp \
+              "$fw"
+          done
+
+          # Sign XPC services
+          find "$APP/Contents/XPCServices" -name "*.xpc" -type d 2>/dev/null | while read xpc; do
+            codesign --force --sign "$ID" \
+              --keychain "$KEYCHAIN_PATH" \
+              --options runtime \
+              --timestamp \
+              "$xpc"
+          done
+
+          # Finally sign the app bundle itself with entitlements
+          codesign --force --sign "$ID" \
             --keychain "$KEYCHAIN_PATH" \
             --options runtime \
             --timestamp \
             --entitlements YapYap/YapYap.entitlements \
-            build/release/YapYap.app
+            "$APP"
 
       - name: Verify signature
         run: |
