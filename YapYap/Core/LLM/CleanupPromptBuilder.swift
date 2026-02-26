@@ -202,7 +202,7 @@ struct CleanupPromptBuilder {
         }
 
         // 3. Few-shot examples
-        let examples = selectExamples(level: level, size: size)
+        let examples = selectExamples(level: level, size: size, app: app)
         let formatted: String
         switch (size, family) {
         case (.small, _):
@@ -230,10 +230,15 @@ struct CleanupPromptBuilder {
 
     private static func selectExamples(
         level: CleanupContext.CleanupLevel,
-        size: LLMModelSize
+        size: LLMModelSize,
+        app: AppContext? = nil
     ) -> [PromptTemplates.Example] {
         if size == .small {
             return Array(PromptTemplates.Examples.small.prefix(3))
+        }
+        // Use email-specific example for email contexts so the model sees \n\n structure
+        if app?.category == .email {
+            return PromptTemplates.Examples.mediumEmail
         }
         switch level {
         case .light:  return PromptTemplates.Examples.mediumLight

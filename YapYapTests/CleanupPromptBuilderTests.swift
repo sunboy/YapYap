@@ -272,7 +272,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let context = makeContext(appContext: appContext)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
         XCTAssertTrue(messages.system.contains("email"))
-        XCTAssertTrue(messages.system.contains("paragraph breaks"))
+        XCTAssertTrue(messages.system.contains("\\n\\n"))
     }
 
     func testCodeEditorContextHasTechnicalTerms() {
@@ -399,7 +399,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
                                 focusedFieldText: nil, isIDEChatPanel: false)
         let context = makeContext(appContext: appCtx)
         let (system, _) = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
-        XCTAssertTrue(system.contains("paragraph breaks"))
+        XCTAssertTrue(system.contains("\\n\\n"))
     }
 
     func testAIChatRulesInMediumModel() {

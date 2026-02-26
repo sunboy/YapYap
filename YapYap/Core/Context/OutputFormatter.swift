@@ -283,7 +283,7 @@ struct OutputFormatter {
 
         // Insert paragraph breaks before transition words in the body
         let sentenceCount = result.components(separatedBy: CharacterSet(charactersIn: ".!?")).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
-        if sentenceCount >= 3 {
+        if sentenceCount >= 2 {
             let range = NSRange(result.startIndex..<result.endIndex, in: result)
             result = emailParagraphRegex.stringByReplacingMatches(in: result, range: range, withTemplate: "$1\n\n$2")
         }

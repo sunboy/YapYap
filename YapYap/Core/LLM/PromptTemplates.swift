@@ -193,8 +193,9 @@ enum PromptTemplates {
             """
 
             static let mail = """
-            Email: greeting + body + sign-off with blank lines. \
-            Professional but natural.
+            Email format — use blank lines (\\n\\n) between sections:
+            Greeting,\\n\\nBody.\\n\\nSign-off,\\nName
+            Professional but natural tone.
             """
 
             static let cursor = """
@@ -249,10 +250,10 @@ enum PromptTemplates {
             """
 
             static let mail = """
-            - Structure as proper email: greeting → body → sign-off
-            - Insert paragraph breaks at topic changes
+            - Structure as email with explicit blank lines (\\n\\n) between sections
+            - Format: Greeting,\\n\\nBody paragraph(s).\\n\\nSign-off,\\nName
+            - Each topic change gets its own paragraph separated by \\n\\n
             - Professional but natural tone — not stiff
-            - Greeting/sign-off get their own lines with blank lines
             """
 
             static let cursor = """
@@ -395,6 +396,13 @@ enum PromptTemplates {
             Example(
                 input: "she said she wants like 50 units so we should order that many",
                 output: "She said she wants like 50 units, so we should order that many."
+            ),
+        ]
+
+        static let mediumEmail: [Example] = [
+            Example(
+                input: "hi sarah hope you're doing well um so I wanted to let you know that the meeting has been moved to thursday at 2 pm please let me know if that works thanks john",
+                output: "Hi Sarah,\n\nHope you're doing well. I wanted to let you know that the meeting has been moved to Thursday at 2 PM. Please let me know if that works.\n\nThanks,\nJohn"
             ),
         ]
 
