@@ -5,13 +5,21 @@ struct AboutTab: View {
         VStack(spacing: 0) {
             Spacer().frame(height: 16)
 
-            // Creature with smile
-            CreatureView(state: .recording, size: 72, showSmile: true)
-                .frame(width: 72, height: 72)
-                .padding(.bottom, 14)
+            // Creature with glow halo
+            ZStack {
+                RadialGradient(
+                    colors: [.ypLavender.opacity(0.3), .clear],
+                    center: .center, startRadius: 0, endRadius: 60
+                )
+                .frame(width: 120, height: 120)
+                .blur(radius: 20)
+                CreatureView(state: .recording, size: 80, showSmile: true)
+                    .frame(width: 80, height: 80)
+            }
+            .padding(.bottom, 14)
 
             Text("yapyap")
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundColor(.ypText1)
 
             Text("Version 0.1.0 (Build 42)")
@@ -51,13 +59,12 @@ struct AboutTab: View {
     private func linkButton(_ title: String) -> some View {
         Button(action: {}) {
             Text(title)
-                .font(.system(size: 12))
+                .font(.system(size: 12, design: .rounded))
                 .foregroundColor(.ypText2)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 7)
-                .background(Color.ypCard)
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.ypBorder, lineWidth: 1))
-                .cornerRadius(8)
+                .background(Capsule().fill(.white.opacity(0.06)))
+                .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

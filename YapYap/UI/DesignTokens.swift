@@ -6,13 +6,13 @@ extension Color {
     // Use hex init helper at bottom
     
     // Backgrounds
-    static let ypBg = Color(hex: "1E1E24")                     // --bg
-    static let ypBg2 = Color.white.opacity(0.03)                // --card (rgba(255,255,255,.03))
-    static let ypBg3 = Color(hex: "24212E").opacity(0.97)       // --bg3 popover bg
-    static let ypBg4 = Color(hex: "18162C").opacity(0.98)       // --bg4 sidebar bg
-    static let ypCard = Color.white.opacity(0.03)               // --card
-    static let ypCard2 = Color.white.opacity(0.05)              // --card2
-    static let ypInput = Color.white.opacity(0.05)              // --inp
+    static let ypBg = Color(hex: "2A2540")                     // --bg
+    static let ypBg2 = Color.white.opacity(0.05)                // --card
+    static let ypBg3 = Color(hex: "322D4A").opacity(0.97)       // --bg3 popover bg
+    static let ypBg4 = Color(hex: "221E36").opacity(0.98)       // --bg4 sidebar bg
+    static let ypCard = Color.white.opacity(0.10)               // --card
+    static let ypCard2 = Color.white.opacity(0.14)              // --card2
+    static let ypInput = Color.white.opacity(0.12)              // --inp
 
     // Creature & Accent
     static let ypLavender = Color(hex: "C4B8E8")               // --c primary
@@ -22,16 +22,16 @@ extension Color {
     static let ypBlush = Color(hex: "E8A0B4")                   // --ch blush cheeks
     static let ypRed = Color(hex: "E85D5D")                     // --r errors
 
-    // Text
-    static let ypText1 = Color.white.opacity(0.88)              // --t1 primary
-    static let ypText2 = Color.white.opacity(0.55)              // --t2 secondary
-    static let ypText3 = Color.white.opacity(0.30)              // --t3 tertiary
-    static let ypText4 = Color.white.opacity(0.12)              // --t4 disabled
+    // Text — fully opaque hex values for reliable contrast on dark bg
+    static let ypText1 = Color(hex: "F2EEFF")                   // --t1 primary (near white, lavender tint)
+    static let ypText2 = Color(hex: "C8BEE8")                   // --t2 secondary
+    static let ypText3 = Color(hex: "9A90BC")                   // --t3 tertiary
+    static let ypText4 = Color(hex: "5E5880")                   // --t4 disabled
 
     // Borders
-    static let ypBorder = Color.white.opacity(0.06)             // --b
-    static let ypBorderLight = Color.white.opacity(0.04)        // --bl
-    static let ypBorderFocus = Color(hex: "C4B8E8").opacity(0.3) // --bf
+    static let ypBorder = Color.white.opacity(0.12)             // --b
+    static let ypBorderLight = Color.white.opacity(0.08)        // --bl
+    static let ypBorderFocus = Color(hex: "C4B8E8").opacity(0.5) // --bf
 
     // Semantic pills
     static let ypPillLavender = Color(hex: "C4B8E8").opacity(0.15) // --cd
@@ -44,6 +44,16 @@ extension Color {
     static let ypFloatingBg = Color(red: 20/255, green: 18/255, blue: 28/255).opacity(0.92)
     static let ypFloatingBorderActive = Color(hex: "F4A261").opacity(0.12)
     static let ypFloatingGlow = Color(hex: "F4A261").opacity(0.04)
+
+    // Glass surfaces
+    static let ypGlassFill     = Color.white.opacity(0.06)
+    static let ypGlassBorder   = Color.white.opacity(0.14)
+    static let ypGlassSpecular = Color.white.opacity(0.18)
+
+    // Sidebar glass
+    static let ypSidebarBg           = Color(hex: "0A0812").opacity(0.7)
+    static let ypSidebarActive       = Color.ypLavender.opacity(0.15)
+    static let ypSidebarActiveBorder = Color.ypLavender.opacity(0.35)
 
     // Creature internals
     static let ypEyeDark = Color(hex: "2A2040")
@@ -102,7 +112,12 @@ extension Font {
     static let ypSmallMono = Font.system(size: 10, design: .monospaced)
     static let ypHandwritten = Font.custom("Caveat", size: 14)
     static let ypHandwrittenLarge = Font.custom("Caveat", size: 16)
-    
+
+    // Rounded heading variants (liquid glass redesign)
+    static let ypDisplayRounded  = Font.system(size: 26, weight: .bold, design: .rounded)
+    static let ypHeadingRounded  = Font.system(size: 18, weight: .semibold, design: .rounded)
+    static let ypSubheadRounded  = Font.system(size: 14, weight: .medium, design: .rounded)
+
     // Settings labels
     static let ypSectionLabel = Font.system(size: 9, weight: .semibold)
     static let ypFormLabel = Font.system(size: 11, weight: .semibold)

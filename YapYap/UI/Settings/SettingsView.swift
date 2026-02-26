@@ -14,18 +14,18 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var icon: String {
+    var sfIcon: String {
         switch self {
-        case .writingStyle: return "✍️"
-        case .models: return "🧠"
-        case .hotkeys: return "⌨️"
-        case .general: return "⚙️"
-        case .style: return "✨"
-        case .dictionary: return "📖"
-        case .history: return "📜"
-        case .analytics: return "📊"
-        case .promptTest: return "🔬"
-        case .about: return "💜"
+        case .writingStyle: return "pencil.and.outline"
+        case .models: return "cpu"
+        case .hotkeys: return "keyboard"
+        case .general: return "gearshape"
+        case .style: return "sparkles"
+        case .dictionary: return "text.book.closed"
+        case .history: return "clock"
+        case .analytics: return "chart.bar"
+        case .promptTest: return "testtube.2"
+        case .about: return "heart"
         }
     }
 
@@ -42,42 +42,18 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .writingStyle
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Sidebar
-            sidebar
-                .frame(width: 200)
-                .background(Color.ypBg4)
+        ZStack {
+            AmbientGlowBackground(layers: AmbientGlowBackground.settings)
 
-            // Divider
-            Rectangle()
-                .fill(Color.ypBorderLight)
-                .frame(width: 1)
-
-            // Content
-            VStack(spacing: 0) {
-                // Title bar
-                HStack {
-                    Text(selectedTab.rawValue)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.ypText1)
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .frame(height: 52)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Color.ypBorderLight).frame(height: 1)
-                }
-
-                // Tab content
-                ScrollView {
-                    tabContent
-                        .padding(24)
-                }
+            HStack(spacing: 0) {
+                sidebar
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 1)
+                tabContent
             }
-            .frame(maxWidth: .infinity)
         }
-        .frame(width: 780, height: 540)
-        .background(Color.ypBg.opacity(0.96))
+        .frame(width: 820, height: 560)
     }
 
     // MARK: - Sidebar
@@ -85,84 +61,106 @@ struct SettingsView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Spacer for titlebar traffic lights
-            Spacer().frame(height: 52)
+            Spacer().frame(height: 44)
 
-            // Brand
+            // Brand header
             HStack(spacing: 8) {
-                CreatureView(state: .recording, size: 28, showSmile: false)
-                    .frame(width: 28, height: 28)
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 4) {
-                        Text("yapyap")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.ypText1)
-                        Text("v0.2.0")
-                            .font(.system(size: 10))
-                            .foregroundColor(.ypText3)
-                    }
-                }
+                CreatureView(state: .sleeping, size: 24)
+                Text("YapYap")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.ypText1)
             }
             .padding(.horizontal, 16)
+            .padding(.top, 12)
             .padding(.bottom, 16)
 
             // Navigation
-            VStack(alignment: .leading, spacing: 0) {
-                navSection("CONFIGURATION", tabs: [.writingStyle, .models, .hotkeys, .general, .style, .dictionary])
-                navSection("INSIGHTS", tabs: [.history, .analytics, .promptTest])
-                navSection("APP", tabs: [.about])
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 2) {
+                    sectionHeader("CONFIGURATION")
+                    navItem("Writing Style", icon: "pencil.and.outline", tab: .writingStyle)
+                    navItem("Models", icon: "cpu", tab: .models)
+                    navItem("Hotkeys", icon: "keyboard", tab: .hotkeys)
+                    navItem("General", icon: "gearshape", tab: .general)
+                    navItem("Style", icon: "sparkles", tab: .style)
+                    navItem("Dictionary", icon: "text.book.closed", tab: .dictionary)
+
+                    sectionHeader("INSIGHTS")
+                    navItem("History", icon: "clock", tab: .history)
+                    navItem("Analytics", icon: "chart.bar", tab: .analytics)
+                    navItem("Prompt Test", icon: "testtube.2", tab: .promptTest)
+
+                    sectionHeader("APP")
+                    navItem("About", icon: "heart", tab: .about)
+                }
+                .padding(.horizontal, 8)
             }
-            .padding(.horizontal, 8)
 
             Spacer()
 
             // Footer
             Text("~ the little one is listening ~")
-                .font(.custom("Caveat", size: 13))
+                .font(.system(size: 10, design: .rounded))
                 .foregroundColor(.ypText4)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .overlay(alignment: .top) {
-                    Rectangle().fill(Color.ypBorderLight).frame(height: 1)
-                }
+                .padding(16)
         }
+        .frame(width: 200)
+        .background(Color(hex: "201C32"))
     }
 
-    private func navSection(_ title: String, tabs: [SettingsTab]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(.ypText3)
-                .tracking(1)
-                .padding(.horizontal, 10)
-                .padding(.top, 12)
-                .padding(.bottom, 6)
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 9, weight: .semibold, design: .rounded))
+            .foregroundColor(.ypText4)
+            .tracking(1.2)
+            .padding(.horizontal, 10)
+            .padding(.top, 16)
+            .padding(.bottom, 4)
+    }
 
-            ForEach(tabs) { tab in
-                Button(action: { selectedTab = tab }) {
-                    HStack(spacing: 8) {
-                        Text(tab.icon)
-                            .font(.system(size: 13))
-                            .opacity(selectedTab == tab ? 1 : 0.6)
-                            .frame(width: 16)
-                        Text(tab.rawValue)
-                            .font(.system(size: 12.5, weight: selectedTab == tab ? .semibold : .regular))
-                            .foregroundColor(selectedTab == tab ? .ypText1 : .ypText2)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(selectedTab == tab ? Color.ypPillLavender : Color.clear)
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
+    private func navItem(_ label: String, icon: String, tab: SettingsTab) -> some View {
+        let isActive = selectedTab == tab
+        return HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                .foregroundColor(isActive ? .ypLavender : .ypText3)
+                .frame(width: 16)
+            Text(label)
+                .font(.system(size: 12.5, weight: isActive ? .medium : .regular, design: .rounded))
+                .foregroundColor(isActive ? .ypText1 : .ypText2)
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background {
+            if isActive {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.ypLavender.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.ypLavender.opacity(0.25), lineWidth: 1)
+                    )
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture { selectedTab = tab }
     }
 
     // MARK: - Tab Content
 
-    @ViewBuilder
     private var tabContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                currentTabView
+                    .padding(24)
+            }
+        }
+        .background(Color(hex: "2A2540"))
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var currentTabView: some View {
         switch selectedTab {
         case .writingStyle: WritingStyleTab()
         case .models: ModelsTab()
@@ -177,3 +175,4 @@ struct SettingsView: View {
         }
     }
 }
+

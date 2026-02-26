@@ -107,6 +107,7 @@
 		9358218A08ECE3E1E6823392 /* AppContextDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE4D05F5812414AE886D564 /* AppContextDetector.swift */; };
 		94A2586C46349C41A4DB015F /* WhisperCppEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D83B52713A7B8D89E413A1A4 /* WhisperCppEngine.swift */; };
 		94A987D63044E4FD2F42E247 /* OutputFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE43C5294542EBAC40690B9 /* OutputFormatter.swift */; };
+		956205D444B3AC1648D40C24 /* GlassComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB51103ED70B4B985A743BD /* GlassComponents.swift */; };
 		977666C4780ED182B3611170 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = 9DB9DC57CF830A6D79DA1C2F /* MLX */; };
 		97B71750C9ED916F7D19F611 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 649278805EE28722F9F42B30 /* SettingsView.swift */; };
 		9AC846929711FF5AF13FEB53 /* STTModelRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3628A58CAAF87EDDEAF889 /* STTModelRegistry.swift */; };
@@ -270,6 +271,7 @@
 		C6D469BE3EAC26808CE9249D /* YapYapError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YapYapError.swift; sourceTree = "<group>"; };
 		C80B8954F71B298D6318D8B1 /* YapYapBench.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YapYapBench.swift; sourceTree = "<group>"; };
 		CB68E105C803B17AC0FED012 /* TranscriptionPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionPipelineTests.swift; sourceTree = "<group>"; };
+		CDB51103ED70B4B985A743BD /* GlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassComponents.swift; sourceTree = "<group>"; };
 		CE612E65BDE9C5175B687345 /* DataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataManager.swift; sourceTree = "<group>"; };
 		D0115BA186A3931DE0191E1E /* FloatingBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingBarView.swift; sourceTree = "<group>"; };
 		D433A807289A1F815C85B1B2 /* FloatingBarPosition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingBarPosition.swift; sourceTree = "<group>"; };
@@ -406,6 +408,7 @@
 			isa = PBXGroup;
 			children = (
 				74D34F58FEE12B895D619023 /* DesignTokens.swift */,
+				CDB51103ED70B4B985A743BD /* GlassComponents.swift */,
 				AE21C6F8B8A6D40DBEBEAA05 /* Creature */,
 				D689D6DD109741B274D836F3 /* FloatingBar */,
 				BFC5BF70731CEF448E4F6A3A /* MenuBar */,
@@ -715,15 +718,15 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					1C5724157EFE78E16BA8C4E0 = {
-						DevelopmentTeam = C4HCL432GF;
+						DevelopmentTeam = SRB6ZCP58T;
 						ProvisioningStyle = Manual;
 					};
 					B437016EE3782504800D0781 = {
-						DevelopmentTeam = C4HCL432GF;
+						DevelopmentTeam = SRB6ZCP58T;
 						ProvisioningStyle = Manual;
 					};
 					EC71E203280C463181FBDEE4 = {
-						DevelopmentTeam = C4HCL432GF;
+						DevelopmentTeam = SRB6ZCP58T;
 						ProvisioningStyle = Manual;
 					};
 				};
@@ -883,6 +886,7 @@
 				62F2C32FEC55F67EF2E403B4 /* FloatingBarView.swift in Sources */,
 				FC0966BBB724620CF1C0CBAF /* FluidAudioEngine.swift in Sources */,
 				399C814034FD27B090F55D75 /* GeneralTab.swift in Sources */,
+				956205D444B3AC1648D40C24 /* GlassComponents.swift in Sources */,
 				6BF6C6FEE481ACDCBEF2A614 /* HapticManager.swift in Sources */,
 				4C3A617EE1F3B140143A8DBC /* HistoryTab.swift in Sources */,
 				058B0127DFB5B7CD4F174F59 /* HotkeyManager.swift in Sources */,
@@ -989,6 +993,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -1022,9 +1027,10 @@
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = C4HCL432GF;
+				DEVELOPMENT_TEAM = SRB6ZCP58T;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				EXCLUDED_ARCHS = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -1048,6 +1054,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -1081,9 +1088,10 @@
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = C4HCL432GF;
+				DEVELOPMENT_TEAM = SRB6ZCP58T;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				EXCLUDED_ARCHS = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;

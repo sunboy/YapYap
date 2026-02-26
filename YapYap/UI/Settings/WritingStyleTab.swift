@@ -58,8 +58,8 @@ struct WritingStyleTab: View {
                     .scrollContentBackground(.hidden)
                     .padding(8)
                     .frame(minHeight: 80)
-                    .background(Color.ypInput)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.ypBorder, lineWidth: 1))
+                    .background(Color.white.opacity(0.07))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.ypBorder, lineWidth: 1))
                     .cornerRadius(6)
             }
 

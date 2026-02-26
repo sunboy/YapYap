@@ -16,7 +16,7 @@ struct PromptTestTab: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Test what prompt the LLM receives for a given transcription.")
                 .font(.system(size: 12))
-                .foregroundColor(.secondary)
+                .foregroundColor(.ypText3)
 
             // Input
             VStack(alignment: .leading, spacing: 4) {
@@ -24,9 +24,11 @@ struct PromptTestTab: View {
                     .font(.system(size: 11, weight: .semibold))
                 TextEditor(text: $inputText)
                     .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(.ypText1)
+                    .scrollContentBackground(.hidden)
                     .frame(height: 60)
                     .padding(4)
-                    .background(Color.ypBg4)
+                    .background(Color.white.opacity(0.07))
                     .cornerRadius(6)
             }
 
@@ -73,7 +75,7 @@ struct PromptTestTab: View {
                         Spacer()
                         Text("\(systemPrompt.count) chars")
                             .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.ypText3)
                         Button("Copy") {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(systemPrompt, forType: .string)
@@ -88,7 +90,7 @@ struct PromptTestTab: View {
                     }
                     .frame(height: 120)
                     .padding(6)
-                    .background(Color.ypBg4)
+                    .background(Color.white.opacity(0.07))
                     .cornerRadius(6)
                 }
 
@@ -100,7 +102,7 @@ struct PromptTestTab: View {
                         Spacer()
                         Text("\(userPrompt.count) chars")
                             .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.ypText3)
                         Button("Copy") {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(userPrompt, forType: .string)
@@ -115,7 +117,7 @@ struct PromptTestTab: View {
                     }
                     .frame(height: 120)
                     .padding(6)
-                    .background(Color.ypBg4)
+                    .background(Color.white.opacity(0.07))
                     .cornerRadius(6)
                 }
             }

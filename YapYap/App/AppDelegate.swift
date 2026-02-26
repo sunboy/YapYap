@@ -219,7 +219,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             print("[AppDelegate] Creating onboarding window...")
 
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 520, height: 580),
+                contentRect: NSRect(x: 0, y: 0, width: 560, height: 560),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
@@ -228,6 +228,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.titlebarAppearsTransparent = true
             window.isMovableByWindowBackground = true
             window.level = .floating
+            window.appearance = NSAppearance(named: .darkAqua)
+            window.backgroundColor = NSColor(red: 0x2A/255.0, green: 0x25/255.0, blue: 0x40/255.0, alpha: 1)
             window.center()
 
             // Disable TouchBar to prevent AppKit TouchBar-related crashes
@@ -252,10 +254,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         print("[AppDelegate] Releasing onboarding window")
                         self?.onboardingWindow = nil
                     }
+
+                    // Models already loaded during onboarding step 4 — just start keep-alive timer
+                    self.pipeline?.startKeepAliveTimer()
                 }
             }
 
-            window.contentView = NSHostingView(rootView: OnboardingView(onComplete: onComplete))
+            window.contentView = NSHostingView(rootView: OnboardingView(
+                appState: self.appState,
+                pipeline: self.pipeline!,
+                onComplete: onComplete
+            ))
 
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)

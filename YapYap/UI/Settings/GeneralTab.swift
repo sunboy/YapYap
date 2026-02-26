@@ -165,17 +165,12 @@ struct GeneralTab: View {
             Spacer()
             Toggle("", isOn: isOn).toggleStyle(YPToggleStyle())
         }
-        .padding(.vertical, 10)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.ypBorderLight).frame(height: 1)
-        }
+        .glassRow()
+        .padding(.bottom, 6)
     }
 
     private var divider: some View {
-        Rectangle()
-            .fill(Color.ypBorderLight)
-            .frame(height: 1)
-            .padding(.vertical, 24)
+        Color.clear.frame(height: 16)
     }
 
     private func dropdownRow(label: String, options: [String], selection: Binding<String>) -> some View {

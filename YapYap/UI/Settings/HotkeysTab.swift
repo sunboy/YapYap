@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import KeyboardShortcuts
 
 struct HotkeysTab: View {
     @State private var doubleTap = false
@@ -13,21 +14,23 @@ struct HotkeysTab: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.ypText1)
                 .padding(.bottom, 4)
-            Text("Customize how you interact with YapYap.")
+            Text("Click a shortcut to record a new key combination.")
                 .font(.system(size: 12))
                 .foregroundColor(.ypText3)
                 .padding(.bottom, 20)
 
-            hotkeyRow(label: "PUSH-TO-TALK (HOLD)", description: "Hold to record. Release to transcribe and paste.", keys: ["⌥", "Space"])
-            hotkeyRow(label: "HANDS-FREE MODE (TOGGLE)", description: "Press once to start, again to stop.", keys: ["⌥", "⇧", "Space"])
-            hotkeyRow(label: "COMMAND MODE", description: "Highlight text first, then speak a command to rewrite.", keys: ["⌥", "⌘", "Space"])
-            hotkeyRow(label: "CANCEL RECORDING", description: "Abort without pasting.", keys: ["Esc"])
+            hotkeyRow(name: .pushToTalk, label: "PUSH-TO-TALK (HOLD)", description: "Hold to record. Release to transcribe and paste.")
+            hotkeyRow(name: .handsFreeMode, label: "HANDS-FREE MODE (TOGGLE)", description: "Press once to start, again to stop.")
+            hotkeyRow(name: .commandMode, label: "COMMAND MODE", description: "Highlight text first, then speak a command to rewrite.")
+            hotkeyRow(name: .cancelRecording, label: "CANCEL RECORDING", description: "Abort without pasting.")
 
-            // Divider
-            Rectangle()
-                .fill(Color.ypBorderLight)
-                .frame(height: 1)
-                .padding(.vertical, 24)
+            Button("Reset to Defaults") {
+                KeyboardShortcuts.reset(.pushToTalk, .handsFreeMode, .commandMode, .cancelRecording)
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 12, design: .rounded))
+            .foregroundColor(.ypText3)
+            .padding(.bottom, 20)
 
             toggleRow(label: "Double-tap activation", subtitle: "Double-tap ⌥ for hands-free", isOn: $doubleTap)
             toggleRow(label: "Sound feedback", subtitle: "Subtle sound on start/stop", isOn: $soundFeedback)
@@ -70,43 +73,22 @@ struct HotkeysTab: View {
         }
     }
 
-    private func hotkeyRow(label: String, description: String, keys: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(label)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.ypText2)
-                .tracking(0.8)
-            Text(description)
-                .font(.system(size: 12))
-                .foregroundColor(.ypText3)
-
-            HStack(spacing: 4) {
-                ForEach(Array(keys.enumerated()), id: \.offset) { index, key in
-                    if index > 0 {
-                        Text("+")
-                            .font(.system(size: 10))
-                            .foregroundColor(.ypText3)
-                    }
-                    Text(key)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.ypText1)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.white.opacity(0.08))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                        .cornerRadius(4)
-                }
+    private func hotkeyRow(name: KeyboardShortcuts.Name, label: String, description: String) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(label)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(.ypText2)
+                    .tracking(0.8)
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundColor(.ypText3)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color.ypInput)
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.ypBorder, lineWidth: 1))
-            .cornerRadius(6)
+            Spacer()
+            KeyboardShortcuts.Recorder(for: name)
         }
-        .padding(.bottom, 24)
+        .glassRow()
+        .padding(.bottom, 6)
     }
 
     private func toggleRow(label: String, subtitle: String, isOn: Binding<Bool>) -> some View {
@@ -118,9 +100,7 @@ struct HotkeysTab: View {
             Spacer()
             Toggle("", isOn: isOn).toggleStyle(YPToggleStyle())
         }
-        .padding(.vertical, 10)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.ypBorderLight).frame(height: 1)
-        }
+        .glassRow()
+        .padding(.bottom, 6)
     }
 }
