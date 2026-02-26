@@ -417,8 +417,8 @@ enum PromptTemplates {
         }
 
         static func formatMedium(_ examples: [Example]) -> String {
-            examples.enumerated().map { i, ex in
-                "EXAMPLE \(i + 1):\nInput: \(ex.input)\nOutput: \(ex.output)"
+            examples.map { ex in
+                "<example>\nin: \(ex.input)\nout: \(ex.output)\n</example>"
             }.joined(separator: "\n\n")
         }
 

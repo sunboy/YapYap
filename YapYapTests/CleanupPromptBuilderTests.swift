@@ -101,7 +101,9 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testMediumModelUserHasDetailedExamples() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
+        XCTAssertTrue(messages.user.contains("<example>"))
+        XCTAssertTrue(messages.user.contains("in:"))
+        XCTAssertTrue(messages.user.contains("out:"))
         XCTAssertTrue(messages.user.contains("Transcript:"))
     }
 
@@ -116,7 +118,9 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testQwenMediumUserMessageHasExamples() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
-        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
+        XCTAssertTrue(messages.user.contains("<example>"))
+        XCTAssertTrue(messages.user.contains("in:"))
+        XCTAssertTrue(messages.user.contains("out:"))
         XCTAssertTrue(messages.user.contains("Transcript:"))
     }
 
@@ -312,7 +316,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testMediumLightExamplesPreserveAllWords() {
         let context = makeContext(cleanupLevel: .light)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
+        XCTAssertTrue(messages.user.contains("<example>"))
         // Light examples keep fillers: "um probably" preserved in output
         XCTAssertTrue(messages.user.contains("um probably"))
     }
@@ -320,16 +324,17 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testMediumMediumExamplesShowFillerRemoval() {
         let context = makeContext(cleanupLevel: .medium)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
-        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
+        // Medium level has 3 examples — check for 3 <example> blocks
+        XCTAssertTrue(messages.user.contains("<example>"))
+        XCTAssertEqual(messages.user.components(separatedBy: "<example>").count - 1, 3, "Medium level should have 3 examples")
     }
 
     func testMediumHeavyExamplesShowAggressiveCleanup() {
         let context = makeContext(cleanupLevel: .heavy)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
-        XCTAssertTrue(messages.user.contains("EXAMPLE 2:"))
-        XCTAssertFalse(messages.user.contains("EXAMPLE 3:"))
+        // Heavy level has 2 examples
+        XCTAssertTrue(messages.user.contains("<example>"))
+        XCTAssertEqual(messages.user.components(separatedBy: "<example>").count - 1, 2, "Heavy level should have 2 examples")
     }
 
     // MARK: - Cross-Size Consistency
@@ -351,8 +356,8 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let qwen3b = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
         // Both medium models now get the SAME unified prompt
         XCTAssertEqual(llama3b.system, qwen3b.system)
-        XCTAssertTrue(llama3b.user.contains("EXAMPLE 1:"))
-        XCTAssertTrue(qwen3b.user.contains("EXAMPLE 1:"))
+        XCTAssertTrue(llama3b.user.contains("<example>"))
+        XCTAssertTrue(qwen3b.user.contains("<example>"))
     }
 
     // MARK: - IDE Chat Panel Prompt
@@ -457,29 +462,29 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testLlamaMediumUserMessageIncludesListExample() {
         let context = makeContext(cleanupLevel: .medium)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        // Template-based examples have 3 examples for medium cleanup
-        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
+        // Medium cleanup has 3 examples in XML format
+        XCTAssertEqual(messages.user.components(separatedBy: "<example>").count - 1, 3)
     }
 
     func testQwenMediumUserMessageIncludesListExample() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
-        // Template-based examples have 3 examples for medium cleanup
-        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
+        // Medium cleanup (default level) has 3 examples in XML format
+        XCTAssertEqual(messages.user.components(separatedBy: "<example>").count - 1, 3)
     }
 
     func testLlamaMediumLightUserMessageIncludesListExample() {
         let context = makeContext(cleanupLevel: .light)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        // Template-based light examples have 3 examples
-        XCTAssertTrue(messages.user.contains("EXAMPLE 3:"))
+        // Light examples have 3 examples in XML format
+        XCTAssertEqual(messages.user.components(separatedBy: "<example>").count - 1, 3)
     }
 
     func testLlamaMediumHeavyUserMessageIncludesListExample() {
         let context = makeContext(cleanupLevel: .heavy)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
-        // Template-based heavy examples have 2 examples
-        XCTAssertTrue(messages.user.contains("EXAMPLE 2:"))
+        // Heavy examples have 2 examples in XML format
+        XCTAssertEqual(messages.user.components(separatedBy: "<example>").count - 1, 2)
     }
 
     // MARK: - Small Model App Context Hints
@@ -541,7 +546,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testExperimentalModeSkips1BUserMessage() {
         let context = makeContext(experimentalPrompts: true)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
-        XCTAssertFalse(messages.user.contains("EXAMPLE 1:"), "1B models should not get detailed examples even with experimental mode")
+        XCTAssertFalse(messages.user.contains("<example>"), "1B models should not get detailed examples even with experimental mode")
         XCTAssertTrue(messages.user.contains("IN:"), "1B models should get compact IN:/OUT: format")
     }
 
@@ -549,7 +554,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let context = makeContext(experimentalPrompts: true)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-1.5b")
         XCTAssertTrue(messages.system.contains("You clean up dictated speech into readable text."))
-        XCTAssertTrue(messages.user.contains("EXAMPLE 1:"))
+        XCTAssertTrue(messages.user.contains("<example>"))
     }
 
     func testExperimentalModeIncludesFormality() {
@@ -609,6 +614,64 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let lightMsgs = CleanupPromptBuilder.buildMessages(rawText: "test", context: lightCtx, modelId: "qwen-2.5-3b")
         let medMsgs = CleanupPromptBuilder.buildMessages(rawText: "test", context: medCtx, modelId: "qwen-2.5-3b")
         XCTAssertNotEqual(lightMsgs.user, medMsgs.user, "Different cleanup levels should produce different examples")
+    }
+
+    // MARK: - Echo-Safe Example Format
+
+    func testMediumModelUsesXMLExampleFormat() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        // Must use XML tags, not EXAMPLE N: labels
+        XCTAssertTrue(messages.user.contains("<example>"), "Medium model must use XML example tags")
+        XCTAssertTrue(messages.user.contains("</example>"), "XML tags must be closed")
+        XCTAssertFalse(messages.user.contains("EXAMPLE 1:"), "Old EXAMPLE N: format must be gone")
+        XCTAssertFalse(messages.user.contains("EXAMPLE 2:"), "Old EXAMPLE N: format must be gone")
+    }
+
+    func testMediumModelExamplesUseLowercaseInOutLabels() {
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        // Must use lowercase "in:"/"out:", not "Input:"/"Output:" (avoids triggering sanitizeOutput)
+        XCTAssertTrue(messages.user.contains("in:"), "Examples must use lowercase 'in:' label")
+        XCTAssertTrue(messages.user.contains("out:"), "Examples must use lowercase 'out:' label")
+        XCTAssertFalse(messages.user.contains("Input:"), "Must not use capitalized 'Input:' label")
+        XCTAssertFalse(messages.user.contains("Output:"), "Must not use capitalized 'Output:' label in examples")
+    }
+
+    func testSmallModelDoesNotUseXMLFormat() {
+        // Small models use IN:/OUT: format, not XML
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertFalse(messages.user.contains("<example>"))
+        XCTAssertTrue(messages.user.contains("IN:"))
+        XCTAssertTrue(messages.user.contains("OUT:"))
+    }
+
+    // MARK: - Prompt Repetition Technique (arxiv 2512.14982)
+
+    func testMediumModelRepeatsTranscript() {
+        let context = makeContext()
+        let rawText = "um so I was thinking about the meeting"
+        let messages = CleanupPromptBuilder.buildMessages(rawText: rawText, context: context, modelId: "qwen-2.5-3b")
+        // Transcript should appear twice in the user prompt
+        let occurrences = messages.user.components(separatedBy: rawText).count - 1
+        XCTAssertEqual(occurrences, 2, "Medium model should repeat transcript twice for better instruction following")
+    }
+
+    func testLargeModelRepeatsTranscript() {
+        let context = makeContext()
+        let rawText = "um so I was thinking about the meeting"
+        let messages = CleanupPromptBuilder.buildMessages(rawText: rawText, context: context, modelId: "qwen-2.5-7b")
+        let occurrences = messages.user.components(separatedBy: rawText).count - 1
+        XCTAssertEqual(occurrences, 2, "Large model should repeat transcript twice")
+    }
+
+    func testSmallModelDoesNotRepeatTranscript() {
+        let context = makeContext()
+        let rawText = "um so I was thinking about the meeting"
+        let messages = CleanupPromptBuilder.buildMessages(rawText: rawText, context: context, modelId: "llama-3.2-1b")
+        let occurrences = messages.user.components(separatedBy: rawText).count - 1
+        XCTAssertEqual(occurrences, 1, "Small model should NOT repeat transcript")
     }
 
     // MARK: - UserPromptContext Parameter

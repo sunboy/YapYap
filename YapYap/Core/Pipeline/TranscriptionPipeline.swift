@@ -592,8 +592,33 @@ class TranscriptionPipeline {
 
     /// Strip example echo: small models sometimes echo few-shot examples before the actual output.
     /// Detects known example phrases or "Transcript:" markers and strips everything before them.
-    private static func stripExampleEcho(output: String, input: String) -> String {
+    static func stripExampleEcho(output: String, input: String) -> String {
         var cleaned = output
+
+        // Check for EXAMPLE N: or Input: structure — model echoed the few-shot template.
+        // Try to extract the last "out:" or "Output:" segment (the final cleaned output).
+        let exampleLabelPatterns = ["EXAMPLE 1:", "EXAMPLE 2:", "EXAMPLE 3:", "Input:", "<example>"]
+        for pattern in exampleLabelPatterns {
+            if cleaned.contains(pattern) {
+                // Find last "out:" (XML format) or "Output:" (old format) marker
+                let outMarkers = ["out:", "Output:"]
+                for marker in outMarkers {
+                    if let lastOutputRange = cleaned.range(of: marker, options: [.caseInsensitive, .backwards]) {
+                        let candidate = String(cleaned[lastOutputRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        // Validate: candidate must be shorter than full output (not just re-echoing everything)
+                        // and must not be empty
+                        let candidateWords = candidate.split(separator: " ").count
+                        let fullWords = cleaned.split(separator: " ").count
+                        if !candidate.isEmpty && candidateWords <= fullWords / 2 {
+                            NSLog("[TranscriptionPipeline] ⚠️ Stripped EXAMPLE echo (found \(marker) marker)")
+                            cleaned = candidate
+                            break
+                        }
+                    }
+                }
+                break
+            }
+        }
 
         // Check for "Transcript:" marker — model echoed the prompt structure
         if let transcriptRange = cleaned.range(of: "Transcript:", options: .caseInsensitive) {

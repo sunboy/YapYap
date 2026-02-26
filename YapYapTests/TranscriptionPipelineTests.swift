@@ -107,6 +107,44 @@ final class TranscriptionPipelineTests: XCTestCase {
         XCTAssertFalse(messages.user.contains("dry cleaning"), "Grocery list example must not appear in Gemma prompt")
     }
 
+    // MARK: - Example Echo Stripping
+
+    func testStripsExampleNLabelEcho() {
+        // Model echoed "EXAMPLE 1:\nInput: ...\nOutput: cleaned" — should extract after last Output:
+        let result = TranscriptionPipeline.testStripExampleEcho(
+            output: "EXAMPLE 1:\nInput: hello world\nOutput: Hello world.",
+            input: "hello world"
+        )
+        XCTAssertEqual(result, "Hello world.", "Should strip EXAMPLE N: echo and extract Output: content")
+    }
+
+    func testStripsInputLabelEcho() {
+        // Model echoed "Input: ...\nOutput: cleaned"
+        let result = TranscriptionPipeline.testStripExampleEcho(
+            output: "Input: hello world\nOutput: Hello world.",
+            input: "hello world"
+        )
+        XCTAssertEqual(result, "Hello world.", "Should strip Input:/Output: echo pattern")
+    }
+
+    func testNoEchoPassesThrough() {
+        // Normal clean output — should not be modified
+        let result = TranscriptionPipeline.testStripExampleEcho(
+            output: "Hello world.",
+            input: "hello world"
+        )
+        XCTAssertEqual(result, "Hello world.", "Normal output should pass through unchanged")
+    }
+
+    func testTranscriptMarkerEcho() {
+        // Model echoed "Transcript:\nhello world" — should strip to just the transcript content
+        let result = TranscriptionPipeline.testStripExampleEcho(
+            output: "Transcript:\nhello world",
+            input: "hello world"
+        )
+        XCTAssertEqual(result, "hello world", "Should strip Transcript: echo marker")
+    }
+
     // MARK: - LLM Prompt: List formatting only on explicit enumeration
 
     func testSmallModelListInstructionRequiresExplicitEnumeration() {
@@ -130,5 +168,10 @@ extension TranscriptionPipeline {
     /// Exposes private stripWhisperArtifacts for testing.
     static func testStripWhisperArtifacts(_ text: String) -> String {
         return stripWhisperArtifacts(text)
+    }
+
+    /// Exposes private stripExampleEcho for testing.
+    static func testStripExampleEcho(output: String, input: String) -> String {
+        return stripExampleEcho(output: output, input: input)
     }
 }

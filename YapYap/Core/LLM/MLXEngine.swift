@@ -57,9 +57,10 @@ class MLXEngine: LLMEngine {
             <|im_start|>system
             You clean up dictated speech. Remove fillers. Fix punctuation. Output only cleaned text.<|im_end|>
             <|im_start|>user
-            EXAMPLE 1:
-            Input: um so I was thinking we should like meet on tuesday
-            Output: I was thinking we should meet on Tuesday.
+            <example>
+            in: um so I was thinking we should like meet on tuesday
+            out: I was thinking we should meet on Tuesday.
+            </example>
 
             Reply with only the cleaned text.
 
@@ -96,6 +97,10 @@ class MLXEngine: LLMEngine {
             rawText: rawText, context: context,
             modelId: modelId, userContext: userContext
         )
+
+        // Debug: log prompt content for echo bug diagnosis
+        NSLog("[MLXEngine] System prompt (\(messages.system.count) chars): \"\(String(messages.system.prefix(200)))\"")
+        NSLog("[MLXEngine] User prompt (\(messages.user.count) chars): \"\(String(messages.user.prefix(200)))\"")
 
         // Use the tokenizer's chat template for correct model-specific formatting
         // This handles Llama vs Qwen vs other model template differences automatically
@@ -221,6 +226,12 @@ class MLXEngine: LLMEngine {
                 "(?i)^\\s*I'?m\\s+sorry.*$",
                 "(?i)^\\s*I\\s+cannot\\s+.*$",
                 "(?i)^\\s*I\\s+can'?t\\s+provide.*$",
+                // Echo patterns: model emits few-shot example structure instead of cleaned text
+                "(?i)^\\s*EXAMPLE\\s+\\d+\\s*:?\\s*",
+                "(?i)^\\s*Input\\s*:\\s*",
+                "(?i)^\\s*<example>\\s*",
+                "(?i)^\\s*in\\s*:\\s*",
+                "(?i)^\\s*out\\s*:\\s*",
             ]
 
             let trailingPatterns = [
