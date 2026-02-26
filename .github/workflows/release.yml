@@ -55,7 +55,7 @@ jobs:
           rm /tmp/cert.p12
 
           security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-key-partition-list -S "apple-tool:,apple:,codesign:" -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
 
           # Remove any non-Developer-ID certs to avoid team resolution conflicts
@@ -129,8 +129,10 @@ jobs:
               "$f" 2>/dev/null || true
           done
 
-          # Sign framework bundles
-          find "$APP/Contents/Frameworks" -name "*.framework" -type d | while read fw; do
+          # Sign framework bundles (deepest-nested first to avoid invalidating parent signatures)
+          find "$APP/Contents/Frameworks" -name "*.framework" -type d | \
+            awk '{ print length($0), $0 }' | sort -rn | awk '{ print $2 }' | \
+            while read fw; do
             codesign --force --sign "$ID" \
               --keychain "$KEYCHAIN_PATH" \
               --options runtime \
