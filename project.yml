@@ -12,7 +12,10 @@ settings:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     # Team ID from Apple Developer account (sandeeptnvs@gmail.com)
-    DEVELOPMENT_TEAM: "C4HCL432GF"
+    DEVELOPMENT_TEAM: "SRB6ZCP58T"
+    # Apple Silicon only — x86_64 not supported (MLX, FluidAudio, CoreML ANE require arm64)
+    ARCHS: "arm64"
+    EXCLUDED_ARCHS: "x86_64"
   configs:
     Debug:
       # Ad-hoc signing for local development builds — fast, no certificate needed

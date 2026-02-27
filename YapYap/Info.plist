@@ -50,10 +50,10 @@
 
     <!-- Bundle version -->
     <key>CFBundleShortVersionString</key>
-    <string>0.2.0</string>
+    <string>0.2.1</string>
 
     <key>CFBundleVersion</key>
-    <string>43</string>
+    <string>44</string>
 
     <!-- Executable -->
     <key>CFBundleExecutable</key>

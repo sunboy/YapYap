@@ -28,7 +28,8 @@ archive:
 	@mkdir -p build
 	xcodebuild -project YapYap.xcodeproj -scheme YapYap \
 		-configuration Release archive \
-		-archivePath build/YapYap.xcarchive
+		-archivePath build/YapYap.xcarchive \
+		ARCHS=arm64 EXCLUDED_ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO
 
 	xcodebuild -exportArchive \
 		-archivePath build/YapYap.xcarchive \

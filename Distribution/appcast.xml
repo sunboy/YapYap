@@ -8,5 +8,29 @@
 
         <!-- Add new releases at the top. CI updates this automatically on tag push. -->
 
+        <item>
+            <title>Version 0.2.1</title>
+            <link>https://github.com/sunboy/YapYap/releases/tag/v0.2.1</link>
+            <sparkle:version>0.2.1</sparkle:version>
+            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>What's New in 0.2.1</h2>
+                <ul>
+                    <li>Fixed: Accessibility permission prompt now shown on startup if not granted</li>
+                    <li>Fixed: arm64-only build for Apple Silicon</li>
+                </ul>
+            ]]></description>
+            <pubDate>Thu, 26 Feb 2026 19:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/sunboy/YapYap/releases/download/v0.2.1/YapYap-v0.2.1.dmg"
+                sparkle:version="0.2.1"
+                sparkle:shortVersionString="0.2.1"
+                length="7347613"
+                type="application/octet-stream"
+                sparkle:edSignature="7ls6H4Ok48AD4uCDjgnHaSScUyBpaazFlelrDw5B3aO99T6oJLiiH2eqNwE9s4/DrS5sLJrujmv0BEWl+kuvBw=="
+            />
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        </item>
+
     </channel>
 </rss>
