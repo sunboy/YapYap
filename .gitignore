@@ -63,3 +63,4 @@ bench-results/latest.json
 worktree_dir/
 prompt_optimizations/
 feature/
+Distribution/AuthKey_*.p8
