@@ -41,6 +41,32 @@ struct StyleTab: View {
                 .font(.system(size: 11))
                 .foregroundColor(.ypText3)
                 .padding(.top, 8)
+
+            // App Overrides section
+            Rectangle().fill(Color.ypBorderLight).frame(height: 1).padding(.vertical, 16)
+
+            Text("APP OVERRIDES")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.ypText3)
+                .tracking(1)
+                .padding(.bottom, 4)
+
+            Text("Override how YapYap categorizes apps it has seen.")
+                .font(.system(size: 11))
+                .foregroundColor(.ypText3)
+                .padding(.bottom, 12)
+
+            if styleSettings.seenApps.isEmpty {
+                Text("No unknown apps detected yet. Use YapYap in any unlisted app to see it here.")
+                    .font(.system(size: 11)).foregroundColor(.ypText3).padding(.vertical, 8)
+            } else {
+                ForEach(
+                    styleSettings.seenApps.sorted { $0.value.lastSeen > $1.value.lastSeen },
+                    id: \.key
+                ) { bundleId, info in
+                    appOverrideRow(bundleId: bundleId, info: info)
+                }
+            }
         }
         .onAppear {
             loadSettings()
@@ -123,6 +149,54 @@ struct StyleTab: View {
         )
     }
 
+    private func appOverrideRow(bundleId: String, info: SeenAppInfo) -> some View {
+        let isOverridden = styleSettings.appCategoryOverrides[bundleId] != nil
+        let current = styleSettings.appCategoryOverrides[bundleId] ?? info.autoDetectedCategory
+
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(info.appName)
+                        .font(.system(size: 13)).foregroundColor(.ypText2)
+                    if isOverridden {
+                        Text("OVERRIDE")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(.ypLavender)
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(Color.ypLavender.opacity(0.15))
+                            .cornerRadius(3)
+                    }
+                }
+                Text(bundleId)
+                    .font(.system(size: 10, design: .monospaced)).foregroundColor(.ypText3)
+            }
+
+            Spacer()
+
+            Picker("", selection: Binding(
+                get: { current },
+                set: { newVal in
+                    if newVal == info.autoDetectedCategory {
+                        styleSettings.appCategoryOverrides.removeValue(forKey: bundleId)
+                    } else {
+                        styleSettings.appCategoryOverrides[bundleId] = newVal
+                    }
+                    saveStyleSettings()
+                }
+            )) {
+                ForEach(AppCategory.allCases) { cat in
+                    Text("\(cat.emoji) \(cat.displayName)").tag(cat)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 180)
+        }
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.ypBorderLight).frame(height: 1)
+        }
+    }
+
     private func toggleRow(label: String, subtitle: String, isOn: Binding<Bool>) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -154,6 +228,8 @@ struct StyleSettingsData: Codable {
     var other: OutputStyle = .casual
     var ideVariableRecognition: Bool = true
     var ideFileTagging: Bool = true
+    var appCategoryOverrides: [String: AppCategory] = [:]
+    var seenApps: [String: SeenAppInfo] = [:]
 
     func style(for category: AppCategory) -> OutputStyle {
         switch category {

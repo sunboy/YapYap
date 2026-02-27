@@ -90,4 +90,89 @@ final class AppContextDetectorTests: XCTestCase {
         settings.email = .casual
         XCTAssertEqual(settings.styleFor(.email), .casual)
     }
+
+    // MARK: - Layer 2: Heuristics
+
+    func testHeuristicEmail() {
+        XCTAssertEqual(categoryFromHeuristics("com.newco.mail", "New Mail"), .email)
+    }
+
+    func testHeuristicTerminal() {
+        XCTAssertEqual(categoryFromHeuristics("com.example.myterminal", "My Terminal"), .terminal)
+    }
+
+    func testHeuristicCodeEditor() {
+        XCTAssertEqual(categoryFromHeuristics("com.example.codeeditor", "Code Editor"), .codeEditor)
+    }
+
+    func testHeuristicNotes() {
+        XCTAssertEqual(categoryFromHeuristics("com.example.bear", "Bear"), .notes)
+    }
+
+    func testHeuristicWorkMessaging() {
+        XCTAssertEqual(categoryFromHeuristics("com.newco.slack-clone", "Slack Clone"), .workMessaging)
+    }
+
+    func testHeuristicReturnsNil() {
+        XCTAssertNil(categoryFromHeuristics("com.unknown.app", "Foo App"))
+    }
+
+    // MARK: - Layer 3: Window Title
+
+    func testWindowTitleInbox() {
+        XCTAssertEqual(categoryFromWindowTitle("Inbox — Fastmail", nil), .email)
+    }
+
+    func testWindowTitleNewMessage() {
+        XCTAssertEqual(categoryFromWindowTitle("New Message", nil), .email)
+    }
+
+    func testWindowTitleSlack() {
+        XCTAssertEqual(categoryFromWindowTitle("general — Slack", nil), .workMessaging)
+    }
+
+    func testWindowTitleNilReturnsNil() {
+        XCTAssertNil(categoryFromWindowTitle(nil, nil))
+    }
+
+    func testFocusedTextShellPrompt() {
+        XCTAssertEqual(categoryFromWindowTitle(nil, "output\n$ "), .terminal)
+    }
+
+    func testFocusedTextPythonRepl() {
+        XCTAssertEqual(categoryFromWindowTitle(nil, ">>> "), .terminal)
+    }
+
+    // MARK: - SeenAppInfo Codability
+
+    func testSeenAppInfoRoundTrip() throws {
+        let info = SeenAppInfo(appName: "Test", autoDetectedCategory: .notes, lastSeen: Date(timeIntervalSince1970: 1000))
+        let decoded = try JSONDecoder().decode(SeenAppInfo.self, from: try JSONEncoder().encode(info))
+        XCTAssertEqual(decoded.appName, "Test")
+        XCTAssertEqual(decoded.autoDetectedCategory, .notes)
+    }
+
+    func testStyleSettingsSeenAppsRoundTrip() throws {
+        var s = StyleSettings()
+        s.seenApps["com.test.app"] = SeenAppInfo(appName: "Test", autoDetectedCategory: .email, lastSeen: Date())
+        let decoded = try JSONDecoder().decode(StyleSettings.self, from: try JSONEncoder().encode(s))
+        XCTAssertEqual(decoded.seenApps["com.test.app"]?.autoDetectedCategory, .email)
+    }
+
+    func testAppCategoryOverridesRoundTrip() throws {
+        var s = StyleSettings()
+        s.appCategoryOverrides["com.test.app"] = .terminal
+        let decoded = try JSONDecoder().decode(StyleSettings.self, from: try JSONEncoder().encode(s))
+        XCTAssertEqual(decoded.appCategoryOverrides["com.test.app"], .terminal)
+    }
+
+    // MARK: - Test helpers
+
+    private func categoryFromHeuristics(_ bundleId: String, _ appName: String) -> AppCategory? {
+        AppContextDetector.categoryFromHeuristics(bundleId: bundleId, appName: appName)
+    }
+
+    private func categoryFromWindowTitle(_ title: String?, _ focused: String?) -> AppCategory? {
+        AppContextDetector.categoryFromWindowTitle(title, focusedText: focused)
+    }
 }

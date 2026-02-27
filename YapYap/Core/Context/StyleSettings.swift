@@ -2,6 +2,12 @@
 // YapYap — Per-category style preferences
 import Foundation
 
+struct SeenAppInfo: Codable {
+    let appName: String
+    let autoDetectedCategory: AppCategory
+    var lastSeen: Date
+}
+
 struct StyleSettings: Codable {
     var personalMessaging: OutputStyle = .casual
     var workMessaging: OutputStyle = .casual
@@ -25,12 +31,19 @@ struct StyleSettings: Codable {
         set { _notesTodoConversion = newValue }
     }
 
+    private var _seenApps: [String: SeenAppInfo]?
+    var seenApps: [String: SeenAppInfo] {
+        get { _seenApps ?? [:] }
+        set { _seenApps = newValue }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case personalMessaging, workMessaging, email, codeEditor, documents
         case aiChat, browser, terminal, notes, social, other
         case ideVariableRecognition, ideFileTagging
         case appCategoryOverrides
         case _notesTodoConversion = "notesTodoConversion"
+        case _seenApps = "seenApps"
     }
 
     var appCategoryOverrides: [String: AppCategory] = [:]
@@ -48,6 +61,12 @@ struct StyleSettings: Codable {
         case .notes: return notes
         case .social: return social
         case .other: return other
+        }
+    }
+
+    func saveToUserDefaults() {
+        if let data = try? JSONEncoder().encode(self) {
+            UserDefaults.standard.set(data, forKey: "yapyap.styleSettings")
         }
     }
 
