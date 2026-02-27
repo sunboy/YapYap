@@ -11,7 +11,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "hello world", context: context)
         // Default resolves to (.qwen, .small) — uses smallMedium template
-        XCTAssertTrue(messages.system.contains("Clean dictated speech"))
+        XCTAssertTrue(messages.system.contains("Speech-to-text input"))
     }
 
     func testDefaultPromptUserContainsRawText() {
@@ -34,8 +34,8 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
         // Small model prompt should be concise
         let wordCount = messages.system.split(separator: " ").count
-        XCTAssertLessThanOrEqual(wordCount, 65, "Small model system prompt should be concise")
-        XCTAssertTrue(messages.system.contains("Clean dictated speech"))
+        XCTAssertLessThanOrEqual(wordCount, 75, "Small model system prompt should be concise")
+        XCTAssertTrue(messages.system.contains("Speech-to-text input"))
     }
 
     func testSmallModelUserMessageHasCompactExamples() {
@@ -55,7 +55,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testQwen1_5BAlsoUsesSmallPrompt() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-1.5b")
-        XCTAssertTrue(messages.system.contains("Clean dictated speech"))
+        XCTAssertTrue(messages.system.contains("Speech-to-text input"))
     }
 
     func testSmallModelLightCleanupPrompt() {
@@ -95,7 +95,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
         // All medium models now use unified mediumMedium prompt
-        XCTAssertTrue(messages.system.contains("You clean up dictated speech into readable text"))
+        XCTAssertTrue(messages.system.contains("post-process raw speech-to-text output into readable text"))
     }
 
     func testMediumModelUserHasDetailedExamples() {
@@ -112,7 +112,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testQwenMediumSystemPromptHasRules() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
-        XCTAssertTrue(messages.system.contains("You clean up dictated speech into readable text."))
+        XCTAssertTrue(messages.system.contains("post-process raw speech-to-text output into readable text"))
     }
 
     func testQwenMediumUserMessageHasExamples() {
@@ -199,7 +199,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testSmallModelMediumCleanupMentionsFillers() {
         let context = makeContext(cleanupLevel: .medium)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
-        XCTAssertTrue(messages.system.lowercased().contains("filler"))
+        XCTAssertTrue(messages.system.lowercased().contains("filler") || messages.system.lowercased().contains("um, uh"))
     }
 
     func testSmallModelHeavyCleanupMentionsPolished() {
@@ -302,13 +302,13 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testUnknownModelIdFallsBackToSmallPrompt() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "nonexistent-model")
-        XCTAssertTrue(messages.system.contains("Clean dictated speech"))
+        XCTAssertTrue(messages.system.contains("Speech-to-text input"))
     }
 
     func testNilModelIdFallsBackToSmallPrompt() {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: nil)
-        XCTAssertTrue(messages.system.contains("Clean dictated speech"))
+        XCTAssertTrue(messages.system.contains("Speech-to-text input"))
     }
 
     // MARK: - Medium Model Few-Shot Examples Per Cleanup Level
@@ -432,7 +432,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let context = makeContext()
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
         // Small model uses template-based system prompt — verify it contains cleanup instructions
-        XCTAssertTrue(messages.system.contains("Clean dictated speech"))
+        XCTAssertTrue(messages.system.contains("Speech-to-text input"))
         XCTAssertFalse(messages.system.contains("multiple items are listed"))
     }
 
@@ -504,7 +504,8 @@ final class CleanupPromptBuilderTests: XCTestCase {
                                 focusedFieldText: nil, isIDEChatPanel: true)
         let context = makeContext(appContext: appCtx)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-1.5b")
-        XCTAssertTrue(messages.system.contains("Prefix filenames with @"))
+        // Small cursorChat rule: convert filenames + camelCase (@ tagging handled by OutputFormatter)
+        XCTAssertTrue(messages.system.contains("dot ts") || messages.system.contains(".ts") || messages.system.contains("camelCase") || messages.system.contains("useEffect"))
     }
 
     func testSmallModelPersonalMessagingHint() {
@@ -529,7 +530,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let context = makeContext(appContext: nil)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
         // Without app context, should just have base prompt
-        XCTAssertTrue(messages.system.contains("Clean dictated speech"))
+        XCTAssertTrue(messages.system.contains("Speech-to-text input"))
         XCTAssertFalse(messages.system.contains("@mentions"))
     }
 
@@ -540,7 +541,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         // Llama 1B (< 800MB) can't follow detailed prompts — should stay on small prompts
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
         XCTAssertFalse(messages.system.contains("RULES:"), "1B models should not get detailed system prompt even with experimental mode")
-        XCTAssertTrue(messages.system.contains("Clean dictated speech"))
+        XCTAssertTrue(messages.system.contains("Speech-to-text input"))
     }
 
     func testExperimentalModeSkips1BUserMessage() {
@@ -553,7 +554,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testExperimentalModeGivesQwenSmallDetailedPrompt() {
         let context = makeContext(experimentalPrompts: true)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-1.5b")
-        XCTAssertTrue(messages.system.contains("You clean up dictated speech into readable text."))
+        XCTAssertTrue(messages.system.contains("post-process raw speech-to-text output into readable text"))
         XCTAssertTrue(messages.user.contains("<example>"))
     }
 
@@ -574,7 +575,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
     func testExperimentalModeOffUsesSmallPrompt() {
         let context = makeContext(experimentalPrompts: false)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
-        XCTAssertTrue(messages.system.contains("Clean dictated speech"), "Without experimental mode, small models should get minimal prompts")
+        XCTAssertTrue(messages.system.contains("Speech-to-text input"), "Without experimental mode, small models should get minimal prompts")
     }
 
     // MARK: - Gemma Models
@@ -590,7 +591,7 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "gemma-3-4b")
         XCTAssertEqual(messages.system, PromptTemplates.System.gemmaSystem)
         XCTAssertTrue(messages.user.contains("INSTRUCTIONS:"))
-        XCTAssertTrue(messages.user.contains("You clean up dictated speech"))
+        XCTAssertTrue(messages.user.contains("post-process raw speech-to-text output"))
     }
 
     func testGemmaSmallNoInstructionsInUserBlock() {
@@ -733,6 +734,83 @@ final class CleanupPromptBuilderTests: XCTestCase {
         let context = makeContext(cleanupLevel: .light)
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
         XCTAssertFalse(messages.system.contains("Numbers: convert spoken numbers"))
+    }
+
+    // MARK: - STT Priming Tests
+
+    func testSmallModelHasSTTPriming() {
+        for level in [CleanupContext.CleanupLevel.light, .medium, .heavy] {
+            let context = makeContext(cleanupLevel: level)
+            let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+            XCTAssertTrue(messages.system.contains("Speech-to-text"), "Small \(level) prompt should have STT priming")
+        }
+    }
+
+    func testSmallModelMediumHasSpokenPunctuation() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.contains("period") || messages.system.contains("comma"),
+                      "Small medium prompt should have spoken punctuation conversion")
+    }
+
+    func testSmallModelMessagesHasConcreteEmoji() {
+        let appCtx = AppContext(bundleId: "", appName: "Messages", category: .personalMessaging,
+                                style: .casual, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.contains("thumbs up") || messages.system.contains("👍"),
+                      "Small messages rule should have concrete emoji anchors")
+    }
+
+    func testSmallModelCursorHasCamelCase() {
+        let appCtx = AppContext(bundleId: "", appName: "Cursor", category: .codeEditor,
+                                style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-1b")
+        XCTAssertTrue(messages.system.contains("useEffect") || messages.system.contains("camelCase"),
+                      "Small cursor rule should mention camelCase conversion")
+    }
+
+    func testMediumPromptsHaveSTTPriming() {
+        for (level, modelId) in [(CleanupContext.CleanupLevel.light, "qwen-2.5-3b"),
+                                  (.medium, "qwen-2.5-3b"), (.heavy, "llama-3.2-3b")] {
+            let context = makeContext(cleanupLevel: level)
+            let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: modelId)
+            XCTAssertTrue(messages.system.lowercased().contains("speech-to-text"),
+                          "Medium \(level) prompt should contain speech-to-text reference")
+        }
+    }
+
+    func testMediumMediumHasStandaloneMetaCommand() {
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.system.contains("Meta-commands"), "mediumMedium should have Meta-commands rule")
+        XCTAssertTrue(messages.system.contains("delete that"), "mediumMedium should mention 'delete that'")
+    }
+
+    func testMediumHeavyHasStandaloneMetaCommand() {
+        let context = makeContext(cleanupLevel: .heavy)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "llama-3.2-3b")
+        XCTAssertTrue(messages.system.contains("Meta-commands"), "mediumHeavy should have Meta-commands rule")
+        XCTAssertTrue(messages.system.contains("delete that"), "mediumHeavy should mention 'delete that'")
+    }
+
+    func testCodeEditorContextGetsDedicatedExamples() {
+        let appCtx = AppContext(bundleId: "", appName: "Cursor", category: .codeEditor,
+                                style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.user.contains("handleSubmit") || messages.user.contains("auth.ts"),
+                      "Code editor context should get dedicated code editor examples")
+    }
+
+    func testSocialContextGetsDedicatedExamples() {
+        let appCtx = AppContext(bundleId: "", appName: "Twitter", category: .social,
+                                style: .casual, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let context = makeContext(appContext: appCtx)
+        let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-3b")
+        XCTAssertTrue(messages.user.contains("#buildinpublic") || messages.user.contains("🔥"),
+                      "Social context should get dedicated social examples")
     }
 
     // MARK: - Helpers

@@ -16,6 +16,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom keyboard shortcuts beyond default hotkeys
 - Dark mode menu bar icon tinting option
 
+## [0.2.1] - 2026-02-26
+
+### Fixed
+- Replaced single-shot correction learning with continuous polling for better accuracy
+- Fixed echo bug in LLM output + improved prompt quality across all model sizes
+- Explicit `\n\n` email structure enforced in prompts for all model sizes
+- Retry notarytool polling on transient network errors during CI distribution
+- Liquid glass UI redesign with updated app icon
+- Continuous STT priming ("Speech-to-text input.") added to all small/medium model prompts
+- Emoji name → emoji conversion (👍 🔥 ❤️) for messaging and social categories
+- "Remember to X" / "Don't forget to X" → `- [ ] X` todo conversion in Notes/Documents
+- Fixed `applyEmailFormatting()` early-return bug skipping transition-word paragraph breaks
+- "Scratch that / delete that" meta-command stripping pre-LLM
+- New few-shot examples for code editor and social media contexts
+- Expanded file tagging (`@filename.ts`) to all code editor contexts (not just IDE chat panels)
+
+### Changed
+- Filler word detection uses word-boundary regex to prevent false positives (e.g. "ukulele")
+- AboutTab now shows dynamic version from bundle (no longer hardcoded)
+
+---
+
+## [0.2.0] - 2026-02-22
+
+### Added
+- Voxtral via whisper.cpp backend (GGML models)
+- Gemma 3 1B and 4B model support (replaces Gemma 2)
+- IDE chat panel detection for Windsurf
+- `notesTodoConversion` setting in StyleSettings (migration-safe, defaults on)
+- Analytics: daily word counts, transcription streaks
+
+### Changed
+- Models tab now shows download progress per-model
+- Floating bar position saved per-screen in settings
+- Default LLM changed from Qwen 2.5 3B to Qwen 2.5 1.5B for 8GB machines
+
+### Fixed
+- Model hot-swap: `startRecording()` now always checks loaded model IDs against settings
+- Hotkey reentrancy: `isStartingRecording` flag prevents duplicate keyDown events
+- `pendingStop` flag handles hotkey release during model loading
+- LLM stop token truncation for Gemma (`<end_of_turn>` stripped from output)
+- Settings `onChange` handlers guarded with `didLoadSettings` to prevent spurious saves
+
+### Known Issues
+- First model download may take 5-10 minutes depending on connection
+- Whisper Large v3 Turbo requires 16GB RAM for optimal performance
+- Command Mode requires pre-selecting text
+
+---
+
 ## [0.1.0] - 2026-02-13
 
 ### Added
@@ -67,9 +117,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Neural Engine utilization (Parakeet)
   - GPU acceleration toggle
 - **Privacy**:
-  - 100% offline operation
-  - No telemetry or tracking
-  - All data stored locally
+  - Transcription and AI cleanup run fully offline
+  - Opt-out crash reporting (Sentry) and anonymous usage analytics (PostHog)
+  - All transcription data stored locally
   - Privacy manifest (PrivacyInfo.xcprivacy)
 
 ### Technical Details
@@ -84,8 +134,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First model download may take 5-10 minutes depending on connection
 - Whisper Large v3 Turbo requires 16GB RAM for optimal performance
 - Command Mode requires pre-selecting text (no automatic selection)
-- No code signing (requires Apple Developer account)
-- Sparkle auto-updater not yet functional (placeholder)
 
 ### Migration Notes
 - N/A (initial release)
@@ -120,4 +168,4 @@ For future releases, use this template:
 
 ---
 
-*Last updated: 2026-02-13*
+*Last updated: 2026-02-26*

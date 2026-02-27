@@ -13,21 +13,22 @@ enum PromptTemplates {
         // ── Small (≤2B) ──────────────────────────────────────────────
 
         static let smallLight = """
-        Fix punctuation and capitalization only. Keep ALL words \
-        including fillers. Output only the fixed text.
+        Speech-to-text input. Fix punctuation and capitalization only. Keep ALL words \
+        including fillers. Spoken "period"→. "comma"→, \
+        Output only the fixed text.
         """
 
         static let smallMedium = """
-        Clean dictated speech. Remove fillers (um, uh, like, you \
+        Speech-to-text input. Clean dictated speech. Remove fillers (um, uh, like, you \
         know, basically, sort of, kind of, I mean). Fix punctuation. \
         Keep "like" when it means "similar to" or "approximately." \
         Self-corrections: "X no wait Y" / "X I mean Y" → keep Y \
-        only. Stutters: "the the" → "the". Only list-format when \
-        speaker explicitly enumerates. Output only cleaned text.
+        only. Stutters: "the the" → "the". Spoken "period"→. "comma"→, "question mark"→? \
+        Only list-format when speaker explicitly enumerates. Output only cleaned text.
         """
 
         static let smallHeavy = """
-        Rewrite dictated speech into clear, polished text. Remove \
+        Speech-to-text input. Rewrite dictated speech into clear, polished text. Remove \
         all fillers and hesitations. Fix grammar, punctuation, \
         sentence structure. Self-corrections: keep only the corrected \
         version. Merge fragments into proper sentences. Only \
@@ -38,7 +39,7 @@ enum PromptTemplates {
         // ── Medium (3B-4B) ───────────────────────────────────────────
 
         static let mediumLight = """
-        You fix punctuation and capitalization in dictated speech.
+        You post-process raw speech-to-text output, fixing punctuation and capitalization only.
 
         RULES:
         1. Add proper punctuation based on sentence boundaries
@@ -52,7 +53,7 @@ enum PromptTemplates {
         """
 
         static let mediumMedium = """
-        You clean up dictated speech into readable text.
+        You post-process raw speech-to-text output into readable text.
 
         RULES:
         1. Remove fillers: um, uh, like (filler), you know, I mean, \
@@ -69,6 +70,9 @@ enum PromptTemplates {
         8. Spoken punctuation: "new line"/"new paragraph" → line break, \
         "period"/"comma"/"question mark" → insert punctuation
         9. Expand: thx → thanks, pls → please, u → you, gonna → going to
+        10. Meta-commands — execute, don't transcribe:
+            "scratch that" / "delete that" alone → remove the preceding sentence or phrase
+            If ambiguous whether correcting or deleting → treat as self-correction (rule 5)
 
         CONSTRAINTS:
         - Do NOT add words or content not in the transcript
@@ -79,7 +83,7 @@ enum PromptTemplates {
         """
 
         static let mediumHeavy = """
-        You transform dictated speech into polished, clear text.
+        You post-process raw speech-to-text output into polished, clear text.
 
         RULES:
         1. Remove ALL fillers, hedges, and verbal tics
@@ -94,6 +98,9 @@ enum PromptTemplates {
         9. Spoken punctuation: "new line"/"new paragraph" → line break, \
         "period"/"comma"/"question mark" → insert punctuation
         10. Expand: thx → thanks, pls → please, u → you, gonna → going to
+        11. Meta-commands — execute, don't transcribe:
+            "scratch that" / "delete that" alone → remove the preceding sentence or phrase
+            If ambiguous whether correcting or deleting → treat as self-correction (rule 3)
 
         CONSTRAINTS:
         - Do NOT add ideas or content not in the transcript
@@ -200,17 +207,17 @@ enum PromptTemplates {
 
             static let cursor = """
             Convert filenames: "X dot ts/js/py/json" → X.ts/.js/.py/.json. \
-            Keep code terms exact.
+            camelCase: "use effect"→useEffect, "on click"→onClick. Keep code terms exact.
             """
 
             static let cursorChat = """
-            Prefix filenames with @: "X dot ts/js/py" → @X.ts/.js/.py. \
-            Keep code terms exact.
+            Convert filenames: "X dot ts/js/py" → X.ts/.js/.py. \
+            camelCase: "use effect"→useEffect. Keep code terms exact.
             """
 
             static let messages = """
-            Casual. Emoji names → emoji. Keep yeah/nah/gonna/lol. \
-            Periods optional on short messages.
+            Casual. "thumbs up"→👍, "heart"→❤️, "fire"→🔥, spoken emoji names→emoji. \
+            Keep yeah/nah/gonna/lol. Periods optional on short messages.
             """
 
             static let claude = """
@@ -219,11 +226,12 @@ enum PromptTemplates {
             """
 
             static let terminal = """
-            CLI mode. "dash" → -, "slash" → /, "pipe" → |. \
-            No periods on commands.
+            CLI mode. "dash" → -, "slash" → /, "pipe" → |, \
+            "and and"→&&, "or or"→||. No periods on commands.
             """
 
             static let notes = """
+            "Remember to X"/"I need to X" → - [ ] X. \
             Markdown: "heading" → #, "bullet" → -, "todo" → - [ ], \
             "bold" → **text**.
             """
@@ -260,6 +268,7 @@ enum PromptTemplates {
             - Convert spoken file paths: "X dot Y" → X.Y for code extensions \
             (.ts, .tsx, .js, .jsx, .py, .json, .yaml, .md, .css, .html, \
             .env, .gitignore, .sh, .sql, .go, .rs)
+            - Output bare filenames without @ prefix (auth.ts, not @auth.ts) — @ is added automatically
             - Convert code identifiers: "use effect" → useEffect, \
             "on click" → onClick, "handle submit" → handleSubmit
             - CLI flags: "dash m" → -m, "dash dash verbose" → --verbose
@@ -308,8 +317,9 @@ enum PromptTemplates {
 
             static let social = """
             - "hashtag X" → #X, "at X" / "mention X" → @X
-            - Convert spoken emoji names to emoji characters
+            - Convert spoken emoji names to emoji (thumbs up → 👍, fire → 🔥, heart → ❤️)
             - Keep concise — social media is punchy
+            - Preserve casual markers: yeah, lol, omg, nah
             """
 
             static let docs = """
@@ -403,6 +413,28 @@ enum PromptTemplates {
             Example(
                 input: "hi sarah hope you're doing well um so I wanted to let you know that the meeting has been moved to thursday at 2 pm please let me know if that works thanks john",
                 output: "Hi Sarah,\n\nHope you're doing well. I wanted to let you know that the meeting has been moved to Thursday at 2 PM. Please let me know if that works.\n\nThanks,\nJohn"
+            ),
+        ]
+
+        static let mediumCodeEditor: [Example] = [
+            Example(
+                input: "um can you update the handle submit function in auth dot ts to validate the email field before calling the API",
+                output: "Can you update the handleSubmit function in auth.ts to validate the email field before calling the API?"
+            ),
+            Example(
+                input: "run npm run build then push to origin main with dash dash force",
+                output: "Run npm run build, then push to origin main with --force."
+            ),
+        ]
+
+        static let mediumSocial: [Example] = [
+            Example(
+                input: "just shipped the new feature fire emoji so excited hashtag buildinpublic hashtag indie hacker",
+                output: "Just shipped the new feature 🔥 So excited! #buildinpublic #indiehacker"
+            ),
+            Example(
+                input: "great work at teamname rocket emoji keep it up",
+                output: "Great work @teamname 🚀 Keep it up!"
             ),
         ]
 

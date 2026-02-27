@@ -113,45 +113,60 @@ struct OutputFormatter {
     static func format(_ text: String, for context: AppContext, styleSettings: StyleSettings = StyleSettings()) -> String {
         var result = text
 
-        // Global: detect ordinal list patterns the LLM missed
+        // 1. Global: detect ordinal list patterns the LLM missed
         result = applyListFormatting(result)
 
-        // Very casual: strip trailing periods, lowercase
+        // 2. Bullet/unordered lists (notes + docs only)
+        if context.category == .notes || context.category == .documents {
+            result = applyBulletConversion(result)
+        }
+
+        // 3. Very casual: strip trailing periods, lowercase
         if context.style == .veryCasual {
             result = applyVeryCasual(result)
         }
 
-        // File tagging for IDE chat panels and AI chat apps (respects user toggle)
-        if (context.isIDEChatPanel || context.category == .aiChat) && styleSettings.ideFileTagging {
+        // 4. Emoji name → emoji (messaging + social only; NOT aiChat — would corrupt prompts)
+        if context.category == .personalMessaging
+            || context.category == .workMessaging
+            || context.category == .social {
+            result = applyEmojiConversion(result)
+        }
+
+        // 5. File tagging for IDE chat panels, regular code editors, and AI chat apps
+        if (context.isIDEChatPanel || context.category == .codeEditor || context.category == .aiChat) && styleSettings.ideFileTagging {
             result = applyFileTagging(result)
         }
 
-        // IDE variable backtick wrapping (respects user toggle)
+        // 6. IDE variable backtick wrapping (respects user toggle)
         if context.category == .codeEditor && styleSettings.ideVariableRecognition {
             result = wrapCodeTokens(result)
         }
 
-        // Work messaging: @mentions and #channels
+        // 7. Work messaging: @mentions and #channels
         if context.category == .workMessaging {
             result = applySlackFormatting(result)
         }
 
-        // Email: paragraph breaks at transition words
+        // 8. Email: paragraph breaks at transition words
         if context.category == .email {
             result = applyEmailFormatting(result)
         }
 
-        // Terminal: strip trailing periods on commands
+        // 9. Todo conversion for notes and documents
+        if (context.category == .notes || context.category == .documents) && styleSettings.notesTodoConversion {
+            result = applyTodoConversion(result)
+        }
+
+        // 10. Terminal: strip trailing periods on commands
         if context.category == .terminal {
             result = applyTerminalFormatting(result)
         }
 
-        // Social media: hashtag/mention conversion
+        // 11. Social media: hashtag/mention conversion (after emoji)
         if context.category == .social {
             result = applySocialFormatting(result)
         }
-
-        // Notes: minimal post-processing (markdown handled by LLM via AppRules)
 
         return result
     }
@@ -256,32 +271,38 @@ struct OutputFormatter {
     )
 
     /// Format email text with greeting/body/sign-off structure and transition paragraph breaks.
+    /// Each pass is independent — the early-return bug (skipping transitions when LLM already
+    /// added \n\n) is fixed by checking per-section, not globally.
     static func applyEmailFormatting(_ text: String) -> String {
-        guard !text.contains("\n\n") else { return text }
-
         var result = text
 
-        // Extract greeting (e.g., "Hi Robert," or "Hello Sarah,")
-        let fullRange = NSRange(result.startIndex..<result.endIndex, in: result)
-        if let greetingMatch = greetingRegex.firstMatch(in: result, range: fullRange),
-           let greetingRange = Range(greetingMatch.range(at: 1), in: result) {
-            let greeting = String(result[greetingRange])
-            let rest = String(result[greetingRange.upperBound...]).trimmingCharacters(in: .whitespaces)
-            result = greeting + "\n\n" + rest
+        // Pass 1: Greeting — only skip if \n\n already present near start (first 80 chars)
+        let greetingZone = String(result.prefix(80))
+        if !greetingZone.contains("\n\n") {
+            let fullRange = NSRange(result.startIndex..<result.endIndex, in: result)
+            if let greetingMatch = greetingRegex.firstMatch(in: result, range: fullRange),
+               let greetingRange = Range(greetingMatch.range(at: 1), in: result) {
+                let greeting = String(result[greetingRange])
+                let rest = String(result[greetingRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+                result = greeting + "\n\n" + rest
+            }
         }
 
-        // Extract sign-off (e.g., "Thanks, Sandeep" or "Best regards, John")
+        // Pass 2: Sign-off — only skip if already preceded by \n\n
         let currentRange = NSRange(result.startIndex..<result.endIndex, in: result)
         if let signOffMatch = signOffRegex.firstMatch(in: result, range: currentRange),
            let signOffRange = Range(signOffMatch.range(at: 1), in: result) {
-            let signOff = String(result[signOffRange])
-            let body = String(result[result.startIndex..<signOffRange.lowerBound]).trimmingCharacters(in: .whitespaces)
-            // Split sign-off name onto its own line (e.g., "Thanks,\nSandeep")
-            let signOffFormatted = signOff.replacingOccurrences(of: ", ", with: ",\n")
-            result = body + "\n\n" + signOffFormatted
+            // Check if the sign-off is already preceded by \n\n
+            let beforeSignOff = String(result[result.startIndex..<signOffRange.lowerBound])
+            if !beforeSignOff.hasSuffix("\n\n") {
+                let signOff = String(result[signOffRange])
+                let body = beforeSignOff.trimmingCharacters(in: .whitespaces)
+                let signOffFormatted = signOff.replacingOccurrences(of: ", ", with: ",\n")
+                result = body + "\n\n" + signOffFormatted
+            }
         }
 
-        // Insert paragraph breaks before transition words in the body
+        // Pass 3: Transition word paragraph breaks — always run (not gated on \n\n presence)
         let sentenceCount = result.components(separatedBy: CharacterSet(charactersIn: ".!?")).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.count
         if sentenceCount >= 2 {
             let range = NSRange(result.startIndex..<result.endIndex, in: result)
@@ -289,6 +310,234 @@ struct OutputFormatter {
         }
 
         return result
+    }
+
+    // MARK: - Emoji Conversion
+
+    /// Emoji name → emoji substitution for messaging and social contexts.
+    /// Only applies to `.personalMessaging`, `.workMessaging`, `.social`.
+    /// Multi-word entries sorted longest-first to prevent partial matching.
+    private static let emojiMap: [(pattern: NSRegularExpression, emoji: String)] = {
+        let entries: [(String, String)] = [
+            // Multi-word first (longest to shortest to prevent partial matching)
+            ("praying hands", "🙏"),
+            ("party popper", "🎉"),
+            ("light bulb", "💡"),
+            ("money bag", "💰"),
+            ("cross mark", "❌"),
+            ("x mark", "❌"),
+            ("green checkmark", "✅"),
+            ("check mark", "✅"),
+            ("fist bump", "🤜"),
+            ("ok hand", "👌"),
+            ("raised hand", "✋"),
+            ("mind blown", "🤯"),
+            ("crying laughing", "😂"),
+            ("smiley face", "😊"),
+            ("broken heart", "💔"),
+            ("red heart", "❤️"),
+            ("thumbs down", "👎"),
+            ("thumbs up", "👍"),
+            // Single-word — only unambiguous emoji names rarely used as plain English
+            ("checkmark", "✅"),
+            ("sparkles", "✨"),
+            ("clapping", "👏"),
+            ("facepalm", "🤦"),
+            ("rocket", "🚀"),
+            ("muscle", "💪"),
+            ("shrug", "🤷"),
+            ("tada", "🎉"),
+            ("wink", "😉"),
+        ]
+        return entries.compactMap { (phrase, emoji) in
+            guard let regex = try? NSRegularExpression(
+                pattern: "\\b\(NSRegularExpression.escapedPattern(for: phrase))\\b",
+                options: [.caseInsensitive]
+            ) else { return nil }
+            return (regex, emoji)
+        }
+    }()
+
+    static func applyEmojiConversion(_ text: String) -> String {
+        var result = text
+        for (regex, emoji) in emojiMap {
+            let range = NSRange(result.startIndex..<result.endIndex, in: result)
+            result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: emoji)
+        }
+        return result
+    }
+
+    // MARK: - Todo Conversion
+
+    /// Convert intent phrases to - [ ] Task format for notes/documents contexts.
+    /// Uses sentence-boundary anchor to prevent mid-sentence firing.
+    private static let todoPatterns: [(NSRegularExpression, Int)] = {
+        // Group 1 = task text in each pattern
+        let patterns: [String] = [
+            "(?:^|(?<=[.!?\\n])\\s*)to-?do:?\\s+(.+?)(?=[.!?]|$)",
+            "(?:^|(?<=[.!?\\n])\\s*)checkbox\\s+(.+?)(?=[.!?]|$)",
+            "(?:^|(?<=[.!?\\n])\\s*)add\\s+task\\s+(.+?)(?=[.!?]|$)",
+            "(?:^|(?<=[.!?\\n])\\s*)remember\\s+to\\s+(.+?)(?=[.!?]|$)",
+            "(?:^|(?<=[.!?\\n])\\s*)don'?t\\s+forget\\s+to\\s+(.+?)(?=[.!?]|$)",
+            "(?:^|(?<=[.!?\\n])\\s*)make\\s+sure\\s+to\\s+(.+?)(?=[.!?]|$)",
+            "(?:^|(?<=[.!?\\n])\\s*)add\\s+to\\s+(?:my\\s+)?list\\s+(.+?)(?=[.!?]|$)",
+            "(?:^|(?<=[.!?\\n])\\s*)i\\s+need\\s+to\\s+(.+?)(?=[.!?]|$)",
+            "(?:^|(?<=[.!?\\n])\\s*)i\\s+have\\s+to\\s+(.+?)(?=[.!?]|$)",
+        ]
+        return patterns.compactMap { pattern in
+            guard let regex = try? NSRegularExpression(
+                pattern: pattern,
+                options: [.caseInsensitive, .anchorsMatchLines]
+            ) else { return nil }
+            return (regex, 1)
+        }
+    }()
+
+    static func applyTodoConversion(_ text: String) -> String {
+        var result = text
+        for (regex, captureGroup) in todoPatterns {
+            let nsResult = result as NSString
+            var range = NSRange(result.startIndex..<result.endIndex, in: result)
+            let matches = regex.matches(in: result, range: range)
+            // Process in reverse order to preserve indices
+            for match in matches.reversed() {
+                guard match.numberOfRanges > captureGroup,
+                      let taskRange = Range(match.range(at: captureGroup), in: result),
+                      let fullRange = Range(match.range, in: result) else { continue }
+                var task = String(result[taskRange]).trimmingCharacters(in: .whitespaces)
+                // Strip trailing punctuation from task text (the regex lookahead stops before
+                // it but the task text itself may end with a period in some edge cases)
+                if task.last == "." || task.last == "," {
+                    task = String(task.dropLast()).trimmingCharacters(in: .whitespaces)
+                }
+                // Capitalize first character
+                if let first = task.first {
+                    task = first.uppercased() + task.dropFirst()
+                }
+                let todoItem = "- [ ] \(task)"
+                // Determine if we need a trailing newline
+                let afterFull = fullRange.upperBound
+                let needsNewline = afterFull < result.endIndex
+                result.replaceSubrange(fullRange, with: needsNewline ? todoItem + "\n" : todoItem)
+            }
+        }
+        return result
+    }
+
+    // MARK: - Bullet Conversion
+
+    /// Convert "bullet X, bullet Y" patterns to unordered markdown list items.
+    /// Requires 2+ occurrences. Applied for .notes and .documents contexts only.
+    private static let bulletRegex = try! NSRegularExpression(
+        pattern: "\\bbullet(?:\\s+point)?\\s+(.+?)(?=(?:,\\s*bullet|[.!?]|$))",
+        options: [.caseInsensitive]
+    )
+
+    private static let dashListRegex = try! NSRegularExpression(
+        pattern: "\\bdash\\s+(.+?)(?=(?:,\\s*dash|[.!?]|$))",
+        options: [.caseInsensitive]
+    )
+
+    static func applyBulletConversion(_ text: String) -> String {
+        // Try "bullet [point] X" pattern first
+        let bulletRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        let bulletMatches = bulletRegex.matches(in: text, range: bulletRange)
+        if bulletMatches.count >= 2 {
+            var items: [String] = []
+            for match in bulletMatches {
+                guard let itemRange = Range(match.range(at: 1), in: text) else { continue }
+                var item = String(text[itemRange]).trimmingCharacters(in: .whitespaces)
+                if let first = item.first { item = first.uppercased() + item.dropFirst() }
+                items.append("- \(item)")
+            }
+            // Find the full range from first bullet start to last bullet end
+            if let firstMatch = bulletMatches.first, let lastMatch = bulletMatches.last,
+               let firstRange = Range(firstMatch.range, in: text),
+               let lastRange = Range(lastMatch.range, in: text) {
+                var result = text
+                result.replaceSubrange(firstRange.lowerBound..<lastRange.upperBound, with: items.joined(separator: "\n"))
+                return result
+            }
+        }
+
+        // Try "dash X, dash Y" pattern
+        let dashRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        let dashMatches = dashListRegex.matches(in: text, range: dashRange)
+        if dashMatches.count >= 2 {
+            var items: [String] = []
+            for match in dashMatches {
+                guard let itemRange = Range(match.range(at: 1), in: text) else { continue }
+                var item = String(text[itemRange]).trimmingCharacters(in: .whitespaces)
+                if let first = item.first { item = first.uppercased() + item.dropFirst() }
+                items.append("- \(item)")
+            }
+            if let firstMatch = dashMatches.first, let lastMatch = dashMatches.last,
+               let firstRange = Range(firstMatch.range, in: text),
+               let lastRange = Range(lastMatch.range, in: text) {
+                var result = text
+                result.replaceSubrange(firstRange.lowerBound..<lastRange.upperBound, with: items.joined(separator: "\n"))
+                return result
+            }
+        }
+
+        return text
+    }
+
+    // MARK: - Meta-Command Stripping (Pre-LLM)
+
+    /// Strips terminal "scratch that / delete that / cancel that / never mind" commands.
+    /// Behaviour:
+    ///   - If meta-command follows a sentence boundary (. ! ?) → removes the last sentence before it,
+    ///     keeping any earlier sentences intact.
+    ///   - If meta-command is inline (no sentence break) → cancels the entire utterance.
+    /// "The meeting is on Tuesday. Scratch that." → "The meeting is on Tuesday."
+    /// "Also reschedule the call. Scratch that." → "" (single preceding sentence cancelled)
+    /// "email bob about the report never mind" → "" (inline cancel, no sentence break)
+    private static let metaCommandSuffixRegex = try! NSRegularExpression(
+        pattern: "(?:[,.]?\\s*(?:scratch that|delete that|cancel that|never mind)[.!]?\\s*)$",
+        options: [.caseInsensitive]
+    )
+
+    static func applyMetaCommandStripping(_ text: String) -> String {
+        // Check if the entire text is just a meta-command (standalone)
+        let lowerText = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let metaCommands = ["scratch that", "delete that", "cancel that", "never mind"]
+        if metaCommands.contains(lowerText) { return "" }
+
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let metaMatch = metaCommandSuffixRegex.firstMatch(in: text, range: range),
+              let metaRange = Range(metaMatch.range, in: text) else {
+            return text
+        }
+
+        // Content before the meta-command
+        let before = String(text[text.startIndex..<metaRange.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Split into sentences by sentence-ending punctuation
+        // "The meeting is on Tuesday. Also reschedule." → ["The meeting is on Tuesday", "Also reschedule"]
+        var sentences: [String] = []
+        var current = ""
+        for char in before {
+            current.append(char)
+            if ".!?".contains(char) {
+                let trimmed = current.trimmingCharacters(in: .whitespaces)
+                if !trimmed.isEmpty { sentences.append(trimmed) }
+                current = ""
+            }
+        }
+        // Any remaining text without trailing punctuation is the last sentence fragment
+        let remaining = current.trimmingCharacters(in: .whitespaces)
+        if !remaining.isEmpty { sentences.append(remaining) }
+
+        if sentences.count <= 1 {
+            // Single sentence/phrase before meta-command — cancel everything
+            return ""
+        } else {
+            // Multiple sentences — remove only the last one (the cancelled one)
+            let keep = sentences.dropLast()
+            return keep.joined(separator: " ")
+        }
     }
 
     // MARK: - List Formatting (Ordinal Safety Net + Colon-List Detection)

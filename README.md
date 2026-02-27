@@ -4,9 +4,9 @@
 
 An open-source, offline, macOS voice-to-text app with AI-powered cleanup. A cozy creature lives in your menu bar, listens when you speak, and pastes clean, formatted text into any app.
 
-> **100% offline** — your voice never leaves your Mac
+> **Privacy-first** — your voice stays on your Mac; transcription runs fully offline
 > **AI cleanup** — removes filler words, fixes grammar, matches your style
-> **Open source** — MIT licensed, no subscriptions, no tracking
+> **Open source** — MIT licensed, no subscriptions
 > **A little creature** — because software should have soul
 
 ---
@@ -16,7 +16,7 @@ An open-source, offline, macOS voice-to-text app with AI-powered cleanup. A cozy
 - **Push-to-Talk**: Hold Option+Space, speak, release — clean text appears where your cursor is
 - **Hands-Free Mode**: Toggle recording with Option+Shift+Space, auto-stops on silence
 - **Multiple STT Models**: Choose between Whisper (Large/Medium/Small), Parakeet TDT v3, or Voxtral
-- **Multiple LLM Models**: Qwen 2.5, Llama 3.2, or Gemma 2 for text cleanup — all running locally
+- **Multiple LLM Models**: Qwen 2.5, Llama 3.2, or Gemma 3 for text cleanup — all running locally
 - **Context-Aware**: Auto-detects your app and adjusts formatting (casual for iMessage, formal for email, backticks for code editors)
 - **Writing Styles**: Casual, neutral, or formal. Custom prompts. Per-app style overrides
 - **Command Mode**: Highlight text, speak a command ("make this more professional") — AI rewrites
@@ -50,7 +50,7 @@ cd yapyap
 brew install xcodegen
 xcodegen generate
 make build
-open build/Debug/YapYap.app
+open ~/Library/Developer/Xcode/DerivedData/YapYap-*/Build/Products/Debug/YapYap.app
 ```
 
 ## How It Works
@@ -63,7 +63,7 @@ You speak → YapYap captures audio
          → Clean text pasted into your active app
 ```
 
-Everything runs locally on your Mac. No cloud. No API keys. No internet required after model download.
+Transcription and cleanup run fully on your Mac. No cloud AI. Models are downloaded once from HuggingFace; after that, no internet is required. The app includes opt-out crash reporting (Sentry) and anonymous usage analytics (PostHog).
 
 ## STT Models
 
@@ -78,10 +78,14 @@ Everything runs locally on your Mac. No cloud. No API keys. No internet required
 
 | Model | Size | Speed | Best For |
 |-------|------|-------|----------|
+| Qwen 2.5 1.5B | ~1.0GB | Fastest | Minimal footprint |
 | Qwen 2.5 3B | ~2.0GB | Fast | Default — fast, multilingual |
 | Qwen 2.5 7B | ~4.7GB | Good | Higher quality rewrites |
+| Llama 3.2 1B | ~0.7GB | Fastest | Fastest English cleanup |
 | Llama 3.2 3B | ~2.0GB | Fast | Great for English |
 | Llama 3.1 8B | ~4.7GB | Good | Best rewrite quality |
+| Gemma 3 1B | ~0.8GB | Fastest | 140+ languages |
+| Gemma 3 4B | ~2.5GB | Fast | Instruction-following |
 
 ## Architecture
 
@@ -93,7 +97,7 @@ Native Swift + SwiftUI app. No Electron, no web views.
 - **Data**: SwiftData (SQLite) for settings, history, analytics
 - **UI**: SwiftUI + AppKit (NSStatusItem, NSPopover, NSPanel, NSWindow)
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system design.
+See [files/00-ARCHITECTURE.md](files/00-ARCHITECTURE.md) for the full system design.
 
 ## Contributing
 

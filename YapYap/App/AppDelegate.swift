@@ -43,7 +43,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Setup hotkeys
         print("[AppDelegate] Configuring hotkeys...")
-        HotkeyManager.shared.configure(pipeline: pipeline!, appState: appState)
+        guard let activePipeline = pipeline else {
+            print("[AppDelegate] ❌ Pipeline failed to initialize — app cannot function")
+            return
+        }
+        HotkeyManager.shared.configure(pipeline: activePipeline, appState: appState)
 
         // Setup floating bar on main actor
         Task { @MainActor in
@@ -86,6 +90,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 } catch {
                     print("[AppDelegate] ❌ Failed to load models at startup: \(error)")
+                    await MainActor.run {
+                        self.appState.modelLoadingStatus = "Failed to load — tap to retry"
+                        self.appState.modelsReady = false
+                    }
                 }
             }
         }
@@ -265,9 +273,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
+            guard let pipeline = self.pipeline else {
+                print("[AppDelegate] ❌ Cannot show onboarding — pipeline is nil")
+                return
+            }
             window.contentView = NSHostingView(rootView: OnboardingView(
                 appState: self.appState,
-                pipeline: self.pipeline!,
+                pipeline: pipeline,
                 onComplete: onComplete
             ))
 

@@ -25,11 +25,10 @@ class HotkeyManager {
         self.pipeline = pipeline
         self.appState = appState
 
-        // Check accessibility permission - required for global hotkeys and paste
-        // Using AXIsProcessTrustedWithOptions with prompt=true ensures the app
-        // appears in System Settings → Accessibility even on first launch
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
-        let trusted = AXIsProcessTrustedWithOptions(options)
+        // Check accessibility permission silently — never show a dialog here.
+        // Onboarding step 2 handles the system prompt on first launch.
+        // Post-onboarding, the app works without accessibility (clipboard fallback).
+        let trusted = AXIsProcessTrusted()
         NSLog("[HotkeyManager] Accessibility trusted: %@", trusted ? "YES" : "NO")
 
         if !trusted {

@@ -22,7 +22,7 @@ struct AboutTab: View {
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundColor(.ypText1)
 
-            Text("Version 0.1.0 (Build 42)")
+            Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—") (Build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"))")
                 .font(.system(size: 12))
                 .foregroundColor(.ypText3)
                 .padding(.top, 2)
@@ -57,7 +57,18 @@ struct AboutTab: View {
     }
 
     private func linkButton(_ title: String) -> some View {
-        Button(action: {}) {
+        let urlString: String
+        switch title {
+        case "GitHub":  urlString = "https://github.com/sunboy/yapyap"
+        case "Website": urlString = "https://yapyap.app"
+        case "License": urlString = "https://github.com/sunboy/yapyap/blob/main/LICENSE"
+        default:        urlString = ""
+        }
+        return Button(action: {
+            if let url = URL(string: urlString) {
+                NSWorkspace.shared.open(url)
+            }
+        }) {
             Text(title)
                 .font(.system(size: 12, design: .rounded))
                 .foregroundColor(.ypText2)

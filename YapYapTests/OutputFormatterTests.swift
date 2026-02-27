@@ -418,4 +418,181 @@ final class OutputFormatterTests: XCTestCase {
         let items = OutputFormatter.splitListItems("just one thing")
         XCTAssertEqual(items.count, 1)
     }
+
+    // MARK: - Emoji Conversion
+
+    func testEmojiThumbsUp() {
+        let result = OutputFormatter.applyEmojiConversion("that sounds great thumbs up")
+        XCTAssertTrue(result.contains("👍"))
+        XCTAssertFalse(result.contains("thumbs up"))
+    }
+
+    func testEmojiFireDoesNotMatchFired() {
+        // "fired" should not become 🔥fired
+        let result = OutputFormatter.applyEmojiConversion("she got fired yesterday")
+        XCTAssertFalse(result.contains("🔥"))
+    }
+
+    func testEmojiCaseInsensitive() {
+        let result = OutputFormatter.applyEmojiConversion("THUMBS UP to that")
+        XCTAssertTrue(result.contains("👍"))
+    }
+
+    func testEmojiMultipleInOneSentence() {
+        let result = OutputFormatter.applyEmojiConversion("thumbs up rocket sparkles")
+        XCTAssertTrue(result.contains("👍"))
+        XCTAssertTrue(result.contains("🚀"))
+        XCTAssertTrue(result.contains("✨"))
+    }
+
+    func testEmojiInPersonalMessagingPipeline() {
+        let ctx = AppContext(bundleId: "", appName: "Messages", category: .personalMessaging,
+                             style: .casual, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let result = OutputFormatter.format("great job thumbs up", for: ctx)
+        XCTAssertTrue(result.contains("👍"))
+    }
+
+    func testEmojiNotAppliedInEmail() {
+        let ctx = AppContext(bundleId: "", appName: "Mail", category: .email,
+                             style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let result = OutputFormatter.format("thumbs up on the proposal", for: ctx)
+        // Email context should NOT apply emoji conversion
+        XCTAssertFalse(result.contains("👍"))
+    }
+
+    func testEmojiNotAppliedInCodeEditor() {
+        let ctx = AppContext(bundleId: "", appName: "VS Code", category: .codeEditor,
+                             style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let result = OutputFormatter.format("fire the event handler", for: ctx)
+        // Code editor context should NOT apply emoji conversion
+        XCTAssertFalse(result.contains("🔥"))
+    }
+
+    // MARK: - Todo Conversion
+
+    func testTodoBasicPhrase() {
+        let result = OutputFormatter.applyTodoConversion("todo buy milk")
+        XCTAssertTrue(result.contains("- [ ] Buy milk"))
+    }
+
+    func testTodoDontForgetPhrase() {
+        let result = OutputFormatter.applyTodoConversion("don't forget to call mom")
+        XCTAssertTrue(result.contains("- [ ] Call mom"))
+    }
+
+    func testTodoRememberToPhrase() {
+        let result = OutputFormatter.applyTodoConversion("Remember to send the invoice")
+        XCTAssertTrue(result.contains("- [ ] Send the invoice"))
+    }
+
+    func testTodoCapitalizesFirstChar() {
+        let result = OutputFormatter.applyTodoConversion("i need to buy groceries")
+        XCTAssertTrue(result.contains("- [ ] Buy groceries"))
+    }
+
+    func testTodoNotAppliedOutsideNotes() {
+        let ctx = AppContext(bundleId: "", appName: "Messages", category: .personalMessaging,
+                             style: .casual, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let result = OutputFormatter.format("remember to call mom", for: ctx)
+        // Personal messaging should NOT apply todo conversion
+        XCTAssertFalse(result.contains("- [ ]"))
+    }
+
+    func testTodoInNotesPipeline() {
+        let ctx = AppContext(bundleId: "", appName: "Notes", category: .notes,
+                             style: .casual, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let result = OutputFormatter.format("remember to buy groceries", for: ctx)
+        XCTAssertTrue(result.contains("- [ ] Buy groceries"))
+    }
+
+    // MARK: - File Tagging in Regular Code Editor (C2b)
+
+    func testFileTaggingInRegularCursorEditor() {
+        let ctx = AppContext(bundleId: "", appName: "Cursor", category: .codeEditor,
+                             style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let result = OutputFormatter.format("update auth.ts to fix the bug", for: ctx)
+        XCTAssertTrue(result.contains("@auth.ts"), "Regular code editor should apply file tagging")
+    }
+
+    func testFileTaggingNotDuplicatedIfAlreadyTagged() {
+        let ctx = AppContext(bundleId: "", appName: "Cursor", category: .codeEditor,
+                             style: .formal, windowTitle: nil, focusedFieldText: nil, isIDEChatPanel: false)
+        let result = OutputFormatter.format("update @auth.ts to fix the bug", for: ctx)
+        // Should not produce @@auth.ts
+        XCTAssertFalse(result.contains("@@auth.ts"), "Should not double-tag files")
+        XCTAssertTrue(result.contains("@auth.ts"))
+    }
+
+    // MARK: - Bullet Conversion
+
+    func testBulletBasicPattern() {
+        let result = OutputFormatter.applyBulletConversion("bullet call mom, bullet buy groceries")
+        XCTAssertTrue(result.contains("- Call mom"))
+        XCTAssertTrue(result.contains("- Buy groceries"))
+    }
+
+    func testBulletPointPattern() {
+        let result = OutputFormatter.applyBulletConversion("bullet point alpha, bullet point beta")
+        XCTAssertTrue(result.contains("- Alpha"))
+        XCTAssertTrue(result.contains("- Beta"))
+    }
+
+    func testBulletSingleNotConverted() {
+        let input = "bullet point call mom"
+        let result = OutputFormatter.applyBulletConversion(input)
+        // Single bullet occurrence should NOT be converted
+        XCTAssertFalse(result.contains("- Call mom"))
+    }
+
+    func testBulletDashPattern() {
+        let result = OutputFormatter.applyBulletConversion("dash first item, dash second item")
+        XCTAssertTrue(result.contains("- First item"))
+        XCTAssertTrue(result.contains("- Second item"))
+    }
+
+    // MARK: - Email Formatting Fix (C4)
+
+    func testEmailTransitionBreaksApplyEvenWithExistingDoubleNewline() {
+        // Bug fix: transition breaks should apply even when LLM already added \n\n for greeting
+        let input = "Hi Sarah,\n\nThe project is going well. However the budget needs review."
+        let result = OutputFormatter.applyEmailFormatting(input)
+        XCTAssertTrue(result.contains("\n\nHowever"), "Transition breaks should apply even when email already has \\n\\n")
+    }
+
+    func testEmailGreetingNotDuplicatedIfAlreadyFormatted() {
+        let input = "Hi Sarah,\n\nThe project is going well."
+        let result = OutputFormatter.applyEmailFormatting(input)
+        // Should not add another \n\n after greeting
+        XCTAssertFalse(result.contains("Hi Sarah,\n\n\n\n"))
+    }
+
+    // MARK: - Meta-Command Stripping (C5)
+
+    func testMetaCommandScratchThatRemovesPrecedingSentence() {
+        // "Scratch that" removes the last sentence before it. With one sentence before it, removes all.
+        let result = OutputFormatter.applyMetaCommandStripping("The meeting is on Tuesday. Also reschedule the call. Scratch that.")
+        XCTAssertEqual(result, "The meeting is on Tuesday.")
+    }
+
+    func testMetaCommandScratchThatSingleSentence() {
+        // Single sentence before "scratch that" — entire utterance cancelled
+        let result = OutputFormatter.applyMetaCommandStripping("The meeting is on Tuesday. Scratch that.")
+        XCTAssertEqual(result, "")
+    }
+
+    func testMetaCommandDeleteThatInline() {
+        let result = OutputFormatter.applyMetaCommandStripping("email bob about the report never mind")
+        XCTAssertEqual(result, "")
+    }
+
+    func testMetaCommandNoMetaCommandPassthrough() {
+        let input = "The meeting is on Tuesday."
+        let result = OutputFormatter.applyMetaCommandStripping(input)
+        XCTAssertEqual(result, input)
+    }
+
+    func testMetaCommandNeverMind() {
+        let result = OutputFormatter.applyMetaCommandStripping("never mind")
+        XCTAssertEqual(result, "")
+    }
 }

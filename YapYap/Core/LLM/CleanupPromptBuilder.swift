@@ -236,9 +236,15 @@ struct CleanupPromptBuilder {
         if size == .small {
             return Array(PromptTemplates.Examples.small.prefix(3))
         }
-        // Use email-specific example for email contexts so the model sees \n\n structure
+        // Category-specific examples take priority — model needs to see the right conversions
         if app?.category == .email {
             return PromptTemplates.Examples.mediumEmail
+        }
+        if app?.category == .codeEditor || app?.isIDEChatPanel == true {
+            return PromptTemplates.Examples.mediumCodeEditor
+        }
+        if app?.category == .social {
+            return PromptTemplates.Examples.mediumSocial
         }
         switch level {
         case .light:  return PromptTemplates.Examples.mediumLight
