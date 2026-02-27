@@ -2,6 +2,7 @@ import AppKit
 import SwiftData
 import SwiftUI
 import AVFoundation
+import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusBarController: StatusBarController?
@@ -9,6 +10,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var pipeline: TranscriptionPipeline?
     var floatingBarPanel: FloatingBarPanel?
     var onboardingWindow: NSWindow?
+    let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("[AppDelegate] applicationDidFinishLaunching starting...")
