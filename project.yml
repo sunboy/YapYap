@@ -59,6 +59,9 @@ packages:
   Sentry:
     url: https://github.com/getsentry/sentry-cocoa.git
     from: "8.0.0"
+  PostHog:
+    url: https://github.com/PostHog/posthog-ios.git
+    from: "3.0.0"
 
 targets:
   YapYap:
@@ -94,6 +97,8 @@ targets:
       - package: SelectedTextKit
       - package: Sentry
         product: Sentry
+      - package: PostHog
+        product: PostHog
     entitlements:
       path: YapYap/YapYap.entitlements
       properties:

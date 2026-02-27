@@ -15,6 +15,7 @@
 		0875D077867FCD92E4091F40 /* LLMEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351AA57A2113A29E8DEBE453 /* LLMEngine.swift */; };
 		0924001E352CCD8F1239A598 /* TranscriptionPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820E3AB4E46240FD73C41DB /* TranscriptionPipeline.swift */; };
 		09412F4A1E9632F363F1F8CE /* QualityScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 927647CCC1693E75CCB2BF39 /* QualityScorer.swift */; };
+		0A34B6B0A67FD7DE0E467D3D /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1002EF645C868B697F7E3782 /* Analytics.swift */; };
 		0AB7DE6991A358D360A2C51B /* SelectedTextKit in Frameworks */ = {isa = PBXBuildFile; productRef = 44B2CDED140CE07E24BCA19A /* SelectedTextKit */; };
 		0CDF6B75B480CC8C6AE6F2B9 /* TranscriptionExecutorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E82DB0D81D155AD88D5A15CC /* TranscriptionExecutorTests.swift */; };
 		12F4B3067E7BF9A4694CFFEB /* CreatureState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A0B1FB337F74CBDDD48ED /* CreatureState.swift */; };
@@ -120,6 +121,7 @@
 		A8C83FC6DB572107F0C9DE77 /* PromptTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33711F42A312F8D5CC1F2FFB /* PromptTemplates.swift */; };
 		A96A9B0B2C9B53FCD0D3D6B9 /* PowerModeRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031CB51A07A8B376C9CDCE1B /* PowerModeRule.swift */; };
 		A9BD0A7094A517D3AFB75DB6 /* STTEngineFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA7B275E01079F8B546E428B /* STTEngineFactory.swift */; };
+		AA573C2B78C36C29F0B2C957 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = B815341CA19BF6D5D3D7EF82 /* PostHog */; };
 		AE498DB2A5AB25E2CABA8DA0 /* STTModelRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3628A58CAAF87EDDEAF889 /* STTModelRegistry.swift */; };
 		AEC34FB22E6B78AC099AC883 /* VADConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BF404197047F870703C6CB0 /* VADConfig.swift */; };
 		AF21A1E4666DD905FD03ED9A /* YapYapError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D469BE3EAC26808CE9249D /* YapYapError.swift */; };
@@ -186,6 +188,7 @@
 		0B7480505B9D1DFE32F0B0B5 /* CommandMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandMode.swift; sourceTree = "<group>"; };
 		0BDB63741BD52EB130CDB55F /* OutputFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputFormatterTests.swift; sourceTree = "<group>"; };
 		0DE4D05F5812414AE886D564 /* AppContextDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContextDetector.swift; sourceTree = "<group>"; };
+		1002EF645C868B697F7E3782 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
 		12F773176AF934344A7037C4 /* BenchmarkLLMRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkLLMRunner.swift; sourceTree = "<group>"; };
 		155C4F42885C561CABABA06E /* AnalyticsTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsTracker.swift; sourceTree = "<group>"; };
 		17D51DC4EA4BAD23FC8725BF /* WhisperKitEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitEngine.swift; sourceTree = "<group>"; };
@@ -313,6 +316,7 @@
 				78142CA5E1212EDB58F57EA6 /* Sparkle in Frameworks */,
 				0AB7DE6991A358D360A2C51B /* SelectedTextKit in Frameworks */,
 				F43AE96A65091738BF648931 /* Sentry in Frameworks */,
+				AA573C2B78C36C29F0B2C957 /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -533,6 +537,7 @@
 		D521C8889840D2FD195056E4 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				1002EF645C868B697F7E3782 /* Analytics.swift */,
 				BDB0E608A461EE769B2BA6AF /* CorrectionDiffer.swift */,
 				1D3381D8987278B215BED6B3 /* CrashReporter.swift */,
 				00971EACC260CA978A6D6E09 /* HapticManager.swift */,
@@ -667,6 +672,7 @@
 				E859453AF5538824FA6B6580 /* Sparkle */,
 				44B2CDED140CE07E24BCA19A /* SelectedTextKit */,
 				5DC3E43DA0454A8846C0AF5F /* Sentry */,
+				B815341CA19BF6D5D3D7EF82 /* PostHog */,
 			);
 			productName = YapYap;
 			productReference = 40969C556EF9D12522D6B6BB /* YapYap.app */;
@@ -751,6 +757,7 @@
 				6247E4383157127F0619AAFB /* XCRemoteSwiftPackageReference "FluidAudio" */,
 				7C02BCB86A87E4EEDBC3D6B0 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				5CC79DC0FA584EA210F6891D /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
+				1F4BA5DF85E0B8AE5624F82F /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				BABBD1E34E9695ABB5DF603A /* XCRemoteSwiftPackageReference "SelectedTextKit" */,
 				4FC4DE0DEB6ADE439D8E685C /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				A410FFB4A538F7B6219C71E8 /* XCRemoteSwiftPackageReference "Sparkle" */,
@@ -868,6 +875,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E7D015CE5F5E766BD92E2465 /* AboutTab.swift in Sources */,
+				0A34B6B0A67FD7DE0E467D3D /* Analytics.swift in Sources */,
 				E0DE4D626E0270553D2B5311 /* AnalyticsTab.swift in Sources */,
 				4264BCD90B48638E77F7AF4C /* AnalyticsTracker.swift in Sources */,
 				62C0D93612C5FA9A6C700EFA /* AppCategory.swift in Sources */,
@@ -1233,6 +1241,14 @@
 				minimumVersion = 0.9.0;
 			};
 		};
+		1F4BA5DF85E0B8AE5624F82F /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
 		4FC4DE0DEB6ADE439D8E685C /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
@@ -1354,6 +1370,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0BBDFF3C6570A939150DE17C /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
 			productName = MLXLMCommon;
+		};
+		B815341CA19BF6D5D3D7EF82 /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1F4BA5DF85E0B8AE5624F82F /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
 		};
 		C5FF9CCC6CD4DA1D7A236E07 /* MLXLMCommon */ = {
 			isa = XCSwiftPackageProductDependency;

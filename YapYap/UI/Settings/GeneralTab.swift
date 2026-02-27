@@ -4,6 +4,7 @@ import AVFoundation
 
 struct GeneralTab: View {
     @State private var crashReportingEnabled = CrashReporter.isEnabled
+    @State private var analyticsEnabled = Analytics.isEnabled
     @State private var launchAtLogin = true
     @State private var showFloatingBar = true
     @State private var autoPaste = true
@@ -36,6 +37,7 @@ struct GeneralTab: View {
             toggleRow(label: "Copy to clipboard", subtitle: "Also copy result to clipboard", isOn: $copyToClipboard)
             toggleRow(label: "Notification on complete", subtitle: "macOS notification when done", isOn: $notifyOnComplete)
             toggleRow(label: "Anonymous crash reports", subtitle: "Help improve YapYap — no personal data sent", isOn: $crashReportingEnabled)
+            toggleRow(label: "Anonymous usage analytics", subtitle: "High-level feature usage only — no audio or text", isOn: $analyticsEnabled)
 
             divider
 
@@ -83,6 +85,9 @@ struct GeneralTab: View {
         }
         .onChange(of: crashReportingEnabled) { _, newValue in
             CrashReporter.isEnabled = newValue
+        }
+        .onChange(of: analyticsEnabled) { _, newValue in
+            Analytics.isEnabled = newValue
         }
         .onChange(of: floatingBarPosition) { _, newValue in
             guard didLoadSettings else { return }

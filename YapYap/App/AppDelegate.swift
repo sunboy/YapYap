@@ -13,8 +13,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("[AppDelegate] applicationDidFinishLaunching starting...")
 
-        // Start crash reporting before anything else so early crashes are captured
+        // Start crash reporting and analytics before anything else
         CrashReporter.start()
+        Analytics.start()
+        Analytics.trackAppLaunched()
 
         // Hide dock icon
         NSApp.setActivationPolicy(.accessory)

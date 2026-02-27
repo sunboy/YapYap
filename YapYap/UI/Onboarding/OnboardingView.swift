@@ -135,6 +135,8 @@ struct OnboardingView: View {
                 GlassPillButton(label: "Start Yapping") {
                     UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
                     UserDefaults.standard.synchronize()
+                    Analytics.trackInstall(sttModel: selectedSTTModel, llmModel: selectedLLMModel)
+                    Analytics.trackOnboardingCompleted()
                     onComplete()
                 }
             }

@@ -307,6 +307,7 @@ class TranscriptionPipeline {
 
             let transcription = try await executor.transcribe(audioBuffer: audioBuffer, language: settings.language)
             rawText = Self.stripWhisperArtifacts(transcription.text.trimmingCharacters(in: .whitespacesAndNewlines))
+            rawText = OutputFormatter.applyMetaCommandStripping(rawText)
             detectedLanguage = transcription.language ?? settings.language
             NSLog("[TranscriptionPipeline] STT (batch): \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
 
@@ -454,6 +455,14 @@ class TranscriptionPipeline {
                     wordCount: finalWordCount,
                     duration: audioDuration
                 )
+                Analytics.trackTranscription(
+                    sttModel: sttModelId,
+                    llmModel: llmModelId == "unknown" ? nil : llmModelId,
+                    durationSeconds: audioDuration,
+                    wordCount: finalWordCount,
+                    appCategory: appContext.category.rawValue,
+                    hadLLMCleanup: llmModelId != "unknown"
+                )
                 Task { @MainActor in
                     self?.appState.updateStats()
                 }
@@ -582,10 +591,17 @@ class TranscriptionPipeline {
 
     // MARK: - Filler Detection
 
-    /// Quick check for common filler words that indicate LLM cleanup would help
+    /// Quick check for common filler words that indicate LLM cleanup would help.
+    /// Uses word-boundary matching to prevent false positives (e.g. "ukulele" contains "uh").
+    private static let fillerRegex: NSRegularExpression = {
+        let escaped = fillerWords.map { NSRegularExpression.escapedPattern(for: $0) }
+        let pattern = "\\b(?:" + escaped.joined(separator: "|") + ")\\b"
+        return try! NSRegularExpression(pattern: pattern, options: .caseInsensitive)
+    }()
+
     private static func containsFillers(_ text: String) -> Bool {
-        let lower = text.lowercased()
-        return fillerWords.contains(where: { lower.contains($0) })
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return fillerRegex.firstMatch(in: text, range: range) != nil
     }
 
     // MARK: - Output Validation
