@@ -3,6 +3,7 @@ import SwiftData
 import AVFoundation
 
 struct GeneralTab: View {
+    @State private var crashReportingEnabled = CrashReporter.isEnabled
     @State private var launchAtLogin = true
     @State private var showFloatingBar = true
     @State private var autoPaste = true
@@ -34,6 +35,7 @@ struct GeneralTab: View {
             toggleRow(label: "Auto-paste after transcription", subtitle: "Paste into active text field", isOn: $autoPaste)
             toggleRow(label: "Copy to clipboard", subtitle: "Also copy result to clipboard", isOn: $copyToClipboard)
             toggleRow(label: "Notification on complete", subtitle: "macOS notification when done", isOn: $notifyOnComplete)
+            toggleRow(label: "Anonymous crash reports", subtitle: "Help improve YapYap — no personal data sent", isOn: $crashReportingEnabled)
 
             divider
 
@@ -78,6 +80,9 @@ struct GeneralTab: View {
         .onChange(of: experimentalPrompts) { _, newValue in
             guard didLoadSettings else { return }
             saveSettings { $0.experimentalPrompts = newValue }
+        }
+        .onChange(of: crashReportingEnabled) { _, newValue in
+            CrashReporter.isEnabled = newValue
         }
         .onChange(of: floatingBarPosition) { _, newValue in
             guard didLoadSettings else { return }

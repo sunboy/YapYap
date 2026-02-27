@@ -99,6 +99,7 @@
 		83478B122CDCBBAB3A7C29EF /* MediaPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024CCF9853D8925D86A49FFE /* MediaPlaybackController.swift */; };
 		852C03F7CDCA61FDD73CBF97 /* CommandMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B7480505B9D1DFE32F0B0B5 /* CommandMode.swift */; };
 		8BA783E92781C7C48DA4F09C /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = C5FF9CCC6CD4DA1D7A236E07 /* MLXLMCommon */; };
+		8C7E66F123DE6EC4B34B2ED9 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3381D8987278B215BED6B3 /* CrashReporter.swift */; };
 		8E0122D5D31B47EE9C53EBF1 /* STTEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF96A6052FF52A3A7DA1B06 /* STTEngine.swift */; };
 		8E62711B01B71C06EF670AD2 /* CleanupPromptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D88A57EAAD5580BDF5F5385D /* CleanupPromptBuilder.swift */; };
 		901046B88AF75F81179F408F /* WhisperKitEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17D51DC4EA4BAD23FC8725BF /* WhisperKitEngine.swift */; };
@@ -155,6 +156,7 @@
 		F1A274E587E08D6B1488BDBC /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 786FED7869593245EC3340F3 /* AppState.swift */; };
 		F1F1B1DA420CDE56405E4D99 /* RecordCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6FB29C1BAEA26D695F5FD3 /* RecordCommand.swift */; };
 		F3F570FF506931E5D3AAC8FD /* DesignTokensTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99D142F798F943B4771FCFA3 /* DesignTokensTests.swift */; };
+		F43AE96A65091738BF648931 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 5DC3E43DA0454A8846C0AF5F /* Sentry */; };
 		F474B154563904DDAAF329C0 /* LLMModelRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96CFCBB51A93B79F8A29930C /* LLMModelRegistry.swift */; };
 		F79886CCD281B7B1449DCE23 /* HotkeysTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1DE38B622ADD1E7DD4B151 /* HotkeysTab.swift */; };
 		FA7CFC4A56B516EFF4A69B58 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9718F48C4D5A4065625E27F1 /* PopoverView.swift */; };
@@ -192,6 +194,7 @@
 		1AABD496992B850C711A8C79 /* GeneralTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralTab.swift; sourceTree = "<group>"; };
 		1BF404197047F870703C6CB0 /* VADConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VADConfig.swift; sourceTree = "<group>"; };
 		1BF81ADC34DE5A00B53D4251 /* ModelsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTab.swift; sourceTree = "<group>"; };
+		1D3381D8987278B215BED6B3 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
 		1E8E32668F8CD1142E1AB979 /* ModelStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStorage.swift; sourceTree = "<group>"; };
 		1EA8273F7A483CE029766C82 /* CorrectionDifferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionDifferTests.swift; sourceTree = "<group>"; };
 		25A262D60BF6A46BB4021178 /* YapYap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YapYap.entitlements; sourceTree = "<group>"; };
@@ -309,6 +312,7 @@
 				2C6DE8BAB0DECABD21A016D1 /* LaunchAtLogin in Frameworks */,
 				78142CA5E1212EDB58F57EA6 /* Sparkle in Frameworks */,
 				0AB7DE6991A358D360A2C51B /* SelectedTextKit in Frameworks */,
+				F43AE96A65091738BF648931 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -530,6 +534,7 @@
 			isa = PBXGroup;
 			children = (
 				BDB0E608A461EE769B2BA6AF /* CorrectionDiffer.swift */,
+				1D3381D8987278B215BED6B3 /* CrashReporter.swift */,
 				00971EACC260CA978A6D6E09 /* HapticManager.swift */,
 				024CCF9853D8925D86A49FFE /* MediaPlaybackController.swift */,
 				2CF46A2BC6B8E1D81CCFC91B /* Permissions.swift */,
@@ -661,6 +666,7 @@
 				C82067E23667885AD8A83363 /* LaunchAtLogin */,
 				E859453AF5538824FA6B6580 /* Sparkle */,
 				44B2CDED140CE07E24BCA19A /* SelectedTextKit */,
+				5DC3E43DA0454A8846C0AF5F /* Sentry */,
 			);
 			productName = YapYap;
 			productReference = 40969C556EF9D12522D6B6BB /* YapYap.app */;
@@ -746,6 +752,7 @@
 				7C02BCB86A87E4EEDBC3D6B0 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				5CC79DC0FA584EA210F6891D /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 				BABBD1E34E9695ABB5DF603A /* XCRemoteSwiftPackageReference "SelectedTextKit" */,
+				4FC4DE0DEB6ADE439D8E685C /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				A410FFB4A538F7B6219C71E8 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				0EB279391BB643D0ADA64243 /* XCRemoteSwiftPackageReference "WhisperKit" */,
 				E7CD5E99FC4F5886BD1300D1 /* XCRemoteSwiftPackageReference "mlx-swift" */,
@@ -874,6 +881,7 @@
 				8E62711B01B71C06EF670AD2 /* CleanupPromptBuilder.swift in Sources */,
 				159B35B764FD536B0094C832 /* CommandMode.swift in Sources */,
 				FE1C97CBE4DC9490C3228308 /* CorrectionDiffer.swift in Sources */,
+				8C7E66F123DE6EC4B34B2ED9 /* CrashReporter.swift in Sources */,
 				12F4B3067E7BF9A4694CFFEB /* CreatureState.swift in Sources */,
 				2328CA5E45153D7DEDAD8786 /* CreatureView.swift in Sources */,
 				6B5BF43CB3D38EE044832F65 /* DailyStats.swift in Sources */,
@@ -1225,6 +1233,14 @@
 				minimumVersion = 0.9.0;
 			};
 		};
+		4FC4DE0DEB6ADE439D8E685C /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 		5CC79DC0FA584EA210F6891D /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sindresorhus/LaunchAtLogin-Modern.git";
@@ -1313,6 +1329,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E7CD5E99FC4F5886BD1300D1 /* XCRemoteSwiftPackageReference "mlx-swift" */;
 			productName = MLX;
+		};
+		5DC3E43DA0454A8846C0AF5F /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4FC4DE0DEB6ADE439D8E685C /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
 		};
 		8A4947F3102CFA850378A9BF /* FluidAudio */ = {
 			isa = XCSwiftPackageProductDependency;
