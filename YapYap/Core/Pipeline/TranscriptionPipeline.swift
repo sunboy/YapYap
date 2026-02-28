@@ -28,9 +28,11 @@ class TranscriptionPipeline {
     private let snippetManager = SnippetManager()
     private let personalDict = PersonalDictionary.shared
 
-    /// Keep-alive timer: periodic warmup to prevent OS from evicting model weights
+    /// Keep-alive timer: periodic warmup to prevent OS from evicting model weights.
+    /// 15 minutes strikes a balance — macOS can evict memory-mapped pages well before
+    /// the previous 30-minute interval under memory pressure, causing cold-start stalls.
     private var keepAliveTimer: Timer?
-    private static let keepAliveInterval: TimeInterval = 1800 // 30 minutes
+    private static let keepAliveInterval: TimeInterval = 900 // 15 minutes
 
     /// Pre-computed context: captured at recording start so it's ready when STT finishes
     private var cachedStyleSettings: StyleSettings?

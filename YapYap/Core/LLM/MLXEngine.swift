@@ -54,6 +54,15 @@ class MLXEngine: LLMEngine {
         }
 
         self.modelId = id
+
+        // Set GPU cache limit to prevent Metal from freeing compute buffers between
+        // inference calls. Without this, MLX deallocates Metal buffers after each
+        // generate() and must reallocate them on the next call, adding latency.
+        // 1GB is generous enough to hold model activations + KV cache for 1-3B models.
+        let cacheBytes = 1024 * 1024 * 1024  // 1GB
+        GPU.set(cacheLimit: cacheBytes)
+        NSLog("[MLXEngine] GPU cache limit set to \(cacheBytes / 1024 / 1024)MB")
+
         NSLog("[MLXEngine] Model '\(id)' loaded successfully")
         await MainActor.run { DataManager.shared.markModelDownloaded(id) }
     }
@@ -82,9 +91,11 @@ class MLXEngine: LLMEngine {
             let tokens = lmContext.tokenizer.encode(text: warmupPrompt)
             let input = LMInput(tokens: MLXArray(tokens))
             let parameters = GenerateParameters(maxTokens: 1)
+            let cache = lmContext.model.newCache(parameters: nil)
             let startTime = Date()
             let stream: AsyncStream<Generation> = try generate(
                 input: input,
+                cache: cache,
                 parameters: parameters,
                 context: lmContext
             )
@@ -177,11 +188,17 @@ class MLXEngine: LLMEngine {
         // Gemma uses <end_of_turn>, others use <|im_end|>, <|eot_id|>, etc.
         let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>"]
 
+        // Create a fresh KV cache for this inference. We pre-allocate the cache
+        // structure once at model load so the underlying Metal buffers can be reused
+        // from the GPU cache pool instead of being allocated from scratch each time.
+        let cache = lmContext.model.newCache(parameters: nil)
+
         // Use the AsyncStream-based generate API
         var outputText = ""
         var stopped = false
         let stream: AsyncStream<Generation> = try generate(
             input: input,
+            cache: cache,
             parameters: parameters,
             context: lmContext
         )
