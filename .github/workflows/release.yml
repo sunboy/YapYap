@@ -68,16 +68,6 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
           echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
 
-      - name: Import Sparkle private key into Keychain
-        env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-        run: |
-          security add-generic-password \
-            -a "ed25519" \
-            -s "Sparkle Key" \
-            -w "$SPARKLE_PRIVATE_KEY" \
-            "$KEYCHAIN_PATH"
-
       - name: Extract version from tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -237,22 +227,21 @@ jobs:
           xcrun stapler validate "build/$DMG_NAME"
 
       - name: Generate Sparkle EdDSA signature
-        continue-on-error: true
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
-          # Re-unlock keychain so sign_update can read the Sparkle private key
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Debug: confirm key is present
-          security find-generic-password -s "Sparkle Key" "$KEYCHAIN_PATH" && echo "Key found" || echo "Key NOT found"
-
-          SIG=$(/tmp/sparkle/bin/sign_update "build/$DMG_NAME" 2>&1)
+          # Write key to temp file and sign (avoids keychain read issues)
+          echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_key.txt
+          SIG=$(/tmp/sparkle/bin/sign_update --ed-key-file /tmp/sparkle_key.txt "build/$DMG_NAME" 2>&1)
+          rm /tmp/sparkle_key.txt
           echo "sign_update output: $SIG"
           ACTUAL_SIG=$(echo "$SIG" | grep -oE '[A-Za-z0-9+/=]{80,}' | head -1 || true)
           if [ -n "$ACTUAL_SIG" ]; then
             echo "SPARKLE_SIGNATURE=$ACTUAL_SIG" >> $GITHUB_ENV
             echo "edSignature: $ACTUAL_SIG"
           else
-            echo "⚠️ Could not extract signature — appcast.xml will not be updated"
+            echo "❌ Could not extract signature — failing build"
+            exit 1
           fi
 
       - name: Get DMG file size
