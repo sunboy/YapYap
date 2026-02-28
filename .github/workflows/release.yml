@@ -237,10 +237,23 @@ jobs:
           xcrun stapler validate "build/$DMG_NAME"
 
       - name: Generate Sparkle EdDSA signature
+        continue-on-error: true
         run: |
-          SIG=$(/tmp/sparkle/bin/sign_update "build/$DMG_NAME")
-          echo "SPARKLE_SIGNATURE=$SIG" >> $GITHUB_ENV
-          echo "edSignature: $SIG"
+          # Re-unlock keychain so sign_update can read the Sparkle private key
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Debug: confirm key is present
+          security find-generic-password -s "Sparkle Key" "$KEYCHAIN_PATH" && echo "Key found" || echo "Key NOT found"
+
+          SIG=$(/tmp/sparkle/bin/sign_update "build/$DMG_NAME" 2>&1)
+          echo "sign_update output: $SIG"
+          ACTUAL_SIG=$(echo "$SIG" | grep -oE '[A-Za-z0-9+/=]{80,}' | head -1 || true)
+          if [ -n "$ACTUAL_SIG" ]; then
+            echo "SPARKLE_SIGNATURE=$ACTUAL_SIG" >> $GITHUB_ENV
+            echo "edSignature: $ACTUAL_SIG"
+          else
+            echo "⚠️ Could not extract signature — appcast.xml will not be updated"
+          fi
 
       - name: Get DMG file size
         run: |
@@ -248,6 +261,7 @@ jobs:
           echo "DMG_SIZE=$SIZE" >> $GITHUB_ENV
 
       - name: Update appcast.xml
+        if: env.SPARKLE_SIGNATURE != ''
         run: |
           PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
           DOWNLOAD_URL="https://github.com/sunboy/yapyap/releases/download/v${VERSION}/${DMG_NAME}"
@@ -290,6 +304,7 @@ jobs:
           PYEOF
 
       - name: Commit updated appcast.xml
+        if: env.SPARKLE_SIGNATURE != ''
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
