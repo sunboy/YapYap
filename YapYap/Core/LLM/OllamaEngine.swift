@@ -10,6 +10,11 @@ class OllamaEngine: LLMEngine {
     private(set) var modelId: String?
     private var _isLoaded: Bool = false
 
+    /// MLX model registry ID used for prompt selection. When set, the prompt builder
+    /// uses the same family/size tier as the MLX model, ensuring identical prompts
+    /// regardless of inference framework.
+    var promptModelId: String?
+
     var isLoaded: Bool { _isLoaded }
 
     init(endpoint: String = OllamaEngine.defaultEndpoint) {
@@ -82,12 +87,11 @@ class OllamaEngine: LLMEngine {
         }
 
         // Build prompts using the same CleanupPromptBuilder as MLXEngine.
-        // For Ollama, we pass nil for modelId since model family detection
-        // uses the LLMModelRegistry which only knows MLX model IDs.
-        // The prompt will default to Qwen/small-style which is safe for any model.
+        // Use promptModelId (the MLX registry ID) so the prompt builder selects
+        // the same family/size tier, producing identical prompts across frameworks.
         let messages = CleanupPromptBuilder.buildMessages(
             rawText: rawText, context: context,
-            modelId: nil
+            modelId: promptModelId
         )
 
         NSLog("[OllamaEngine] System prompt (\(messages.system.count) chars): \"\(String(messages.system.prefix(200)))\"")

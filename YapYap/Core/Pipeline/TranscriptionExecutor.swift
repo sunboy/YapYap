@@ -96,6 +96,11 @@ actor TranscriptionExecutor {
             NSLog("[TranscriptionExecutor] Loading LLM: \(effectiveLLMId) via \(framework.rawValue)")
 
             let engine = LLMEngineFactory.create(framework: framework, ollamaEndpoint: ollamaEndpoint)
+            // For Ollama: set the MLX registry model ID so the prompt builder
+            // uses the same family/size tier as MLX, producing identical prompts.
+            if let ollamaEngine = engine as? OllamaEngine {
+                ollamaEngine.promptModelId = llmModelId
+            }
             do {
                 try await engine.loadModel(id: effectiveLLMId, progressHandler: onLLMProgress)
                 llmEngine = engine
