@@ -29,6 +29,12 @@ final class AppSettings {
     /// Comma-separated list of model IDs that have been successfully loaded at least once.
     /// Used to detect downloaded models that use non-standard cache layouts (e.g. xet).
     var downloadedModelIds: String?
+    /// Which inference framework to use for LLM cleanup: "mlx" or "ollama"
+    var llmInferenceFramework: String
+    /// Ollama server endpoint URL (only used when llmInferenceFramework is "ollama")
+    var ollamaEndpoint: String
+    /// Ollama model name/tag (e.g. "qwen2.5:1.5b", "llama3.2:3b"). Only used with Ollama.
+    var ollamaModelName: String
 
     init(
         sttModelId: String = "whisper-small",
@@ -54,7 +60,10 @@ final class AppSettings {
         autoDownloadModels: Bool = true,
         experimentalPrompts: Bool = false,
         pauseMediaDuringRecording: Bool? = false,
-        downloadedModelIds: String? = nil
+        downloadedModelIds: String? = nil,
+        llmInferenceFramework: String = LLMInferenceFramework.mlx.rawValue,
+        ollamaEndpoint: String = OllamaEngine.defaultEndpoint,
+        ollamaModelName: String = "qwen2.5:1.5b"
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -80,9 +89,16 @@ final class AppSettings {
         self.experimentalPrompts = experimentalPrompts
         self.pauseMediaDuringRecording = pauseMediaDuringRecording
         self.downloadedModelIds = downloadedModelIds
+        self.llmInferenceFramework = llmInferenceFramework
+        self.ollamaEndpoint = ollamaEndpoint
+        self.ollamaModelName = ollamaModelName
     }
 
     static func defaults() -> AppSettings {
-        return AppSettings()
+        let profile = MachineProfile.detect()
+        return AppSettings(
+            llmModelId: profile.recommendedMLXModelId,
+            ollamaModelName: profile.recommendedOllamaModelName
+        )
     }
 }

@@ -19,6 +19,10 @@ struct ModelsTab: View {
     @State private var didLoadSettings = false
     @State private var isRefreshingSettings = false
     @State private var downloadError: String?
+    @State private var inferenceFramework: LLMInferenceFramework = .mlx
+    @State private var ollamaEndpoint = OllamaEngine.defaultEndpoint
+    @State private var ollamaModelName = "qwen2.5:1.5b"
+    @State private var ollamaStatus: OllamaConnectionStatus = .unknown
 
     // All models live under ~/Library/Application Support/YapYap/models/.
     // Application Support is never iCloud-synced, preventing eviction of large
@@ -67,6 +71,11 @@ struct ModelsTab: View {
 
                 divider
 
+                // Inference Framework Section
+                inferenceFrameworkSection
+
+                divider
+
                 // Toggles
                 toggleRow(label: "Auto-download models", subtitle: "Download selected models on first use", isOn: $autoDownload)
                 toggleRow(label: "GPU acceleration", subtitle: "Use Metal for faster inference", isOn: $gpuAcceleration)
@@ -94,6 +103,20 @@ struct ModelsTab: View {
         .onChange(of: gpuAcceleration) { _, newValue in
             guard didLoadSettings, !isRefreshingSettings else { return }
             saveSettings { $0.gpuAcceleration = newValue }
+        }
+        .onChange(of: inferenceFramework) { _, newValue in
+            guard didLoadSettings, !isRefreshingSettings else { return }
+            saveSettings { $0.llmInferenceFramework = newValue.rawValue }
+            NotificationCenter.default.post(name: .yapSettingsChanged, object: nil)
+            if newValue == .ollama { checkOllamaConnection() }
+        }
+        .onChange(of: ollamaEndpoint) { _, newValue in
+            guard didLoadSettings, !isRefreshingSettings else { return }
+            saveSettings { $0.ollamaEndpoint = newValue }
+        }
+        .onChange(of: ollamaModelName) { _, newValue in
+            guard didLoadSettings, !isRefreshingSettings else { return }
+            saveSettings { $0.ollamaModelName = newValue }
         }
         .alert("Delete Model", isPresented: $showDeleteConfirm) {
             Button("Cancel", role: .cancel) { modelToDelete = nil }
@@ -439,6 +462,155 @@ struct ModelsTab: View {
         }
     }
 
+    // MARK: - Inference Framework Section
+
+    private var inferenceFrameworkSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Inference Framework")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.ypText1)
+                .padding(.bottom, 4)
+
+            let profile = MachineProfile.detect()
+            HStack(spacing: 6) {
+                Image(systemName: "memorychip")
+                    .font(.system(size: 11))
+                    .foregroundColor(.ypText3)
+                Text("System: \(profile.tierDescription), \(profile.cpuCoreCount) cores")
+                    .font(.system(size: 11))
+                    .foregroundColor(.ypText3)
+            }
+            .padding(.bottom, 4)
+
+            Text("Choose how the cleanup LLM runs. MLX runs models on-device via Apple GPU. Ollama delegates to a separate local server.")
+                .font(.system(size: 12))
+                .foregroundColor(.ypText3)
+                .padding(.bottom, 8)
+
+            // Framework picker
+            HStack(spacing: 10) {
+                ForEach(LLMInferenceFramework.allCases, id: \.rawValue) { framework in
+                    frameworkCard(framework: framework)
+                }
+            }
+
+            // Ollama configuration (shown only when Ollama is selected)
+            if inferenceFramework == .ollama {
+                ollamaConfigSection
+            }
+        }
+    }
+
+    private func frameworkCard(framework: LLMInferenceFramework) -> some View {
+        let isSelected = inferenceFramework == framework
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(framework.displayName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.ypText1)
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.ypLavender)
+                }
+            }
+            Text(framework.description)
+                .font(.system(size: 11))
+                .foregroundColor(.ypText3)
+                .lineLimit(2)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSelected ? Color.ypPillLavender : Color.ypCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1.5)
+        )
+        .cornerRadius(10)
+        .contentShape(Rectangle())
+        .onTapGesture { inferenceFramework = framework }
+    }
+
+    private var ollamaConfigSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Connection status
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(ollamaStatus.color)
+                    .frame(width: 8, height: 8)
+                Text(ollamaStatus.label)
+                    .font(.system(size: 11))
+                    .foregroundColor(.ypText3)
+                Spacer()
+                Button(action: { checkOllamaConnection() }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 9))
+                        Text("Test Connection")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundColor(.ypLavender)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.ypPillLavender)
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Server endpoint
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Ollama Server URL")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.ypText2)
+                TextField("http://localhost:11434", text: $ollamaEndpoint)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                    .onSubmit { checkOllamaConnection() }
+            }
+
+            // Model name
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Model Name")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.ypText2)
+                TextField("qwen2.5:1.5b", text: $ollamaModelName)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12, design: .monospaced))
+                Text("Use the exact tag from `ollama list`. The model will be pulled automatically if not present.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.ypText4)
+            }
+        }
+        .padding(12)
+        .background(Color.ypCard)
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.ypBorder, lineWidth: 1)
+        )
+        .padding(.top, 8)
+    }
+
+    private func checkOllamaConnection() {
+        ollamaStatus = .checking
+        Task {
+            let url = URL(string: "\(ollamaEndpoint)/api/tags")!
+            let request = URLRequest(url: url)
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                    await MainActor.run { ollamaStatus = .connected }
+                } else {
+                    await MainActor.run { ollamaStatus = .error("Unexpected response") }
+                }
+            } catch {
+                await MainActor.run { ollamaStatus = .error(error.localizedDescription) }
+            }
+        }
+    }
+
     // MARK: - Storage Info
 
     private var storageInfoSection: some View {
@@ -613,7 +785,11 @@ struct ModelsTab: View {
         selectedLLM = settings.llmModelId
         autoDownload = settings.autoDownloadModels
         gpuAcceleration = settings.gpuAcceleration
+        inferenceFramework = LLMInferenceFramework(rawValue: settings.llmInferenceFramework) ?? .mlx
+        ollamaEndpoint = settings.ollamaEndpoint
+        ollamaModelName = settings.ollamaModelName
         didLoadSettings = true
+        if inferenceFramework == .ollama { checkOllamaConnection() }
     }
 
     private func saveSettings(_ update: (AppSettings) -> Void) {
@@ -771,6 +947,33 @@ struct ModelsTab: View {
         .padding(.vertical, 10)
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.ypBorderLight).frame(height: 1)
+        }
+    }
+}
+
+// MARK: - Ollama Connection Status
+
+enum OllamaConnectionStatus {
+    case unknown
+    case checking
+    case connected
+    case error(String)
+
+    var label: String {
+        switch self {
+        case .unknown: return "Not checked"
+        case .checking: return "Checking..."
+        case .connected: return "Connected"
+        case .error(let msg): return "Error: \(msg)"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .unknown: return .gray
+        case .checking: return .orange
+        case .connected: return .green
+        case .error: return .red
         }
     }
 }

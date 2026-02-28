@@ -129,6 +129,8 @@ targets:
       - path: YapYap/Core/LLM
         excludes:
           - "MLXEngine.swift"
+          - "LLMEngineFactory.swift"
+          - "OllamaEngine.swift"
       - path: YapYap/Core/STT
       - path: YapYap/Core/Context
       - path: YapYap/Core/Models/ModelStorage.swift

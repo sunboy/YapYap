@@ -24,6 +24,9 @@ final class DataModelTests: XCTestCase {
         XCTAssertTrue(settings.gpuAcceleration)
         XCTAssertTrue(settings.autoDownloadModels)
         XCTAssertEqual(settings.historyLimit, 100)
+        XCTAssertEqual(settings.llmInferenceFramework, LLMInferenceFramework.mlx.rawValue)
+        XCTAssertEqual(settings.ollamaEndpoint, OllamaEngine.defaultEndpoint)
+        XCTAssertFalse(settings.ollamaModelName.isEmpty)
     }
 
     // MARK: - Transcription

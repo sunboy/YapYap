@@ -75,26 +75,36 @@ actor TranscriptionExecutor {
             NSLog("[TranscriptionExecutor] ✅ STT loaded")
         }
 
-        // LLM
+        // LLM — read inference framework from settings
+        let settings = await MainActor.run { DataManager.shared.fetchSettings() }
+        let framework = LLMInferenceFramework(rawValue: settings.llmInferenceFramework) ?? .mlx
+        let ollamaEndpoint = settings.ollamaEndpoint
+        let ollamaModelName = settings.ollamaModelName
+        let effectiveLLMId = framework == .ollama ? ollamaModelName : llmModelId
+
+        // Reload if: no engine, not loaded, model changed, or framework changed
+        let currentIsOllama = llmEngine is OllamaEngine
+        let frameworkChanged = (framework == .ollama) != currentIsOllama
         let needsLLMReload = llmEngine == nil || !llmEngine!.isLoaded
-            || llmEngine!.modelId != llmModelId
+            || llmEngine!.modelId != effectiveLLMId || frameworkChanged
         if needsLLMReload {
             if let existing = llmEngine, existing.isLoaded {
-                NSLog("[TranscriptionExecutor] LLM model changed: \(existing.modelId ?? "?") → \(llmModelId)")
+                NSLog("[TranscriptionExecutor] LLM model changed: \(existing.modelId ?? "?") → \(effectiveLLMId) (framework: \(framework.rawValue))")
                 existing.unloadModel()
             }
             await onStatus("Loading language model...")
-            NSLog("[TranscriptionExecutor] Loading LLM: \(llmModelId)")
+            NSLog("[TranscriptionExecutor] Loading LLM: \(effectiveLLMId) via \(framework.rawValue)")
 
-            let engine = MLXEngine()
+            let engine = LLMEngineFactory.create(framework: framework, ollamaEndpoint: ollamaEndpoint)
             do {
-                try await engine.loadModel(id: llmModelId, progressHandler: onLLMProgress)
+                try await engine.loadModel(id: effectiveLLMId, progressHandler: onLLMProgress)
                 llmEngine = engine
-                NSLog("[TranscriptionExecutor] ✅ LLM loaded")
+                NSLog("[TranscriptionExecutor] ✅ LLM loaded via \(framework.rawValue)")
             } catch {
                 llmEngine = nil
                 NSLog("[TranscriptionExecutor] ⚠️ LLM failed: \(error)")
-                await onStatus("Cleanup model unavailable — recording still works")
+                let errorHint = framework == .ollama ? "Is Ollama running?" : "Recording still works without cleanup."
+                await onStatus("Cleanup model unavailable — \(errorHint)")
             }
         }
     }
