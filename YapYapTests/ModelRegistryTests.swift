@@ -113,7 +113,7 @@ final class ModelRegistryTests: XCTestCase {
     func testLLMRecommendedModel() {
         let recommended = LLMModelRegistry.recommendedModel
         XCTAssertTrue(recommended.isRecommended)
-        XCTAssertEqual(recommended.id, "qwen-2.5-1.5b")
+        XCTAssertEqual(recommended.id, "gemma-3-4b")
     }
 
     func testLLMModelUniqueIds() {

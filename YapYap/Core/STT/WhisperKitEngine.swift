@@ -41,50 +41,146 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
         // "whisper-small" -> "small", "whisper-large-v3-turbo" -> "large-v3-turbo"
         let whisperKitModel = modelInfo.id.replacingOccurrences(of: "whisper-", with: "")
 
-        // Ensure the download cache directory exists
-        let cacheURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("huggingface/models/argmaxinc/whisperkit-coreml", isDirectory: true)
+        // ~/Library/Application Support/YapYap/models/whisperkit/
+        // Application Support is never touched by iCloud, so large mlmodelc blobs
+        // are never evicted. Accessing evicted iCloud files causes stat() to hang
+        // indefinitely as the FileProvider tries to re-materialize them.
+        let cacheURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("YapYap/models/whisperkit", isDirectory: true)
         try? FileManager.default.createDirectory(at: cacheURL, withIntermediateDirectories: true)
 
         // Report indeterminate progress so the UI shows a spinner immediately
         progressHandler(0.0)
 
-        // Use ANE for encoder/decoder — fastest inference on Apple Silicon.
-        // First launch triggers ANE compilation (~2 min), but the ANE cache
-        // persists across launches via CoreML's internal cache.
-        // prewarm: true ensures compilation happens during load, not first transcribe.
+        // Use GPU for encoder/decoder — avoids ANE compilation which can take 5-10+ min
+        // on first launch or after code signature changes (dev.sh build cycles).
+        // ANE is faster at runtime but requires a one-time compilation step per signature.
+        // GPU (Metal) loads instantly and gives good performance for development.
         let computeOptions = ModelComputeOptions(
             melCompute: .cpuAndGPU,
-            audioEncoderCompute: .cpuAndNeuralEngine,
-            textDecoderCompute: .cpuAndNeuralEngine,
+            audioEncoderCompute: .cpuAndGPU,
+            textDecoderCompute: .cpuAndGPU,
             prefillCompute: .cpuOnly
         )
 
-        let config = WhisperKitConfig(
-            model: whisperKitModel,
-            computeOptions: computeOptions,
-            verbose: false,
-            prewarm: true,
-            load: true,
-            download: true
-        )
+        // Check if the model is already downloaded locally.
+        // HubApi (used by WhisperKit) stores models at {downloadBase}/models/argmaxinc/whisperkit-coreml/
+        // So we search there first, then fall back to the root cacheURL (legacy flat layout).
+        let hubApiSubdir = cacheURL.appendingPathComponent("models/argmaxinc/whisperkit-coreml")
+        let localFolder = findLocalWhisperFolder(variant: whisperKitModel, in: hubApiSubdir)
+            ?? findLocalWhisperFolder(variant: whisperKitModel, in: cacheURL)
+        let isLocallyAvailable = localFolder != nil
+        NSLog("[WhisperKitEngine] Model locally available: \(isLocallyAvailable) → \(isLocallyAvailable ? "offline mode (no HF network call)" : "online mode (will download)")")
 
-        // WhisperKit will auto-download the model if it doesn't exist
-        // Retry once if download fails
-        NSLog("[WhisperKitEngine] Downloading/compiling '\(whisperKitModel)' (this may take a few minutes on first use)...")
+        let config: WhisperKitConfig
+        if let folder = localFolder {
+            // Offline mode: load directly from local path, no HF metadata call.
+            // prewarm: false — WhisperKit's prewarm triggers synchronous Metal/ANE shader
+            // compilation inside WhisperKit(config), which can take 2-10 min on first use
+            // of a new model folder. The existing warmup() call in TranscriptionPipeline
+            // handles the actual warm-up after load, which compiles shaders lazily.
+            //
+            // CRITICAL: downloadBase must be set even in offline mode.
+            // WhisperKit sets tokenizerFolder = config.tokenizerFolder ?? config.downloadBase.
+            // Without downloadBase, tokenizerFolder is nil and HubApi defaults to
+            // ~/Documents/huggingface — which is iCloud-backed and can hang in read()
+            // indefinitely while iCloud FileProvider tries to re-materialize evicted files.
+            // By passing downloadBase: cacheURL, the tokenizer is resolved from App Support
+            // at {cacheURL}/models/openai/whisper-{variant}/ which is never iCloud-evicted.
+            config = WhisperKitConfig(
+                downloadBase: cacheURL,
+                modelFolder: folder.path,
+                computeOptions: computeOptions,
+                verbose: false,
+                prewarm: false,
+                load: true,
+                download: false
+            )
+        } else {
+            // Online mode: download from HuggingFace into cacheURL (App Support).
+            // downloadBase must be explicit — without it WhisperKit defaults to
+            // ~/Documents/huggingface which is iCloud-synced and causes eviction hangs.
+            config = WhisperKitConfig(
+                model: whisperKitModel,
+                downloadBase: cacheURL,
+                computeOptions: computeOptions,
+                verbose: false,
+                prewarm: false,
+                load: true,
+                download: true
+            )
+        }
+
+        // WhisperKit will auto-download the model if it doesn't exist.
+        // verbose: false suppresses WhisperKit's internal logging — no need for
+        // StderrSuppressor (which dup2()/fd redirects can interfere with NSLog on
+        // other threads when WhisperKit suspends across cooperative concurrency hops).
+        // Retry once if download fails.
+        NSLog("[WhisperKitEngine] Initializing WhisperKit for '\(whisperKitModel)'...")
         do {
             pipe = try await WhisperKit(config)
         } catch {
             NSLog("[WhisperKitEngine] First attempt failed: \(error). Retrying after cleaning cache...")
-            // Clean incomplete downloads
+            // Clean incomplete downloads and retry with online mode
             let incompletePath = cacheURL.appendingPathComponent(".cache", isDirectory: true)
             try? FileManager.default.removeItem(at: incompletePath)
-            // Retry
-            pipe = try await WhisperKit(config)
+            let retryConfig = WhisperKitConfig(
+                model: whisperKitModel,
+                downloadBase: cacheURL,
+                computeOptions: computeOptions,
+                verbose: false,
+                prewarm: true,
+                load: true,
+                download: true
+            )
+            pipe = try await WhisperKit(retryConfig)
         }
 
         progressHandler(1.0)
         NSLog("[WhisperKitEngine] Model '\(whisperKitModel)' loaded successfully")
+    }
+
+    /// Find a locally cached WhisperKit model folder for the given variant.
+    /// WhisperKit uses folder names like "openai_whisper-small" or "openai_whisper-small_216MB".
+    /// Returns the folder with the most files (largest/most complete download) if multiple exist.
+    private func findLocalWhisperFolder(variant: String, in cacheDir: URL) -> URL? {
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: cacheDir, includingPropertiesForKeys: [.isDirectoryKey]
+        ) else { return nil }
+
+        // Match folders that start with "openai_whisper-{variant}" (exact prefix, not partial)
+        let prefix = "openai_whisper-\(variant)"
+        let candidates = contents.filter { url in
+            let name = url.lastPathComponent.lowercased()
+            let targetPrefix = prefix.lowercased()
+            // Must start with the exact prefix, followed by end-of-string, "_", or a digit
+            guard name.hasPrefix(targetPrefix) else { return false }
+            let remainder = name.dropFirst(targetPrefix.count)
+            return remainder.isEmpty || remainder.hasPrefix("_") || remainder.first?.isNumber == true
+        }
+
+        guard !candidates.isEmpty else { return nil }
+
+        // Keep only folders that have all required model files (complete downloads)
+        let requiredFiles = ["AudioEncoder.mlmodelc", "TextDecoder.mlmodelc", "MelSpectrogram.mlmodelc"]
+        let complete = candidates.filter { url in
+            requiredFiles.allSatisfy { file in
+                FileManager.default.fileExists(atPath: url.appendingPathComponent(file).path)
+            }
+        }
+        let pool = complete.isEmpty ? candidates : complete
+
+        // WhisperKit prefers quantized variants (e.g. "_216MB") over unquantized base folders.
+        // Sort: folders with size suffix (quantized) before plain name (unquantized).
+        let sorted = pool.sorted { a, b in
+            let aHasSuffix = a.lastPathComponent.contains("_") && a.lastPathComponent.last?.isNumber == true
+            let bHasSuffix = b.lastPathComponent.contains("_") && b.lastPathComponent.last?.isNumber == true
+            if aHasSuffix != bHasSuffix { return aHasSuffix }
+            // Among same type, prefer longer name (more specific variant)
+            return a.lastPathComponent.count > b.lastPathComponent.count
+        }
+
+        return sorted.first
     }
 
     func unloadModel() {

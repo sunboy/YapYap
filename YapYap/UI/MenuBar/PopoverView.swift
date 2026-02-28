@@ -3,10 +3,37 @@ import SwiftUI
 struct PopoverView: View {
     let appState: AppState
 
-    @State private var currentSTTModelName: String = ""
-    @State private var currentLLMModelName: String = ""
     @State private var currentLanguage: String = "English"
     @State private var copyToClipboard: Bool = true
+
+    // Reads directly from @Observable AppState — SwiftUI re-renders reactively when model loads/swaps
+    private var currentSTTModelName: String {
+        if let activeId = appState.activeSTTModelId {
+            return STTModelRegistry.model(for: activeId)?.name ?? activeId
+        }
+        // Fall back to settings value before first load
+        let settings = DataManager.shared.fetchSettings()
+        return STTModelRegistry.model(for: settings.sttModelId)?.name ?? settings.sttModelId
+    }
+
+    private var currentLLMModelName: String {
+        // 1. If model is actively loaded, show its name
+        if let activeId = appState.activeLLMModelId {
+            return LLMModelRegistry.model(for: activeId)?.name ?? activeId
+        }
+        // 2. If model is currently loading/downloading, show progress
+        if let loadingId = appState.llmLoadingModelId {
+            let name = LLMModelRegistry.model(for: loadingId)?.name ?? loadingId
+            if let progress = appState.llmDownloadProgress, progress > 0 && progress < 1.0 {
+                return "\(name) \(Int(progress * 100))%"
+            }
+            return "Loading \(name)..."
+        }
+        // 3. Fall back to settings value (selected but not yet loaded)
+        let settings = DataManager.shared.fetchSettings()
+        let settingsName = LLMModelRegistry.model(for: settings.llmModelId)?.name ?? settings.llmModelId
+        return "\(settingsName) (not loaded)"
+    }
 
     // Correction editing state
     @State private var isEditingTranscription = false
@@ -44,13 +71,6 @@ struct PopoverView: View {
 
     private func refreshSettingsState() {
         let settings = DataManager.shared.fetchSettings()
-        currentSTTModelName = STTModelRegistry.model(for: settings.sttModelId)?.name ?? settings.sttModelId
-        // Only show the LLM model name if it's actually loaded and active
-        if let activeId = appState.activeLLMModelId {
-            currentLLMModelName = LLMModelRegistry.model(for: activeId)?.name ?? activeId
-        } else {
-            currentLLMModelName = "Not loaded"
-        }
         currentLanguage = Self.languageDisplayName(for: settings.language)
         copyToClipboard = settings.copyToClipboard
     }

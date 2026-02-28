@@ -23,6 +23,14 @@ final class AppState {
     var modelsReady: Bool = false
     /// The LLM model ID that is actually loaded and ready. Nil if LLM failed to load.
     var activeLLMModelId: String? = nil
+    /// The STT model ID that is actually loaded and ready. Nil before first load.
+    var activeSTTModelId: String? = nil
+
+    /// LLM download/load progress from startup or hotkey-triggered load.
+    /// nil = not downloading, 0.0–1.0 = in progress. Observed by PopoverView and ModelsTab.
+    var llmDownloadProgress: Double? = nil
+    /// The LLM model ID currently being loaded (downloading or initializing). Nil when idle.
+    var llmLoadingModelId: String? = nil
 
     // Quick stats for popover
     var todayCount: Int = 0

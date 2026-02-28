@@ -39,6 +39,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    let appState: AppState?
     @State private var selectedTab: SettingsTab = .writingStyle
 
     var body: some View {
@@ -163,7 +164,7 @@ struct SettingsView: View {
     private var currentTabView: some View {
         switch selectedTab {
         case .writingStyle: WritingStyleTab()
-        case .models: ModelsTab()
+        case .models: ModelsTab(appState: appState)
         case .hotkeys: HotkeysTab()
         case .general: GeneralTab()
         case .style: StyleTab()

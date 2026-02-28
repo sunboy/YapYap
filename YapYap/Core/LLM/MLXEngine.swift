@@ -30,8 +30,24 @@ class MLXEngine: LLMEngine {
         let config = ModelConfiguration(id: modelInfo.huggingFaceId)
         let factory = LLMModelFactory.shared
 
+        // ~/Library/Application Support/YapYap/models/llm/
+        // Application Support is never iCloud-synced, so large model weights are
+        // never evicted. Without an explicit downloadBase, HubApi defaults to
+        // ~/Documents/huggingface which iCloud can evict, causing stat() hangs.
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let llmCacheURL = appSupport.appendingPathComponent("YapYap/models/llm")
+        try? FileManager.default.createDirectory(at: llmCacheURL, withIntermediateDirectories: true)
+
+        // HubApi with downloadBase stores models at {downloadBase}/models/{huggingFaceId}.
+        // Only check the new App Support location — the legacy ~/Documents path may be
+        // iCloud-evicted, where fileExists() returns true but contents cause stat() hangs.
+        let localModelDir = llmCacheURL.appendingPathComponent("models/\(modelInfo.huggingFaceId)")
+        let isLocallyAvailable = FileManager.default.fileExists(atPath: localModelDir.path)
+        let hub = HubApi(downloadBase: llmCacheURL, useOfflineMode: isLocallyAvailable ? true : nil)
+        NSLog("[MLXEngine] Model locally available: \(isLocallyAvailable) → \(isLocallyAvailable ? "offline mode (no HF network call)" : "online mode (will download)")")
+
         lmContext = try await factory.load(
-            hub: HubApi(),
+            hub: hub,
             configuration: config
         ) { progress in
             progressHandler(progress.fractionCompleted)
@@ -53,19 +69,15 @@ class MLXEngine: LLMEngine {
             // Use a realistic prompt size (~250 tokens) to force all model weights
             // into memory. A tiny "Hello" only touches a small subset of weights,
             // leaving the rest to be paged from disk on the first real inference.
+            // Use Gemma format for warmup since Gemma 3 4B is the default model.
+            // Gemma merges system content into the user block (no system role).
             let warmupPrompt = """
-            <|im_start|>system
-            You clean up dictated speech. Remove fillers. Fix punctuation. Output only cleaned text.<|im_end|>
-            <|im_start|>user
-            <example>
-            in: um so I was thinking we should like meet on tuesday
-            out: I was thinking we should meet on Tuesday.
-            </example>
+            <start_of_turn>user
+            You are a text refinement tool. REPEAT the input text but fix grammar. \
+            You are NOT an assistant. DO NOT answer questions.
 
-            Reply with only the cleaned text.
-
-            um hello this is a warmup prompt to keep the model weights in memory<|im_end|>
-            <|im_start|>assistant
+            Clean this: um hello this is a warmup prompt to keep the model weights in memory<end_of_turn>
+            <start_of_turn>model
             """
             let tokens = lmContext.tokenizer.encode(text: warmupPrompt)
             let input = LMInput(tokens: MLXArray(tokens))
@@ -95,7 +107,7 @@ class MLXEngine: LLMEngine {
         )
         let messages = CleanupPromptBuilder.buildMessages(
             rawText: rawText, context: context,
-            modelId: modelId, userContext: userContext
+            modelId: modelId
         )
 
         // Debug: log prompt content for echo bug diagnosis
@@ -104,10 +116,12 @@ class MLXEngine: LLMEngine {
 
         // Use the tokenizer's chat template for correct model-specific formatting
         // This handles Llama vs Qwen vs other model template differences automatically
-        let chatMessages: [[String: String]] = [
-            ["role": "system", "content": messages.system],
-            ["role": "user", "content": messages.user]
-        ]
+        // Omit system role entirely when empty (Gemma merges system into user block)
+        var chatMessages: [[String: String]] = []
+        if !messages.system.isEmpty {
+            chatMessages.append(["role": "system", "content": messages.system])
+        }
+        chatMessages.append(["role": "user", "content": messages.user])
 
         let encoding: [Int]
         do {
@@ -120,10 +134,15 @@ class MLXEngine: LLMEngine {
             let fallbackPrompt: String
             if fallbackModelInfo?.family == .llama {
                 // Llama 3.x format
-                fallbackPrompt = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n\(messages.system)<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n\(messages.user)<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+                let systemBlock = messages.system.isEmpty ? "" : "<|start_header_id|>system<|end_header_id|>\n\n\(messages.system)<|eot_id|>"
+                fallbackPrompt = "<|begin_of_text|>\(systemBlock)<|start_header_id|>user<|end_header_id|>\n\n\(messages.user)<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+            } else if fallbackModelInfo?.family == .gemma {
+                // Gemma format (system already merged into user by CleanupPromptBuilder)
+                fallbackPrompt = "<start_of_turn>user\n\(messages.user)<end_of_turn>\n<start_of_turn>model\n"
             } else {
                 // Qwen/ChatML format (default)
-                fallbackPrompt = "<|im_start|>system\n\(messages.system)<|im_end|>\n<|im_start|>user\n\(messages.user)<|im_end|>\n<|im_start|>assistant\n"
+                let systemBlock = messages.system.isEmpty ? "" : "<|im_start|>system\n\(messages.system)<|im_end|>\n"
+                fallbackPrompt = "\(systemBlock)<|im_start|>user\n\(messages.user)<|im_end|>\n<|im_start|>assistant\n"
             }
             encoding = lmContext.tokenizer.encode(text: fallbackPrompt)
         }
@@ -156,7 +175,7 @@ class MLXEngine: LLMEngine {
 
         // Stop tokens that signal end of model response — truncate output here.
         // Gemma uses <end_of_turn>, others use <|im_end|>, <|eot_id|>, etc.
-        let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>"]
+        let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>"]
 
         // Use the AsyncStream-based generate API
         var outputText = ""
@@ -207,7 +226,8 @@ class MLXEngine: LLMEngine {
         let specialTokens = [
             "<|endoftext|>", "<|im_end|>", "<|im_start|>",
             "<|eot_id|>", "<|end|>", "</s>", "<s>",
-            "<|assistant|>", "<|user|>", "<|system|>"
+            "<|assistant|>", "<|user|>", "<|system|>",
+            "</output>", "<output>", "<input>", "</input>"
         ]
 
         let preambleRegexes: [NSRegularExpression]

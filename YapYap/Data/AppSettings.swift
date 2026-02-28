@@ -32,7 +32,7 @@ final class AppSettings {
 
     init(
         sttModelId: String = "whisper-small",
-        llmModelId: String = "qwen-2.5-1.5b",
+        llmModelId: String = "gemma-3-4b",
         stylePrompt: String = "",
         formality: String = "neutral",
         cleanupLevel: String = "medium",

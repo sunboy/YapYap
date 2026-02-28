@@ -114,6 +114,18 @@ class TranscriptionPipeline {
 
     func ensureModelsLoaded() async throws {
         let settings = try fetchSettings()
+
+        // Only signal loading state when the LLM actually needs to load (not already active).
+        // Setting llmLoadingModelId on every hotkey press would cause a "Loading..." flash
+        // in the popover even when the model is already warm in memory.
+        let llmAlreadyLoaded = await executor.activeLLMModelId == settings.llmModelId
+        if !llmAlreadyLoaded {
+            await MainActor.run { [weak self] in
+                self?.appState.llmLoadingModelId = settings.llmModelId
+                self?.appState.llmDownloadProgress = 0.0
+            }
+        }
+
         try await executor.ensureModelsLoaded(
             sttModelId: settings.sttModelId,
             llmModelId: settings.llmModelId,
@@ -121,17 +133,26 @@ class TranscriptionPipeline {
                 Task { @MainActor in self?.appState.modelLoadingProgress = progress * 0.5 }
             },
             onLLMProgress: { [weak self] progress in
-                Task { @MainActor in self?.appState.modelLoadingProgress = 0.5 + progress * 0.5 }
+                Task { @MainActor in
+                    self?.appState.modelLoadingProgress = 0.5 + progress * 0.5
+                    self?.appState.llmDownloadProgress = progress
+                }
             },
             onStatus: { [weak self] status in
-                Task { @MainActor in self?.appState.modelLoadingStatus = status }
+                await MainActor.run { self?.appState.modelLoadingStatus = status }
             }
         )
         let activeLLM = await executor.activeLLMModelId
+        let activeSTT = await executor.sttModelId
         await MainActor.run { [weak self] in
             self?.appState.activeLLMModelId = activeLLM
+            self?.appState.activeSTTModelId = activeSTT
+            // Clear LLM loading state — load is complete (success or failure)
+            self?.appState.llmLoadingModelId = nil
+            self?.appState.llmDownloadProgress = nil
+            self?.appState.modelLoadingProgress = 1.0
+            NotificationCenter.default.post(name: .yapSettingsChanged, object: nil)
         }
-        appState.modelLoadingProgress = 1.0
     }
 
     // MARK: - Recording
@@ -685,12 +706,21 @@ class TranscriptionPipeline {
             "to", "of", "in", "for", "on", "with", "at", "by", "from", "it", "its",
             "this", "that", "and", "or", "but", "not", "no", "so", "if", "as", "do"]
 
-        let inputWords = Set(input.lowercased().split(separator: " ")
+        let inputWordList = input.lowercased().split(separator: " ")
             .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+        let outputWordList = output.lowercased().split(separator: " ")
+            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+
+        // Reject output that is significantly longer than input — likely hallucination or echo
+        if !inputWordList.isEmpty && Double(outputWordList.count) > Double(inputWordList.count) * 1.3 {
+            NSLog("[TranscriptionPipeline] Validation FAILED: output (\(outputWordList.count) words) > 1.3× input (\(inputWordList.count) words) — likely hallucination")
+            return false
+        }
+
+        let inputWords = Set(inputWordList
             .filter { $0.count > 2 && !stopWords.contains($0) })
 
-        let outputWords = Set(output.lowercased().split(separator: " ")
-            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+        let outputWords = Set(outputWordList
             .filter { $0.count > 2 && !stopWords.contains($0) })
 
         guard !inputWords.isEmpty else { return true }
@@ -700,8 +730,9 @@ class TranscriptionPipeline {
 
         NSLog("[TranscriptionPipeline] Validation: \(overlap)/\(inputWords.count) content words overlap (ratio: \(String(format: "%.2f", overlapRatio)))")
 
-        // At least 30% of input content words should appear in output
-        return overlapRatio >= 0.3
+        // At least 50% of input content words should appear in output.
+        // 0.3 was too permissive — LLM "answers" to questions scored ~0.36 and slipped through.
+        return overlapRatio >= 0.5
     }
 
     // MARK: - Persistence

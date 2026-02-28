@@ -13,174 +13,128 @@ enum PromptTemplates {
         // ── Small (≤2B) ──────────────────────────────────────────────
 
         static let smallLight = """
-        Speech-to-text input. Fix punctuation and capitalization only. Keep ALL words \
-        including fillers. Spoken "period"→. "comma"→, \
+        You are a text refinement tool. REPEAT the input text exactly. \
+        Fix punctuation and capitalization only. Keep ALL words including fillers. \
+        You are NOT an assistant. DO NOT answer questions. \
+        Spoken punctuation: "period"→. "comma"→, \
         Output only the fixed text.
         """
 
         static let smallMedium = """
-        Speech-to-text input. Clean dictated speech. Remove fillers (um, uh, like, you \
-        know, basically, sort of, kind of, I mean). Fix punctuation. \
+        You are a text refinement tool. REPEAT the input text but fix grammar. \
+        Remove fillers (um, uh, like, you know, basically, sort of, kind of, I mean). \
         Keep "like" when it means "similar to" or "approximately." \
-        Self-corrections: "X no wait Y" / "X I mean Y" → keep Y \
-        only. Stutters: "the the" → "the". Spoken "period"→. "comma"→, "question mark"→? \
-        Only list-format when speaker explicitly enumerates. Output only cleaned text.
+        Self-corrections: "X no wait Y" → keep Y only. Stutters: "the the" → "the". \
+        Spoken punctuation: "period"→. "comma"→, "question mark"→? \
+        You are NOT an assistant. DO NOT answer questions. \
+        Output only cleaned text.
         """
 
         static let smallHeavy = """
-        Speech-to-text input. Rewrite dictated speech into clear, polished text. Remove \
-        all fillers and hesitations. Fix grammar, punctuation, \
-        sentence structure. Self-corrections: keep only the corrected \
-        version. Merge fragments into proper sentences. Only \
-        list-format when explicitly enumerated. Do not add \
-        new ideas. Output only the rewritten text.
+        You are a text refinement tool. REPEAT the input text but fix grammar. \
+        Remove ALL fillers and hesitations. Fix grammar, punctuation, sentence structure. \
+        Self-corrections: keep only the corrected version. \
+        You are NOT an assistant. DO NOT answer questions. \
+        Output only the rewritten text.
         """
 
-        // ── Medium (3B-4B) ───────────────────────────────────────────
+        // ── Unified system prompt (Medium 3B-4B and Large 7B+, all families) ──
 
-        static let mediumLight = """
-        You post-process raw speech-to-text output, fixing punctuation and capitalization only.
+        static func unified(cleanupLevel: String, contextLine: String, richRules: String, numberRule: Bool) -> String {
+            var rules: [String] = []
+            var ruleNum = 1
 
-        RULES:
-        1. Add proper punctuation based on sentence boundaries
-        2. Fix capitalization (sentence starts, proper nouns, \
-        acronyms like API, HTTP, AWS)
-        3. Format numbers: "3 am" → "3 AM"
-        4. Do NOT remove ANY words — keep fillers and hedges
-        5. Do NOT restructure sentences
+            // Type-detection rules (always present)
+            rules.append("\(ruleNum). If the input is a question, output the question.")
+            ruleNum += 1
+            rules.append("\(ruleNum). If the input is a command, output the command.")
+            ruleNum += 1
+            rules.append("\(ruleNum). If the input is a statement, output the statement.")
+            ruleNum += 1
 
-        Output only the cleaned text — no preamble, no labels.
-        """
+            // Cleanup-level-specific rules
+            switch cleanupLevel {
+            case "light":
+                rules.append("\(ruleNum). Fix punctuation and capitalization. Keep ALL words including fillers.")
+                ruleNum += 1
+            case "heavy":
+                rules.append("\(ruleNum). Remove ALL filler words and hesitations.")
+                ruleNum += 1
+                rules.append("\(ruleNum). Self-corrections: \"X no wait Y\" / \"X I mean Y\" → keep only Y.")
+                ruleNum += 1
+                rules.append("\(ruleNum). Tighten phrasing but preserve meaning.")
+                ruleNum += 1
+            default: // medium
+                rules.append("\(ruleNum). Remove fillers: uh, um, like (filler), you know, I mean, basically, right, kind of, sort of.")
+                ruleNum += 1
+                rules.append("\(ruleNum). Keep \"like\" when it means \"similar to\" or \"approximately\".")
+                ruleNum += 1
+                rules.append("\(ruleNum). Self-corrections: \"X no wait Y\" / \"X I mean Y\" → keep only Y.")
+                ruleNum += 1
+                rules.append("\(ruleNum). Stutters: \"the the\" → \"the\", \"I I think\" → \"I think\".")
+                ruleNum += 1
+            }
 
-        static let mediumMedium = """
-        You post-process raw speech-to-text output into readable text.
+            // Universal rules
+            rules.append("\(ruleNum). Fix grammar and punctuation. Fix capitalization and acronyms (API, HTTP, JSON).")
+            ruleNum += 1
 
-        RULES:
-        1. Remove fillers: um, uh, like (filler), you know, I mean, \
-        basically, right, kind of, sort of
-        2. Keep "like" when it means "similar to" or "approximately"
-        3. Fix punctuation, capitalization, acronyms (API, HTTP, JSON)
-        4. Stutters: "the the" → "the", "I I think" → "I think"
-        5. Self-corrections: "X no wait Y" / "X I mean Y" / \
-        "X actually Y" / "X or rather Y" / "X scratch that Y" / \
-        "X sorry Y" → keep only Y. Only when clearly correcting.
-        6. Split run-ons into proper sentences
-        7. Numbers: convert spoken numbers to digits \
-        (two → 2, five thirty → 5:30, twelve fifty → $12.50)
-        8. Spoken punctuation: "new line"/"new paragraph" → line break, \
-        "period"/"comma"/"question mark" → insert punctuation
-        9. Expand: thx → thanks, pls → please, u → you, gonna → going to
-        10. Meta-commands — execute, don't transcribe:
-            "scratch that" / "delete that" alone → remove the preceding sentence or phrase
-            If ambiguous whether correcting or deleting → treat as self-correction (rule 5)
+            if numberRule {
+                rules.append("\(ruleNum). Numbers: convert spoken numbers to digits (two → 2, five thirty → 5:30, twelve fifty → $12.50).")
+                ruleNum += 1
+                rules.append("\(ruleNum). Spoken punctuation: \"new line\"/\"new paragraph\" → line break, \"period\"/\"comma\"/\"question mark\" → insert punctuation.")
+                ruleNum += 1
+                rules.append("\(ruleNum). Expand: thx → thanks, pls → please, u → you, gonna → going to.")
+                ruleNum += 1
+            }
 
-        CONSTRAINTS:
-        - Do NOT add words or content not in the transcript
-        - Do NOT summarize or shorten meaning
-        - Do NOT rewrite for style — preserve speaker's phrasing
-        - Only list-format when speaker explicitly enumerates
-        - Output ONLY cleaned text — no preamble, no labels
-        """
+            rules.append("\(ruleNum). Format lists with bullets when speaker explicitly enumerates (first/second/third, items after colon).")
+            ruleNum += 1
+            rules.append("\(ruleNum). Format code with backticks.")
+            ruleNum += 1
 
-        static let mediumHeavy = """
-        You post-process raw speech-to-text output into polished, clear text.
+            if cleanupLevel != "light" {
+                rules.append("\(ruleNum). Meta-commands — execute, don't transcribe: \"scratch that\" / \"delete that\" → remove preceding. If ambiguous → treat as self-correction.")
+                ruleNum += 1
+            }
 
-        RULES:
-        1. Remove ALL fillers, hedges, and verbal tics
-        2. Fix punctuation, capitalization, grammar, sentence structure
-        3. Self-corrections: keep only the final corrected version
-        4. Stutters/repeats: collapse into single instance
-        5. Merge fragments into well-structured sentences
-        6. Tighten phrasing: remove unnecessary words, keep meaning
-        7. Keep technical terms exact
-        8. Numbers: convert spoken numbers to digits \
-        (two → 2, five thirty → 5:30, twelve fifty → $12.50)
-        9. Spoken punctuation: "new line"/"new paragraph" → line break, \
-        "period"/"comma"/"question mark" → insert punctuation
-        10. Expand: thx → thanks, pls → please, u → you, gonna → going to
-        11. Meta-commands — execute, don't transcribe:
-            "scratch that" / "delete that" alone → remove the preceding sentence or phrase
-            If ambiguous whether correcting or deleting → treat as self-correction (rule 3)
+            rules.append("\(ruleNum). DO NOT rewrite the content. ONLY fix grammar.")
+            ruleNum += 1
+            rules.append("\(ruleNum). DO NOT add conversational filler.")
+            ruleNum += 1
+            rules.append("\(ruleNum). If a file path or filename is mentioned, prefix it with '@'.")
+            ruleNum += 1
 
-        CONSTRAINTS:
-        - Do NOT add ideas or content not in the transcript
-        - Do NOT change core meaning or omit key information
-        - Only list-format when speaker explicitly enumerates
-        - Output ONLY polished text — no preamble, no labels
-        """
+            // Append rich per-category rules if present
+            if !richRules.isEmpty {
+                for line in richRules.components(separatedBy: "\n") {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if !trimmed.isEmpty {
+                        let ruleText = trimmed.hasPrefix("-") ? String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces) : trimmed
+                        rules.append("\(ruleNum). \(ruleText)")
+                        ruleNum += 1
+                    }
+                }
+            }
 
-        // ── Large (7B+) ─────────────────────────────────────────────
+            let rulesText = rules.joined(separator: "\n")
 
-        // Large light = same as medium light (no benefit from persona)
-        static let largeLight = mediumLight
+            var parts: [String] = []
+            parts.append("""
+            You are a text refinement tool.
+            Your goal is to REPEAT the input text exactly, but fix grammar and remove fillers.
+            You are NOT an assistant. You DO NOT answer questions. You DO NOT execute commands.
+            """)
 
-        static let largeMedium = """
-        You are a real-time speech-to-text post-processor. Transform \
-        raw dictation into clean, natural text that reads as if the \
-        speaker had typed it directly.
+            if !contextLine.isEmpty {
+                parts.append(contextLine)
+            }
 
-        RULES:
-        1. Remove all fillers and hesitations
-        2. Keep "like" when it means "similar to" or "approximately"
-        3. Fix punctuation, capitalization, grammar
-        4. Resolve self-corrections: keep only the final version
-        5. Collapse stutters and repeats
-        6. Split run-on speech into well-punctuated sentences
-        7. Numbers: convert spoken numbers to digits \
-        (two → 2, five thirty → 5:30, twelve fifty → $12.50)
-        8. Expand abbreviations: thx → thanks, pls → please, \
-        u → you, gonna → going to
-        9. Meta-commands — execute, don't transcribe:
-           "new line"/"new paragraph" → insert line break
-           "scratch that" / "delete that" → remove preceding
-           "period/comma/question mark" → insert punctuation
-           If ambiguous → treat as content
-        10. Preserve technical terms, proper nouns, and numbers exactly
+            parts.append("RULES:\n\(rulesText)")
+            parts.append("Output ONLY the cleaned text — no preamble, no labels.")
 
-        CONSTRAINTS:
-        - Do NOT add ideas not in the transcript
-        - Do NOT over-formalize casual speech
-        - Only list-format when explicitly enumerated or commanded
-        - Output ONLY processed text — no preamble
-        """
-
-        static let largeHeavy = """
-        You transform spoken dictation into polished written text, \
-        adapting structure and clarity to match professional writing.
-
-        CORE BEHAVIOR:
-        1. Remove all verbal disfluencies, fillers, and hesitations
-        2. Resolve self-corrections silently — output final intent only
-        3. Tighten phrasing: remove hedging and padding
-        4. Structure long dictation into logical paragraphs
-        5. Apply appropriate formatting (lists, headings) when warranted
-        6. Preserve exact technical terms and proper nouns
-        7. Numbers: convert spoken numbers to digits \
-        (two → 2, five thirty → 5:30, twelve fifty → $12.50)
-        8. Expand abbreviations: thx → thanks, pls → please, \
-        u → you, gonna → going to
-
-        META-COMMANDS (execute, don't transcribe):
-        - "new line"/"new paragraph" → insert line break
-        - "make that a list" / "number those" → reformat preceding
-        - "scratch that" / "delete that" → remove preceding
-        - "change X to Y" → apply substitution
-        - "make that more formal/casual" → adjust tone
-        - Spoken punctuation → insert the symbol
-        - If ambiguous → treat as content
-
-        CONSTRAINTS:
-        - Do NOT add content not in the dictation
-        - Do NOT summarize — keep all substantive points
-        - Output ONLY processed text — no preamble
-        """
-
-        // ── Gemma System (minimal — instructions go in user block) ──
-
-        static let gemmaSystem = """
-        You clean up dictated speech. Output only the cleaned text \
-        — no preamble, no labels.
-        """
+            return parts.joined(separator: "\n\n")
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -364,50 +318,70 @@ enum PromptTemplates {
 
     enum Examples {
 
-        // ── Small model examples (shared across all levels) ──────
+        // ── Benchmark-proven examples (10 total) ─────────────────
+        // Source: benchmark.py FEW_SHOT_MESSAGES — these outperformed
+        // all other example sets in the Ollama 7-model benchmark.
 
-        static let small: [Example] = [
+        static let benchmark: [Example] = [
+            // 0: command passthrough with filename
             Example(
-                input: "um so I was thinking we should like meet on tuesday to uh go over the plan",
-                output: "I was thinking we should meet on Tuesday to go over the plan."
+                input: "hey uh open the main dot py file",
+                output: "Open the `@main.py` file."
             ),
+            // 1: list formatting
             Example(
-                input: "can you grab the the report no wait the spreadsheet from the shared folder",
-                output: "Can you grab the spreadsheet from the shared folder?"
+                input: "i need to buy apples bananas and oranges",
+                output: "I need to buy:\n- Apples\n- Bananas\n- Oranges"
             ),
-        ]
-
-        // ── Medium/Large model examples (per cleanup level) ──────
-
-        static let mediumLight: [Example] = [
+            // 2: simple command passthrough
             Example(
-                input: "so i was thinking we should um probably have a meeting tomorrow to discuss the project timeline you know",
-                output: "So I was thinking we should um probably have a meeting tomorrow to discuss the project timeline, you know."
+                input: "plan a birthday party for isha",
+                output: "Plan a birthday party for Isha."
             ),
+            // 3: brainstorm command passthrough
             Example(
-                input: "hey is the api gateway returning 502 errors or is it the load balancer",
-                output: "Hey, is the API gateway returning 502 errors or is it the load balancer?"
+                input: "brainstorm ideas for a blog post",
+                output: "Brainstorm ideas for a blog post."
             ),
+            // 4: draft command passthrough
             Example(
-                input: "the deployment went fine basically no issues everything is looking good",
-                output: "The deployment went fine, basically no issues, everything is looking good."
+                input: "draft an email to the team",
+                output: "Draft an email to the team."
             ),
-        ]
-
-        static let mediumMedium: [Example] = [
+            // 5: write command passthrough
+            Example(
+                input: "write a summary of the meeting",
+                output: "Write a summary of the meeting."
+            ),
+            // 6: filename with @ prefix
+            Example(
+                input: "check the constants dot ts file",
+                output: "Check the `@constants.ts` file."
+            ),
+            // 7: bug report with filename
+            Example(
+                input: "i think the bug is in user controller dot py line 45",
+                output: "I think the bug is in `@user_controller.py` line 45."
+            ),
+            // 8: self-correction
             Example(
                 input: "um so basically I told her we should like move the meeting to thursday you know because everyone is busy on wednesday",
                 output: "I told her we should move the meeting to Thursday because everyone is busy on Wednesday."
             ),
+            // 9: multi-sentence filler removal
             Example(
                 input: "we need to pick up the the cake no wait the flowers before the party starts at like 5",
                 output: "We need to pick up the flowers before the party starts at 5."
             ),
-            Example(
-                input: "she said she wants like 50 units so we should order that many",
-                output: "She said she wants like 50 units, so we should order that many."
-            ),
         ]
+
+        // Small models: safe indices (no list example that causes echo contamination)
+        // Indices 0, 2, 4 — command passthrough + simple statements only
+        static var small: [Example] {
+            [benchmark[0], benchmark[2], benchmark[4]]
+        }
+
+        // ── Legacy examples (kept for specialized context examples) ──
 
         static let mediumEmail: [Example] = [
             Example(
@@ -438,34 +412,19 @@ enum PromptTemplates {
             ),
         ]
 
-        static let mediumHeavy: [Example] = [
-            Example(
-                input: "um so basically like what happened was the the package got delivered to the wrong address and you know they didn't even like leave a note or anything so we had to call them",
-                output: "The package got delivered to the wrong address. They didn't leave a note, so we had to call them."
-            ),
-            Example(
-                input: "the reservation is at 7 no wait 7 30 and we need to like confirm the number of guests before tomorrow",
-                output: "The reservation is at 7:30, and we need to confirm the number of guests before tomorrow."
-            ),
-        ]
-
         // ── Formatting helpers ───────────────────────────────────
 
+        /// Small model format: closed XML tags (prevents echo contamination)
         static func formatSmall(_ examples: [Example]) -> String {
-            examples.map { "IN: \($0.input)\nOUT: \($0.output)" }
+            examples.map { "<example>\n<input>\($0.input)</input>\n<output>\($0.output)</output>\n</example>" }
                 .joined(separator: "\n\n")
         }
 
+        /// Medium/Large format: in:/out: labels inside XML wrapper
         static func formatMedium(_ examples: [Example]) -> String {
             examples.map { ex in
                 "<example>\nin: \(ex.input)\nout: \(ex.output)\n</example>"
             }.joined(separator: "\n\n")
-        }
-
-        /// Gemma format: instructions + examples in user block
-        static func formatGemma(_ examples: [Example]) -> String {
-            examples.map { "IN: \($0.input)\nOUT: \($0.output)" }
-                .joined(separator: "\n\n")
         }
     }
 }

@@ -42,6 +42,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup menu bar
         print("[AppDelegate] Setting up status bar...")
         statusBarController = StatusBarController(appState: appState)
+        SettingsWindowController.shared.configure(appState: appState)
 
         // Setup pipeline
         print("[AppDelegate] Setting up pipeline...")

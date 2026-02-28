@@ -26,7 +26,7 @@ actor TranscriptionExecutor {
         llmModelId: String,
         onSTTProgress: @escaping (Double) -> Void,
         onLLMProgress: @escaping (Double) -> Void,
-        onStatus: @escaping (String) -> Void
+        onStatus: @escaping (String) async -> Void
     ) async throws {
         // Await in-flight load if any
         if let existing = modelLoadingTask {
@@ -56,7 +56,7 @@ actor TranscriptionExecutor {
         llmModelId: String,
         onSTTProgress: @escaping (Double) -> Void,
         onLLMProgress: @escaping (Double) -> Void,
-        onStatus: @escaping (String) -> Void
+        onStatus: @escaping (String) async -> Void
     ) async throws {
         // STT
         let needsSTTReload = sttEngine == nil || !sttEngine!.isLoaded
@@ -66,14 +66,12 @@ actor TranscriptionExecutor {
                 NSLog("[TranscriptionExecutor] STT model changed: \(existing.modelInfo.id) → \(sttModelId)")
                 existing.unloadModel()
             }
-            onStatus("Loading speech model...")
+            await onStatus("Loading speech model...")
             NSLog("[TranscriptionExecutor] Loading STT: \(sttModelId)")
 
             let newEngine = STTEngineFactory.create(modelId: sttModelId)
             sttEngine = newEngine
-            try await StderrSuppressor.suppressing {
-                try await newEngine.loadModel(progressHandler: onSTTProgress)
-            }
+            try await newEngine.loadModel(progressHandler: onSTTProgress)
             NSLog("[TranscriptionExecutor] ✅ STT loaded")
         }
 
@@ -85,20 +83,18 @@ actor TranscriptionExecutor {
                 NSLog("[TranscriptionExecutor] LLM model changed: \(existing.modelId ?? "?") → \(llmModelId)")
                 existing.unloadModel()
             }
-            onStatus("Loading language model...")
+            await onStatus("Loading language model...")
             NSLog("[TranscriptionExecutor] Loading LLM: \(llmModelId)")
 
             let engine = MLXEngine()
             do {
-                try await StderrSuppressor.suppressing {
-                    try await engine.loadModel(id: llmModelId, progressHandler: onLLMProgress)
-                }
+                try await engine.loadModel(id: llmModelId, progressHandler: onLLMProgress)
                 llmEngine = engine
                 NSLog("[TranscriptionExecutor] ✅ LLM loaded")
             } catch {
                 llmEngine = nil
                 NSLog("[TranscriptionExecutor] ⚠️ LLM failed: \(error)")
-                onStatus("Cleanup model unavailable — recording still works")
+                await onStatus("Cleanup model unavailable — recording still works")
             }
         }
     }

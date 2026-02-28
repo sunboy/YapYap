@@ -5,8 +5,9 @@ import MLXLMCommon
 import Hub
 
 struct ModelsTab: View {
+    let appState: AppState?
     @State private var selectedSTT = "whisper-small"
-    @State private var selectedLLM = "qwen-2.5-1.5b"
+    @State private var selectedLLM = "gemma-3-4b"
     @State private var autoDownload = true
     @State private var gpuAcceleration = true
     @State private var downloadedModels: Set<String> = []
@@ -16,14 +17,23 @@ struct ModelsTab: View {
     @State private var showDeleteConfirm = false
     @State private var modelSizes: [String: String] = [:]
     @State private var didLoadSettings = false
+    @State private var isRefreshingSettings = false
     @State private var downloadError: String?
 
+    // All models live under ~/Library/Application Support/YapYap/models/.
+    // Application Support is never iCloud-synced, preventing eviction of large
+    // mlmodelc/model-weight blobs that cause stat() to hang indefinitely.
+    private static var appSupportModelsDir: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("YapYap/models")
+    }
+
     private var llmCacheDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache/huggingface/hub")
+        Self.appSupportModelsDir.appendingPathComponent("llm")
     }
 
     private var whisperCacheDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/huggingface/models/argmaxinc/whisperkit-coreml")
+        Self.appSupportModelsDir.appendingPathComponent("whisperkit")
     }
 
     var body: some View {
@@ -71,12 +81,18 @@ struct ModelsTab: View {
             loadSettings()
             checkDownloadedModels()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .yapSettingsChanged)) { _ in
+            isRefreshingSettings = true
+            loadSettings()
+            isRefreshingSettings = false
+            checkDownloadedModels()
+        }
         .onChange(of: autoDownload) { _, newValue in
-            guard didLoadSettings else { return }
+            guard didLoadSettings, !isRefreshingSettings else { return }
             saveSettings { $0.autoDownloadModels = newValue }
         }
         .onChange(of: gpuAcceleration) { _, newValue in
-            guard didLoadSettings else { return }
+            guard didLoadSettings, !isRefreshingSettings else { return }
             saveSettings { $0.gpuAcceleration = newValue }
         }
         .alert("Delete Model", isPresented: $showDeleteConfirm) {
@@ -139,16 +155,9 @@ struct ModelsTab: View {
                 .lineSpacing(2)
                 .lineLimit(2)
 
-            HStack(spacing: 4) {
-                Text(model.sizeDescription)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.ypText4)
-                if isDownloaded, let diskSize = modelSizes[model.id] {
-                    Text("(\(diskSize) on disk)")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.ypText4)
-                }
-            }
+            Text(modelSizes[model.id] ?? model.sizeDescription)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(.ypText4)
 
             Spacer().frame(height: 4)
 
@@ -233,15 +242,19 @@ struct ModelsTab: View {
         return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
             ForEach(models, id: \.id) { model in
                 let isSelected = selectedLLM == model.id
+                let isLoaded = appState?.activeLLMModelId == model.id
                 let isDownloaded = downloadedModels.contains(model.id)
-                let isDownloading = downloadingModel == model.id
+                // Show downloading state from either manual download OR startup/hotkey load
+                let isDownloadingManual = downloadingModel == model.id
+                let isDownloadingStartup = appState?.llmLoadingModelId == model.id
+                let isDownloading = isDownloadingManual || isDownloadingStartup
 
-                llmModelCard(model: model, isSelected: isSelected, isDownloaded: isDownloaded, isDownloading: isDownloading)
+                llmModelCard(model: model, isSelected: isSelected, isLoaded: isLoaded, isDownloaded: isDownloaded, isDownloading: isDownloading)
             }
         }
     }
 
-    private func llmModelCard(model: LLMModelInfo, isSelected: Bool, isDownloaded: Bool, isDownloading: Bool) -> some View {
+    private func llmModelCard(model: LLMModelInfo, isSelected: Bool, isLoaded: Bool, isDownloaded: Bool, isDownloading: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(model.name)
@@ -257,40 +270,51 @@ struct ModelsTab: View {
                 .lineSpacing(2)
                 .lineLimit(2)
 
-            HStack(spacing: 4) {
-                Text(model.sizeDescription)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.ypText4)
-                if isDownloaded, let diskSize = modelSizes[model.id] {
-                    Text("(\(diskSize) on disk)")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.ypText4)
-                }
-            }
+            Text(modelSizes[model.id] ?? model.sizeDescription)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(.ypText4)
 
             Spacer().frame(height: 4)
 
             // Download progress bar
             if isDownloading {
+                let effectiveProgress: Double = {
+                    if downloadingModel == model.id {
+                        return downloadProgress
+                    } else if let p = appState?.llmDownloadProgress {
+                        return p
+                    }
+                    return 0
+                }()
                 VStack(spacing: 2) {
-                    ProgressView(value: downloadProgress)
+                    ProgressView(value: effectiveProgress)
                         .progressViewStyle(.linear)
                         .tint(.ypLavender)
-                    Text("\(Int(downloadProgress * 100))%")
+                    Text("\(Int(effectiveProgress * 100))%")
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundColor(.ypText4)
                 }
             } else {
                 // Action buttons
                 HStack(spacing: 6) {
-                    if isSelected {
+                    if isLoaded {
+                        // Currently loaded in memory — this is what's active right now
+                        Text("Loaded")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.ypLavender)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.ypPillLavender)
+                            .cornerRadius(4)
+                    } else if isSelected {
                         if isDownloaded {
-                            Text("Active")
+                            // Selected for next use, downloaded, but not yet loaded in memory
+                            Text("Selected")
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.ypLavender)
+                                .foregroundColor(.ypText2)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
-                                .background(Color.ypPillLavender)
+                                .background(Color.ypCard2)
                                 .cornerRadius(4)
                         } else {
                             // Selected but not downloaded — prompt download
@@ -375,7 +399,10 @@ struct ModelsTab: View {
     // MARK: - Status Badge
 
     private func statusBadge(modelId: String, isDownloaded: Bool, isComingSoon: Bool) -> some View {
-        Group {
+        // A model is "downloading" if either a manual download is in progress from this tab,
+        // or if the startup/hotkey pipeline is loading it (appState.llmLoadingModelId).
+        let isDownloadingNow = downloadingModel == modelId || appState?.llmLoadingModelId == modelId
+        return Group {
             if isComingSoon {
                 Text("Coming soon")
                     .font(.system(size: 8, weight: .medium))
@@ -384,7 +411,7 @@ struct ModelsTab: View {
                     .padding(.vertical, 2)
                     .background(Color.orange.opacity(0.1))
                     .cornerRadius(4)
-            } else if downloadingModel == modelId {
+            } else if isDownloadingNow {
                 Text("Downloading")
                     .font(.system(size: 8, weight: .medium))
                     .foregroundColor(.ypLavender)
@@ -470,6 +497,7 @@ struct ModelsTab: View {
     private func selectSTTModel(_ id: String) {
         selectedSTT = id
         saveSettings { $0.sttModelId = id }
+        NotificationCenter.default.post(name: .yapSettingsChanged, object: nil)
     }
 
     private func selectLLMModel(_ id: String) {
@@ -491,9 +519,10 @@ struct ModelsTab: View {
             do {
                 let config = ModelConfiguration(id: model.huggingFaceId)
                 let factory = LLMModelFactory.shared
+                let hub = HubApi(downloadBase: llmCacheDir)
 
                 _ = try await factory.load(
-                    hub: HubApi(),
+                    hub: hub,
                     configuration: config
                 ) { progress in
                     Task { @MainActor in
@@ -511,12 +540,12 @@ struct ModelsTab: View {
                 }
 
                 // Compute size of the newly downloaded model off-main
+                // HubApi stores at {llmCacheDir}/models/{huggingFaceId}
                 let hfId = model.huggingFaceId
                 let modelId = model.id
                 let cache = llmCacheDir
                 DispatchQueue.global(qos: .utility).async {
-                    let repoName = "models--" + hfId.replacingOccurrences(of: "/", with: "--")
-                    let modelDir = cache.appendingPathComponent(repoName)
+                    let modelDir = cache.appendingPathComponent("models/\(hfId)")
                     if let size = Self.directorySize(at: modelDir) {
                         let formatted = Self.formatBytes(size)
                         DispatchQueue.main.async {
@@ -539,10 +568,9 @@ struct ModelsTab: View {
         let llmCache = llmCacheDir
         let whisperCache = whisperCacheDir
         Task.detached(priority: .utility) {
-            // Try LLM model deletion
+            // Try LLM model deletion — HubApi stores at {llmCache}/models/{huggingFaceId}
             if let llmModel = LLMModelRegistry.model(for: id) {
-                let repoName = "models--" + llmModel.huggingFaceId.replacingOccurrences(of: "/", with: "--")
-                let modelDir = llmCache.appendingPathComponent(repoName)
+                let modelDir = llmCache.appendingPathComponent("models/\(llmModel.huggingFaceId)")
                 if FileManager.default.fileExists(atPath: modelDir.path) {
                     do {
                         try FileManager.default.removeItem(at: modelDir)
@@ -605,60 +633,89 @@ struct ModelsTab: View {
             var sizes: [String: String] = [:]
             let homeDir = FileManager.default.homeDirectoryForCurrentUser
 
-            // Check LLM models in ~/.cache/huggingface/hub/
-            let hfCacheDir = homeDir.appendingPathComponent(".cache/huggingface/hub")
+            // Check LLM models — primary: ~/Library/Application Support/YapYap/models/llm/
+            // Legacy fallbacks: ~/Documents/huggingface/models/ (Swift HubApi old default)
+            //                   ~/.cache/huggingface/hub/ (Python huggingface_hub)
+            let newLLMDir = Self.appSupportModelsDir.appendingPathComponent("llm")
+            let legacySwiftDir = homeDir.appendingPathComponent("Documents/huggingface/models")
+            let legacyPythonDir = homeDir.appendingPathComponent(".cache/huggingface/hub")
             for model in LLMModelRegistry.allModels {
+                // New App Support path — HubApi stores at {downloadBase}/models/{huggingFaceId}
+                let newModelDir = newLLMDir.appendingPathComponent("models/\(model.huggingFaceId)")
+                if FileManager.default.fileExists(atPath: newModelDir.path) {
+                    downloaded.insert(model.id)
+                    if let size = Self.directorySize(at: newModelDir) { sizes[model.id] = Self.formatBytes(size) }
+                    continue
+                }
+                // Legacy Swift HubApi path: ~/Documents/huggingface/models/{org}/{modelName}
+                let legacySwiftModelDir = legacySwiftDir.appendingPathComponent(model.huggingFaceId)
+                if FileManager.default.fileExists(atPath: legacySwiftModelDir.path) {
+                    downloaded.insert(model.id)
+                    if let size = Self.directorySize(at: legacySwiftModelDir) { sizes[model.id] = Self.formatBytes(size) }
+                    continue
+                }
+                // Legacy Python cache path: ~/.cache/huggingface/hub/models--{org}--{modelName}/snapshots/
                 let repoName = "models--" + model.huggingFaceId.replacingOccurrences(of: "/", with: "--")
-                let modelDir = hfCacheDir.appendingPathComponent(repoName)
-                if FileManager.default.fileExists(atPath: modelDir.path) {
-                    let snapshotsDir = modelDir.appendingPathComponent("snapshots")
+                let legacyPythonModelDir = legacyPythonDir.appendingPathComponent(repoName)
+                if FileManager.default.fileExists(atPath: legacyPythonModelDir.path) {
+                    let snapshotsDir = legacyPythonModelDir.appendingPathComponent("snapshots")
                     if let snapshots = try? FileManager.default.contentsOfDirectory(at: snapshotsDir, includingPropertiesForKeys: nil),
                        !snapshots.isEmpty {
                         downloaded.insert(model.id)
-                        if let size = Self.directorySize(at: modelDir) {
-                            sizes[model.id] = Self.formatBytes(size)
-                        }
+                        if let size = Self.directorySize(at: legacyPythonModelDir) { sizes[model.id] = Self.formatBytes(size) }
                     }
                 }
             }
 
-            // Check WhisperKit models in ~/Documents/huggingface/models/argmaxinc/whisperkit-coreml/
-            let whisperDir = homeDir.appendingPathComponent("Documents/huggingface/models/argmaxinc/whisperkit-coreml")
+            // Check WhisperKit models — prefer new Application Support location, fall back to legacy Documents.
+            let whisperDir = whisperCacheDir
             if FileManager.default.fileExists(atPath: whisperDir.path) {
                 if let contents = try? FileManager.default.contentsOfDirectory(atPath: whisperDir.path) {
+                    var smallSize: String? = nil
+                    var mediumSize: String? = nil
+                    var largeSize: String? = nil
+
                     for name in contents {
                         let lower = name.lowercased()
+                        guard lower.hasPrefix("openai_whisper-") || lower.hasPrefix("distil-whisper") else { continue }
                         let fullPath = whisperDir.appendingPathComponent(name)
-                        let dirSize = Self.directorySize(at: fullPath)
-                        let formatted = dirSize.map { Self.formatBytes($0) }
+                        guard var dirSize = Self.directorySize(at: fullPath), dirSize > 0 else { continue }
+                        let formatted = Self.formatBytes(dirSize)
 
-                        if lower.contains("whisper-small") || lower.contains("whisper_small") {
-                            downloaded.insert("whisper-small")
-                            if let f = formatted { sizes["whisper-small"] = f }
+                        // "openai_whisper-small..." but NOT "openai_whisper-small.en"
+                        // Match: openai_whisper-small, openai_whisper-small_216MB
+                        if lower.hasPrefix("openai_whisper-small") && !lower.contains(".en") {
+                            if smallSize == nil { smallSize = formatted }
                         }
-                        if lower.contains("whisper-medium") || lower.contains("whisper_medium") {
-                            downloaded.insert("whisper-medium")
-                            if let f = formatted { sizes["whisper-medium"] = f }
+                        // "openai_whisper-medium..." but NOT medium.en
+                        else if lower.hasPrefix("openai_whisper-medium") && !lower.contains(".en") {
+                            if mediumSize == nil { mediumSize = formatted }
                         }
-                        if lower.contains("whisper-large") || lower.contains("whisper_large") {
-                            downloaded.insert("whisper-large-v3-turbo")
-                            if let f = formatted { sizes["whisper-large-v3-turbo"] = f }
+                        // Large-v3 turbo variants: openai_whisper-large-v3*turbo* or distil-whisper*turbo*
+                        else if (lower.hasPrefix("openai_whisper-large-v3") || lower.hasPrefix("distil-whisper")) && lower.contains("turbo") {
+                            if largeSize == nil { largeSize = formatted }
                         }
                     }
+
+                    if let s = smallSize { downloaded.insert("whisper-small"); sizes["whisper-small"] = s }
+                    if let m = mediumSize { downloaded.insert("whisper-medium"); sizes["whisper-medium"] = m }
+                    if let l = largeSize { downloaded.insert("whisper-large-v3-turbo"); sizes["whisper-large-v3-turbo"] = l }
                 }
             }
-
-            // Also include models that were successfully loaded before (e.g. xet-cached models
-            // that don't appear in the standard hub directory structure).
-            let persistedDownloads = DataManager.shared.downloadedModelIds()
 
             // SpeechAnalyzer is always available on macOS 26+ (system framework)
             if #available(macOS 26, *) {
                 downloaded.insert("apple-speech-analyzer")
             }
 
+            // Also include models marked as downloaded in the database.
+            // MLXEngine calls DataManager.markModelDownloaded() after successful load,
+            // which covers models whose cache layout doesn't match the filesystem checks above.
+            let markedIds = DataManager.shared.downloadedModelIds()
+            downloaded.formUnion(markedIds)
+
             DispatchQueue.main.async { [downloaded, sizes] in
-                self.downloadedModels = downloaded.union(persistedDownloads)
+                self.downloadedModels = downloaded
                 self.modelSizes = sizes
             }
         }

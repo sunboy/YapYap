@@ -4,6 +4,13 @@ import SwiftUI
 class SettingsWindowController: NSWindowController {
     static let shared = SettingsWindowController()
 
+    private var appState: AppState?
+
+    func configure(appState: AppState) {
+        self.appState = appState
+        window?.contentView = NSHostingView(rootView: SettingsView(appState: appState))
+    }
+
     private init() {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
@@ -17,7 +24,7 @@ class SettingsWindowController: NSWindowController {
         window.appearance = NSAppearance(named: .darkAqua)
         window.backgroundColor = NSColor(red: 0x2A/255.0, green: 0x25/255.0, blue: 0x40/255.0, alpha: 1)
         window.center()
-        window.contentView = NSHostingView(rootView: SettingsView())
+        window.contentView = NSHostingView(rootView: SettingsView(appState: nil))
         super.init(window: window)
     }
 

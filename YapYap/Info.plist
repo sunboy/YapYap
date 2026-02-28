@@ -2,64 +2,35 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Hide from Dock — menu bar only app -->
-    <key>LSUIElement</key>
-    <true/>
-
-    <!-- Microphone usage description -->
-    <key>NSMicrophoneUsageDescription</key>
-    <string>YapYap needs microphone access to transcribe your voice into text.</string>
-
-    <!-- Speech recognition usage (for Apple SpeechAnalyzer backend) -->
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>YapYap uses on-device speech recognition to transcribe your voice into text. All processing happens locally.</string>
-
-    <!-- Accessibility usage (for paste and context detection) -->
-    <key>NSAppleEventsUsageDescription</key>
-    <string>YapYap needs accessibility access to paste transcribed text into your apps.</string>
-
-    <!-- Minimum macOS version -->
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-
-    <!-- App category -->
-    <key>LSApplicationCategoryType</key>
-    <string>public.app-category.productivity</string>
-
-    <!-- Sparkle feed URL -->
-    <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/sunboy/yapyap/main/Distribution/appcast.xml</string>
-
-    <!-- Sparkle EdDSA public key for update signature verification.
-         Generate your keypair: $(brew --prefix sparkle)/bin/generate_keys
-         Paste the public key output here. The private key is saved to your Keychain. -->
-    <key>SUPublicEDKey</key>
-    <string>iXRP2Li+T5SP0N6vMl/1jD0TO6UY+3jTimjebUfimkQ=</string>
-
-    <!-- Bundle display name -->
-    <key>CFBundleDisplayName</key>
-    <string>YapYap</string>
-
-    <!-- Bundle identifier -->
-    <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-
-    <!-- Bundle name -->
-    <key>CFBundleName</key>
-    <string>$(PRODUCT_NAME)</string>
-
-    <!-- Bundle version -->
-    <key>CFBundleShortVersionString</key>
-    <string>0.2.1</string>
-
-    <key>CFBundleVersion</key>
-    <string>44</string>
-
-    <!-- Executable -->
-    <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
-
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
+	<key>CFBundleDisplayName</key>
+	<string>YapYap</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.2.2</string>
+	<key>CFBundleVersion</key>
+	<string>45</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>YapYap needs accessibility access to paste transcribed text into your apps.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>YapYap needs microphone access to transcribe your voice into text.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>YapYap uses on-device speech recognition to transcribe your voice into text. All processing happens locally.</string>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/sunboy/yapyap/main/Distribution/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>iXRP2Li+T5SP0N6vMl/1jD0TO6UY+3jTimjebUfimkQ=</string>
 </dict>
 </plist>
