@@ -130,9 +130,13 @@ class MLXEngine: LLMEngine {
 
         // Build prompt in parts: (system, userPrefix, userSuffix)
         // userPrefix = examples + instructions (static), userSuffix = rawText (dynamic)
+        let userContext = UserPromptContextManager.shared.context(
+            for: context.appContext?.appName,
+            transcript: rawText
+        )
         let parts = CleanupPromptBuilder.buildMessageParts(
             rawText: rawText, context: context,
-            modelId: modelId
+            modelId: modelId, userContext: userContext
         )
 
         // Debug: log prompt content for echo bug diagnosis

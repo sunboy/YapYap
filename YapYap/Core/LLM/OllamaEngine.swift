@@ -89,9 +89,13 @@ class OllamaEngine: LLMEngine {
         // Build prompts using the same CleanupPromptBuilder as MLXEngine.
         // Use promptModelId (the MLX registry ID) so the prompt builder selects
         // the same family/size tier, producing identical prompts across frameworks.
+        let userContext = UserPromptContextManager.shared.context(
+            for: context.appContext?.appName,
+            transcript: rawText
+        )
         let messages = CleanupPromptBuilder.buildMessages(
             rawText: rawText, context: context,
-            modelId: promptModelId
+            modelId: promptModelId, userContext: userContext
         )
 
         NSLog("[OllamaEngine] System prompt (\(messages.system.count) chars): \"\(String(messages.system.prefix(200)))\"")

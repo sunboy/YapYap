@@ -98,10 +98,12 @@ class BenchmarkLLMRunner {
         let messages = CleanupPromptBuilder.buildMessages(rawText: rawText, context: context, modelId: modelId)
 
         // Apply chat template
-        let chatMessages: [[String: String]] = [
-            ["role": "system", "content": messages.system],
-            ["role": "user", "content": messages.user]
-        ]
+        // Omit system role when empty (Gemma merges system into user block)
+        var chatMessages: [[String: String]] = []
+        if !messages.system.isEmpty {
+            chatMessages.append(["role": "system", "content": messages.system])
+        }
+        chatMessages.append(["role": "user", "content": messages.user])
 
         let encoding: [Int]
         do {
@@ -111,8 +113,13 @@ class BenchmarkLLMRunner {
             let fallbackPrompt: String
             if fallbackModelInfo?.family == .llama {
                 fallbackPrompt = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n\(messages.system)<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n\(messages.user)<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+            } else if fallbackModelInfo?.family == .gemma {
+                // Gemma format (system already merged into user by CleanupPromptBuilder)
+                fallbackPrompt = "<start_of_turn>user\n\(messages.user)<end_of_turn>\n<start_of_turn>model\n"
             } else {
-                fallbackPrompt = "<|im_start|>system\n\(messages.system)<|im_end|>\n<|im_start|>user\n\(messages.user)<|im_end|>\n<|im_start|>assistant\n"
+                // Qwen/ChatML format (default)
+                let systemBlock = messages.system.isEmpty ? "" : "<|im_start|>system\n\(messages.system)<|im_end|>\n"
+                fallbackPrompt = "\(systemBlock)<|im_start|>user\n\(messages.user)<|im_end|>\n<|im_start|>assistant\n"
             }
             encoding = lmContext.tokenizer.encode(text: fallbackPrompt)
         }
