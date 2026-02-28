@@ -41,10 +41,9 @@ struct ModelsTab: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // STT Section
-                Text("Speech-to-Text Model")
+        VStack(alignment: .leading, spacing: 0) {
+            // STT Section
+            Text("Speech-to-Text Model")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.ypText1)
                     .padding(.bottom, 4)
@@ -83,8 +82,7 @@ struct ModelsTab: View {
                 divider
 
                 // Storage info
-                storageInfoSection
-            }
+            storageInfoSection
         }
         .onAppear {
             loadSettings()

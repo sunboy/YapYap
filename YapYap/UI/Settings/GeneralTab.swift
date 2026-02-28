@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
+import LaunchAtLogin
 
 struct GeneralTab: View {
     @State private var crashReportingEnabled = CrashReporter.isEnabled
@@ -61,6 +62,7 @@ struct GeneralTab: View {
         }
         .onChange(of: launchAtLogin) { _, newValue in
             guard didLoadSettings else { return }
+            LaunchAtLogin.isEnabled = newValue
             saveSettings { $0.launchAtLogin = newValue }
         }
         .onChange(of: showFloatingBar) { _, newValue in
@@ -120,7 +122,7 @@ struct GeneralTab: View {
 
     private func loadSettings() {
         let settings = DataManager.shared.fetchSettings()
-        launchAtLogin = settings.launchAtLogin
+        launchAtLogin = LaunchAtLogin.isEnabled
         showFloatingBar = settings.showFloatingBar
         autoPaste = settings.autoPaste
         copyToClipboard = settings.copyToClipboard

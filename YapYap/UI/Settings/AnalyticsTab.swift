@@ -57,6 +57,9 @@ struct AnalyticsTab: View {
         .onAppear {
             loadAnalytics()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            loadAnalytics()
+        }
     }
 
     private func loadAnalytics() {

@@ -237,12 +237,24 @@ struct HistoryTab: View {
     private func loadTranscriptions() {
         // Defer to next run loop so settings window renders immediately
         Task { @MainActor in
+            let settings = DataManager.shared.fetchSettings()
+            let limit = settings.historyLimit
+
+            // historyLimit: -1 = keep all, 0 = don't save (show nothing), N = last N
+            guard limit != 0 else {
+                transcriptions = []
+                availableApps = []
+                return
+            }
+
             let container = DataManager.shared.container
             let context = ModelContext(container)
             var descriptor = FetchDescriptor<Transcription>(
                 sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
             )
-            descriptor.fetchLimit = 200
+            if limit > 0 {
+                descriptor.fetchLimit = limit
+            }
             transcriptions = (try? context.fetch(descriptor)) ?? []
 
             // Build unique app list

@@ -123,6 +123,7 @@ struct WritingStyleTab: View {
         let settings = DataManager.shared.fetchSettings()
         update(settings)
         DataManager.shared.saveSettings()
+        NotificationCenter.default.post(name: .yapSettingsChanged, object: nil)
     }
 
     /// Compute available languages as the intersection of the selected STT and LLM models

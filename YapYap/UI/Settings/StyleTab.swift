@@ -228,6 +228,7 @@ struct StyleSettingsData: Codable {
     var other: OutputStyle = .casual
     var ideVariableRecognition: Bool = true
     var ideFileTagging: Bool = true
+    var notesTodoConversion: Bool = true
     var appCategoryOverrides: [String: AppCategory] = [:]
     var seenApps: [String: SeenAppInfo] = [:]
 
