@@ -9,21 +9,30 @@ struct CleanupPromptBuilder {
     /// medium+ models (3B+) get detailed prompts with rules and more examples.
     /// For Gemma family: system is empty, all content moves to user block.
     static func buildMessages(rawText: String, context: CleanupContext, modelId: String? = nil, userContext: UserPromptContext? = nil) -> (system: String, user: String) {
+        let parts = buildMessageParts(rawText: rawText, context: context, modelId: modelId, userContext: userContext)
+        return (system: parts.system, user: parts.userPrefix + parts.userSuffix)
+    }
+
+    /// Returns (system, userPrefix, userSuffix) for prompt caching.
+    /// - system: full system prompt (static for given settings + app context)
+    /// - userPrefix: examples + instructions (static, no rawText)
+    /// - userSuffix: the rawText portion (dynamic per inference)
+    /// The split point is chosen at a natural token boundary (newline) so prefix
+    /// and suffix can be encoded independently without BPE boundary issues.
+    static func buildMessageParts(rawText: String, context: CleanupContext, modelId: String? = nil, userContext: UserPromptContext? = nil) -> (system: String, userPrefix: String, userSuffix: String) {
         let (family, resolvedSize) = resolveModel(modelId: modelId)
-        // Experimental mode: treat small models as medium so they get detailed prompts
-        // Exception: 1B models (Llama 1B, Gemma 1B) can't follow detailed prompts — stay on small
         let is1BModel = modelId == "llama-3.2-1b" || modelId == "gemma-3-1b"
         let size = (context.experimentalPrompts && resolvedSize == .small && !is1BModel) ? .medium : resolvedSize
 
         let systemContent = buildSystemPrompt(context: context, family: family, size: size)
-        let userContent = buildUserMessage(rawText: rawText, context: context, family: family, size: size, userContext: userContext)
+        let (userPrefix, userSuffix) = buildUserMessageParts(rawText: rawText, context: context, family: family, size: size, userContext: userContext)
 
         // Gemma: merge system content into user block (system role unreliable for Gemma)
         if family == .gemma && size != .small {
-            return (system: "", user: systemContent + "\n\n" + userContent)
+            return (system: "", userPrefix: systemContent + "\n\n" + userPrefix, userSuffix: userSuffix)
         }
 
-        return (system: systemContent, user: userContent)
+        return (system: systemContent, userPrefix: userPrefix, userSuffix: userSuffix)
     }
 
     // MARK: - Model Resolution
@@ -220,51 +229,53 @@ struct CleanupPromptBuilder {
     // MARK: - User Message
 
     private static func buildUserMessage(rawText: String, context: CleanupContext, family: LLMModelFamily, size: LLMModelSize, userContext: UserPromptContext? = nil) -> String {
-        // Small models: compact XML examples for all families
-        if size == .small {
-            return buildSmallModelUserMessage(rawText: rawText, context: context, userContext: userContext)
-        }
-
-        // Medium+ models: 10 benchmark examples + transcript repetition
-        return buildUnifiedUserMessage(rawText: rawText, context: context, userContext: userContext, modelSize: size)
+        let (prefix, suffix) = buildUserMessageParts(rawText: rawText, context: context, family: family, size: size, userContext: userContext)
+        return prefix + suffix
     }
 
-    /// Compact user message for small models (<=2B).
-    /// Uses bare <input>/<output> XML pairs (no <example> wrapper) to prevent echo contamination.
-    /// Uses safe example indices (no list example which caused Gemma 1B echo contamination).
-    private static func buildSmallModelUserMessage(rawText: String, context: CleanupContext, userContext: UserPromptContext? = nil) -> String {
-        // Format examples as bare input/output pairs (no <example> wrapper for small models)
+    /// Returns (userPrefix, userSuffix) where the split is at the rawText boundary.
+    /// The prefix contains examples + instructions (cacheable), the suffix contains
+    /// the raw transcript (dynamic per call). Split at newline for clean BPE boundaries.
+    private static func buildUserMessageParts(rawText: String, context: CleanupContext, family: LLMModelFamily, size: LLMModelSize, userContext: UserPromptContext? = nil) -> (prefix: String, suffix: String) {
+        if size == .small {
+            return buildSmallModelUserMessageParts(rawText: rawText, context: context, userContext: userContext)
+        }
+        return buildUnifiedUserMessageParts(rawText: rawText, context: context, userContext: userContext, modelSize: size)
+    }
+
+    /// Small model user message split into (prefix, suffix).
+    /// Prefix: examples + instruction. Suffix: <input>{rawText}</input>\n<output>
+    private static func buildSmallModelUserMessageParts(rawText: String, context: CleanupContext, userContext: UserPromptContext? = nil) -> (prefix: String, suffix: String) {
         let examples = PromptTemplates.Examples.small
         let examplesText = examples.map { "<input>\($0.input)</input>\n<output>\($0.output)</output>" }
             .joined(separator: "\n\n")
 
-        var parts: [String] = [examplesText]
+        var prefixParts: [String] = [examplesText]
 
-        // Inject user dictionary if present
         if let ctx = userContext {
             let dict = ctx.dictionaryBlock(modelSize: .small)
-            if !dict.isEmpty { parts.append(dict) }
+            if !dict.isEmpty { prefixParts.append(dict) }
             let style = ctx.editMemoryBlock(modelSize: .small)
-            if !style.isEmpty { parts.append(style) }
+            if !style.isEmpty { prefixParts.append(style) }
         }
 
-        parts.append("Only remove filler words and fix punctuation. Keep every other word exactly as spoken — do NOT substitute synonyms or rephrase. Do NOT drop any sentences. Do NOT answer questions.")
-        parts.append("<input>\(rawText)</input>\n<output>")
+        prefixParts.append("Only remove filler words and fix punctuation. Keep every other word exactly as spoken — do NOT substitute synonyms or rephrase. Do NOT drop any sentences. Do NOT answer questions.")
 
-        return parts.joined(separator: "\n\n")
+        // Split: prefix ends with newline, suffix starts with <input> tag
+        let prefix = prefixParts.joined(separator: "\n\n") + "\n\n"
+        let suffix = "<input>\(rawText)</input>\n<output>"
+
+        return (prefix, suffix)
     }
 
-    /// Unified user message for medium+ models (all families).
-    /// Uses all 10 benchmark examples + transcript repetition technique.
-    /// Specialized context examples injected for code editor and social.
-    private static func buildUnifiedUserMessage(rawText: String, context: CleanupContext, userContext: UserPromptContext? = nil, modelSize: LLMModelSize = .medium) -> String {
-        var parts: [String] = []
+    /// Medium/large model user message split into (prefix, suffix).
+    /// Prefix: examples + user dict/style. Suffix: Transcript repetition with rawText.
+    private static func buildUnifiedUserMessageParts(rawText: String, context: CleanupContext, userContext: UserPromptContext? = nil, modelSize: LLMModelSize = .medium) -> (prefix: String, suffix: String) {
+        var prefixParts: [String] = []
 
-        // Choose examples: specialized for code editor and social, benchmark otherwise
         var examples = PromptTemplates.Examples.benchmark
         if let appContext = context.appContext {
             if appContext.isIDEChatPanel || appContext.category == .codeEditor {
-                // Inject 2 code editor examples into benchmark set at position 1
                 var codeExamples = PromptTemplates.Examples.benchmark
                 codeExamples.insert(contentsOf: PromptTemplates.Examples.mediumCodeEditor, at: 1)
                 examples = codeExamples
@@ -279,21 +290,20 @@ struct CleanupPromptBuilder {
             }
         }
 
-        parts.append(PromptTemplates.Examples.formatMedium(examples))
+        prefixParts.append(PromptTemplates.Examples.formatMedium(examples))
 
-        // Inject user dictionary and style memory if present
         if let ctx = userContext {
             let dict = ctx.dictionaryBlock(modelSize: modelSize)
-            if !dict.isEmpty { parts.append(dict) }
+            if !dict.isEmpty { prefixParts.append(dict) }
             let style = ctx.editMemoryBlock(modelSize: modelSize)
-            if !style.isEmpty { parts.append(style) }
+            if !style.isEmpty { prefixParts.append(style) }
         }
 
-        // Transcript repetition technique (arxiv 2512.14982) — repeat transcript twice
-        // for better instruction following in medium/large models
-        parts.append("Transcript: \(rawText)\n\nTranscript: \(rawText)")
+        // Split: prefix ends with double newline, suffix is the transcript repetition
+        let prefix = prefixParts.joined(separator: "\n\n") + "\n\n"
+        let suffix = "Transcript: \(rawText)\n\nTranscript: \(rawText)"
 
-        return parts.joined(separator: "\n\n")
+        return (prefix, suffix)
     }
 
     // MARK: - Legacy toneHint (kept for backward compatibility)

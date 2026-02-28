@@ -12,6 +12,13 @@ class MLXEngine: LLMEngine {
     private var lmContext: MLXLMCommon.ModelContext?
     private(set) var modelId: String?
 
+    /// Prompt cache: reuses KV state from the static prefix (system prompt + examples)
+    /// across inference calls. Only the dynamic suffix (raw transcript) needs new prefill.
+    /// Invalidated when app context, settings, or model changes.
+    private var promptCache: [any KVCache]?
+    private var promptCachePrefixTokenCount: Int = 0
+    private var promptCachePrefixKey: String?
+
     /// Pre-compiled regex patterns for output sanitization (compiled once, reused)
     private static let sanitizationRegexes = SanitizationRegexes()
 
@@ -68,6 +75,9 @@ class MLXEngine: LLMEngine {
     }
 
     func unloadModel() {
+        promptCache = nil
+        promptCachePrefixTokenCount = 0
+        promptCachePrefixKey = nil
         lmContext = nil
         modelId = nil
     }
@@ -116,62 +126,82 @@ class MLXEngine: LLMEngine {
             for: context.appContext?.appName,
             transcript: rawText
         )
-        let messages = CleanupPromptBuilder.buildMessages(
+
+        // Build prompt in parts: (system, userPrefix, userSuffix)
+        // userPrefix = examples + instructions (static), userSuffix = rawText (dynamic)
+        let parts = CleanupPromptBuilder.buildMessageParts(
             rawText: rawText, context: context,
             modelId: modelId
         )
 
         // Debug: log prompt content for echo bug diagnosis
-        NSLog("[MLXEngine] System prompt (\(messages.system.count) chars): \"\(String(messages.system.prefix(200)))\"")
-        NSLog("[MLXEngine] User prompt (\(messages.user.count) chars): \"\(String(messages.user.prefix(200)))\"")
-
-        // Use the tokenizer's chat template for correct model-specific formatting
-        // This handles Llama vs Qwen vs other model template differences automatically
-        // Omit system role entirely when empty (Gemma merges system into user block)
-        var chatMessages: [[String: String]] = []
-        if !messages.system.isEmpty {
-            chatMessages.append(["role": "system", "content": messages.system])
-        }
-        chatMessages.append(["role": "user", "content": messages.user])
-
-        let encoding: [Int]
-        do {
-            encoding = try lmContext.tokenizer.applyChatTemplate(messages: chatMessages)
-        } catch {
-            // Fallback: manual template if applyChatTemplate fails.
-            // Use model-family-specific token format to avoid garbage output.
-            NSLog("[MLXEngine] applyChatTemplate failed: \(error), using manual template")
-            let fallbackModelInfo = modelId.flatMap { LLMModelRegistry.model(for: $0) }
-            let fallbackPrompt: String
-            if fallbackModelInfo?.family == .llama {
-                // Llama 3.x format
-                let systemBlock = messages.system.isEmpty ? "" : "<|start_header_id|>system<|end_header_id|>\n\n\(messages.system)<|eot_id|>"
-                fallbackPrompt = "<|begin_of_text|>\(systemBlock)<|start_header_id|>user<|end_header_id|>\n\n\(messages.user)<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-            } else if fallbackModelInfo?.family == .gemma {
-                // Gemma format (system already merged into user by CleanupPromptBuilder)
-                fallbackPrompt = "<start_of_turn>user\n\(messages.user)<end_of_turn>\n<start_of_turn>model\n"
-            } else {
-                // Qwen/ChatML format (default)
-                let systemBlock = messages.system.isEmpty ? "" : "<|im_start|>system\n\(messages.system)<|im_end|>\n"
-                fallbackPrompt = "\(systemBlock)<|im_start|>user\n\(messages.user)<|im_end|>\n<|im_start|>assistant\n"
-            }
-            encoding = lmContext.tokenizer.encode(text: fallbackPrompt)
-        }
-
-        let input = LMInput(tokens: MLXArray(encoding))
-
-        // Cap output tokens: cleanup output ≈ input length
-        let userTokenCount = lmContext.tokenizer.encode(text: rawText).count
-        let maxOutputTokens = max(32, min(userTokenCount * 2, 512))
+        NSLog("[MLXEngine] System prompt (\(parts.system.count) chars): \"\(String(parts.system.prefix(200)))\"")
+        NSLog("[MLXEngine] User prefix (\(parts.userPrefix.count) chars), suffix (\(parts.userSuffix.count) chars)")
 
         // Use model-family-specific inference parameters
         let modelInfo = modelId.flatMap { LLMModelRegistry.model(for: $0) }
         let family = modelInfo?.family ?? .qwen
 
-        // Use library default prefillStepSize (512). Our prompts are 150-250 tokens,
-        // and the prefill processes them in chunks of this size. Larger steps allow
-        // better GPU utilization on Apple Silicon.
-        NSLog("[MLXEngine] Prompt: \(encoding.count) tokens, user: \(userTokenCount) tokens, maxOutput: \(maxOutputTokens), family: \(family.rawValue)")
+        // Format prefix and suffix using model-specific chat template.
+        // We use manual templates (same as the existing fallback path) because
+        // applyChatTemplate returns a flat token array that can't be split for caching.
+        let (templatePrefix, templateSuffix) = formatForTemplate(
+            system: parts.system,
+            userPrefix: parts.userPrefix,
+            userSuffix: parts.userSuffix,
+            family: family
+        )
+
+        // Encode prefix and suffix tokens separately.
+        // The split is always at a newline boundary, so BPE produces identical
+        // tokens regardless of whether prefix and suffix are encoded together or apart.
+        let prefixTokens = lmContext.tokenizer.encode(text: templatePrefix)
+        let suffixTokens = lmContext.tokenizer.encode(text: templateSuffix)
+
+        // Prompt caching: reuse KV state from the static prefix if it hasn't changed.
+        // On cache hit, trim the saved cache to the prefix length and only prefill
+        // the suffix (rawText). This skips ~1000 tokens of prefill for medium models.
+        let cache: [any KVCache]
+        let inputTokens: [Int]
+        let totalTokenCount = prefixTokens.count + suffixTokens.count
+
+        if let existingCache = promptCache,
+           promptCachePrefixKey == templatePrefix,
+           promptCachePrefixTokenCount == prefixTokens.count {
+            // Cache hit: trim to prefix length, feed only suffix tokens
+            var trimmed = true
+            for c in existingCache {
+                if c.isTrimmable {
+                    c.trim(to: promptCachePrefixTokenCount)
+                } else {
+                    trimmed = false
+                    break
+                }
+            }
+            if trimmed {
+                cache = existingCache
+                inputTokens = suffixTokens
+                NSLog("[MLXEngine] Prompt cache HIT — skipping %d prefix tokens, prefilling %d suffix tokens", prefixTokens.count, suffixTokens.count)
+            } else {
+                // Cache not trimmable, fall back to full prefill
+                cache = lmContext.model.newCache(parameters: nil)
+                inputTokens = prefixTokens + suffixTokens
+                NSLog("[MLXEngine] Prompt cache not trimmable — full prefill %d tokens", totalTokenCount)
+            }
+        } else {
+            // Cache miss: new prefix, full prefill
+            cache = lmContext.model.newCache(parameters: nil)
+            inputTokens = prefixTokens + suffixTokens
+            NSLog("[MLXEngine] Prompt cache MISS — full prefill %d tokens (prefix: %d, suffix: %d)", totalTokenCount, prefixTokens.count, suffixTokens.count)
+        }
+
+        let input = LMInput(tokens: MLXArray(inputTokens))
+
+        // Cap output tokens: cleanup output ≈ input length
+        let userTokenCount = lmContext.tokenizer.encode(text: rawText).count
+        let maxOutputTokens = max(32, min(userTokenCount * 2, 512))
+
+        NSLog("[MLXEngine] Prompt: \(totalTokenCount) tokens, user: \(userTokenCount) tokens, maxOutput: \(maxOutputTokens), family: \(family.rawValue)")
 
         let parameters = GenerateParameters(
             maxTokens: maxOutputTokens,
@@ -188,12 +218,6 @@ class MLXEngine: LLMEngine {
         // Gemma uses <end_of_turn>, others use <|im_end|>, <|eot_id|>, etc.
         let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>"]
 
-        // Create a fresh KV cache for this inference. We pre-allocate the cache
-        // structure once at model load so the underlying Metal buffers can be reused
-        // from the GPU cache pool instead of being allocated from scratch each time.
-        let cache = lmContext.model.newCache(parameters: nil)
-
-        // Use the AsyncStream-based generate API
         var outputText = ""
         var stopped = false
         let stream: AsyncStream<Generation> = try generate(
@@ -210,10 +234,9 @@ class MLXEngine: LLMEngine {
                 if firstTokenTime == nil {
                     firstTokenTime = Date()
                     let prefillMs = firstTokenTime!.timeIntervalSince(startTime) * 1000
-                    NSLog("[MLXEngine] Prefill: \(String(format: "%.0f", prefillMs))ms (\(encoding.count) prompt tokens)")
+                    NSLog("[MLXEngine] Prefill: \(String(format: "%.0f", prefillMs))ms (\(inputTokens.count) tokens, \(totalTokenCount) total)")
                 }
                 outputText += text
-                // Stop as soon as any stop sequence appears in the accumulated output
                 for stop in stopSequences {
                     if let range = outputText.range(of: stop) {
                         outputText = String(outputText[..<range.lowerBound])
@@ -230,9 +253,41 @@ class MLXEngine: LLMEngine {
             }
         }
 
+        // Save cache for next call. The cache now contains KV state for
+        // prefix + suffix + generated tokens. On next call, we'll trim it
+        // back to just the prefix if the prefix hasn't changed.
+        promptCache = cache
+        promptCachePrefixTokenCount = prefixTokens.count
+        promptCachePrefixKey = templatePrefix
+
         let result = Self.sanitizeOutput(outputText)
         NSLog("[MLXEngine] Cleanup result (\(result.count) chars): \"\(String(result.prefix(80)))...\"")
         return result
+    }
+
+    // MARK: - Template Formatting
+
+    /// Formats system + user message parts into model-specific chat template strings.
+    /// Returns (prefix, suffix) where the split is between the static prompt and the
+    /// dynamic rawText portion. Uses the same templates as the existing fallback path.
+    private func formatForTemplate(system: String, userPrefix: String, userSuffix: String, family: LLMModelFamily) -> (prefix: String, suffix: String) {
+        switch family {
+        case .llama:
+            let systemBlock = system.isEmpty ? "" : "<|start_header_id|>system<|end_header_id|>\n\n\(system)<|eot_id|>"
+            let prefix = "<|begin_of_text|>\(systemBlock)<|start_header_id|>user<|end_header_id|>\n\n\(userPrefix)"
+            let suffix = "\(userSuffix)<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+            return (prefix, suffix)
+        case .gemma:
+            // Gemma: system already merged into userPrefix by CleanupPromptBuilder
+            let prefix = "<start_of_turn>user\n\(userPrefix)"
+            let suffix = "\(userSuffix)<end_of_turn>\n<start_of_turn>model\n"
+            return (prefix, suffix)
+        case .qwen:
+            let systemBlock = system.isEmpty ? "" : "<|im_start|>system\n\(system)<|im_end|>\n"
+            let prefix = "\(systemBlock)<|im_start|>user\n\(userPrefix)"
+            let suffix = "\(userSuffix)<|im_end|>\n<|im_start|>assistant\n"
+            return (prefix, suffix)
+        }
     }
 
     // MARK: - Pre-compiled Sanitization Regexes
