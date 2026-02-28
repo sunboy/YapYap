@@ -13,7 +13,7 @@ class SettingsWindowController: NSWindowController {
 
     private init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 860, height: 580),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -22,7 +22,7 @@ class SettingsWindowController: NSWindowController {
         window.isMovableByWindowBackground = true
         window.title = "YapYap Settings"
         window.appearance = NSAppearance(named: .darkAqua)
-        window.backgroundColor = NSColor(red: 0x2A/255.0, green: 0x25/255.0, blue: 0x40/255.0, alpha: 1)
+        window.backgroundColor = NSColor(red: 0x26/255.0, green: 0x21/255.0, blue: 0x40/255.0, alpha: 1)
         window.center()
         window.contentView = NSHostingView(rootView: SettingsView(appState: nil))
         super.init(window: window)

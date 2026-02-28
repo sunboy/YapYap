@@ -148,32 +148,40 @@ struct OnboardingView: View {
     // MARK: - Steps
 
     private var welcomeStep: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             // Creature with halo glow
             ZStack {
                 RadialGradient(
                     colors: [.ypLavender.opacity(0.3), .clear],
-                    center: .center, startRadius: 0, endRadius: 60
+                    center: .center, startRadius: 0, endRadius: 70
                 )
-                .frame(width: 120, height: 120)
-                .blur(radius: 20)
+                .frame(width: 140, height: 140)
+                .blur(radius: 24)
                 CreatureView(state: .recording, size: 80)
             }
 
-            Text("Welcome to YapYap")
-                .font(.ypDisplayRounded)
-                .foregroundColor(.ypText1)
+            VStack(spacing: 8) {
+                Text("Welcome to YapYap")
+                    .font(.ypDisplayRounded)
+                    .foregroundColor(.ypText1)
 
-            Text("You yap. It writes.")
-                .font(.custom("Caveat", size: 18))
-                .foregroundColor(.ypZzz)
+                Text("you yap. it writes.")
+                    .font(.custom("Caveat", size: 20))
+                    .foregroundColor(.ypZzz)
+            }
 
-            Text("YapYap is your cozy, offline voice-to-text companion.\nEverything runs locally on your Mac.")
-                .font(.ypSubheadRounded)
-                .foregroundColor(.ypText2)
-                .multilineTextAlignment(.center)
-                .lineSpacing(4)
-                .padding(.horizontal, 40)
+            VStack(spacing: 6) {
+                Text("Your cozy, offline voice-to-text companion.")
+                    .font(.ypSubheadRounded)
+                    .foregroundColor(.ypText2)
+
+                Text("Everything runs locally on your Mac \u{2014} no cloud, no tracking, just you.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.ypText3)
+            }
+            .multilineTextAlignment(.center)
+            .lineSpacing(4)
+            .padding(.horizontal, 40)
         }
     }
 
@@ -260,7 +268,7 @@ struct OnboardingView: View {
     }
 
     private var modelSelectionStep: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Text("Choose Your Models")
                 .font(.ypHeadingRounded)
                 .foregroundColor(.ypText1)
@@ -270,48 +278,123 @@ struct OnboardingView: View {
                 .foregroundColor(.ypText3)
                 .multilineTextAlignment(.center)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Speech-to-Text")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(.ypText2)
+            // STT Model Selection
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 12))
+                        .foregroundColor(.ypLavender)
+                    Text("Speech-to-Text")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(.ypText1)
+                }
 
-                Picker("STT Model", selection: $selectedSTTModel) {
-                    ForEach(STTModelRegistry.allModels, id: \.id) { model in
-                        Text("\(model.name) (\(model.sizeDescription))\(model.isRecommended ? " — Recommended" : "")").tag(model.id)
+                VStack(spacing: 6) {
+                    ForEach(STTModelRegistry.allModels.filter { $0.id != "voxtral-mini-3b" }, id: \.id) { model in
+                        onboardingModelCard(
+                            name: model.name,
+                            size: model.sizeDescription,
+                            description: model.description,
+                            isRecommended: model.isRecommended,
+                            isSelected: selectedSTTModel == model.id,
+                            tint: .ypLavender
+                        ) {
+                            selectedSTTModel = model.id
+                        }
                     }
                 }
-                .labelsHidden()
-
-                if let model = STTModelRegistry.allModels.first(where: { $0.id == selectedSTTModel }) {
-                    Text(model.description)
-                        .font(.system(size: 11))
-                        .foregroundColor(.ypText3)
-                        .padding(.top, 2)
-                }
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 32)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Text Cleanup (LLM)")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(.ypText2)
+            // LLM Model Selection
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12))
+                        .foregroundColor(.ypWarm)
+                    Text("Text Cleanup")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(.ypText1)
+                }
 
-                Picker("LLM Model", selection: $selectedLLMModel) {
+                VStack(spacing: 6) {
                     ForEach(LLMModelRegistry.allModels, id: \.id) { model in
-                        Text("\(model.name) (\(model.sizeDescription))\(model.isRecommended ? " — Recommended" : "")").tag(model.id)
+                        onboardingModelCard(
+                            name: model.name,
+                            size: model.sizeDescription,
+                            description: model.description,
+                            isRecommended: model.isRecommended,
+                            isSelected: selectedLLMModel == model.id,
+                            tint: .ypWarm
+                        ) {
+                            selectedLLMModel = model.id
+                        }
                     }
                 }
-                .labelsHidden()
+            }
+            .padding(.horizontal, 32)
+        }
+    }
 
-                if let model = LLMModelRegistry.allModels.first(where: { $0.id == selectedLLMModel }) {
-                    Text(model.description)
-                        .font(.system(size: 11))
-                        .foregroundColor(.ypText3)
-                        .padding(.top, 2)
+    private func onboardingModelCard(
+        name: String, size: String, description: String,
+        isRecommended: Bool, isSelected: Bool, tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 10) {
+            // Selection indicator
+            ZStack {
+                Circle()
+                    .stroke(isSelected ? tint : Color.ypText4, lineWidth: 1.5)
+                    .frame(width: 16, height: 16)
+                if isSelected {
+                    Circle()
+                        .fill(tint)
+                        .frame(width: 8, height: 8)
                 }
             }
-            .padding(.horizontal, 40)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(name)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(isSelected ? .ypText1 : .ypText2)
+                    Text(size)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.ypText4)
+                    if isRecommended {
+                        Text("Recommended")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(tint)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(tint.opacity(0.15))
+                            .cornerRadius(3)
+                    }
+                }
+                if isSelected {
+                    Text(description)
+                        .font(.system(size: 10))
+                        .foregroundColor(.ypText3)
+                        .lineLimit(2)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+
+            Spacer()
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? tint.opacity(0.08) : Color.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? tint.opacity(0.3) : Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { action() } }
     }
 
     private var loadingStep: some View {
@@ -374,33 +457,57 @@ struct OnboardingView: View {
     }
 
     private var doneStep: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             ZStack {
                 RadialGradient(
                     colors: [.ypMint.opacity(0.3), .clear],
-                    center: .center, startRadius: 0, endRadius: 60
+                    center: .center, startRadius: 0, endRadius: 70
                 )
-                .frame(width: 120, height: 120)
-                .blur(radius: 20)
+                .frame(width: 140, height: 140)
+                .blur(radius: 24)
                 CreatureView(state: .sleeping, size: 80)
             }
 
             Text("You're all set!")
-                .font(.ypHeadingRounded)
+                .font(.ypDisplayRounded)
                 .foregroundColor(.ypText1)
 
-            Text("I'll be sleeping in your menu bar.\nJust press \(KeyboardShortcuts.getShortcut(for: .pushToTalk)?.description ?? "⌥ Space") when you need me!")
-                .font(.system(size: 13))
-                .foregroundColor(.ypText2)
-                .multilineTextAlignment(.center)
+            VStack(spacing: 8) {
+                Text("I'll be sleeping in your menu bar.\nHold \(KeyboardShortcuts.getShortcut(for: .pushToTalk)?.description ?? "\u{2325}Space") and start talking!")
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(.ypText2)
+                    .multilineTextAlignment(.center)
 
-            Text("Each time you launch YapYap, models load automatically — this takes about 30 seconds. You'll see a progress bar in the floating bar.")
-                .font(.system(size: 11))
-                .foregroundColor(.ypText3)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-                .padding(.top, 4)
+                HStack(spacing: 16) {
+                    tipPill(icon: "mic.fill", text: "Hold to talk")
+                    tipPill(icon: "sparkles", text: "AI cleans up")
+                    tipPill(icon: "doc.on.clipboard", text: "Auto-pasted")
+                }
+                .padding(.top, 8)
+            }
+            .padding(.horizontal, 40)
         }
+    }
+
+    private func tipPill(icon: String, text: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(.ypLavender)
+            Text(text)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.ypText3)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 
     // MARK: - Helpers

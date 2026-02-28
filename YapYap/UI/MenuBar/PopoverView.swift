@@ -304,29 +304,34 @@ struct PopoverView: View {
     // MARK: - Quick Stats
 
     private var quickStatsSection: some View {
-        HStack(spacing: 8) {
-            statColumn(value: "\(appState.todayCount)", label: "TODAY")
-            statColumn(value: appState.todayTimeSaved, label: "SAVED")
-            statColumn(value: formatWordCount(appState.todayWords), label: "WORDS")
+        HStack(spacing: 6) {
+            statPill(value: "\(appState.todayCount)", label: "TODAY", tint: .ypLavender)
+            statPill(value: appState.todayTimeSaved, label: "SAVED", tint: .ypMint)
+            statPill(value: formatWordCount(appState.todayWords), label: "WORDS", tint: .ypWarm)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .overlay(alignment: .bottom) {
             Divider().background(Color.ypBorderLight)
         }
     }
 
-    private func statColumn(value: String, label: String) -> some View {
-        VStack(spacing: 3) {
+    private func statPill(value: String, label: String, tint: Color) -> some View {
+        VStack(spacing: 4) {
             Text(value)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.ypText1)
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundColor(tint)
             Text(label)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(.ypText3)
-                .tracking(0.8)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(.ypText4)
+                .tracking(1.0)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(tint.opacity(0.08))
+        )
     }
 
     private func formatWordCount(_ count: Int) -> String {
@@ -340,7 +345,7 @@ struct PopoverView: View {
 
     private var quickSettingsSection: some View {
         VStack(spacing: 0) {
-            settingsRow(icon: "🎙", label: "STT Model") {
+            settingsRow(systemImage: "waveform", label: "STT Model") {
                 HStack(spacing: 4) {
                     Text(currentSTTModelName)
                         .font(.system(size: 10, weight: .semibold))
@@ -349,17 +354,16 @@ struct PopoverView: View {
                         .padding(.vertical, 2)
                         .background(Color.ypPillLavender)
                         .cornerRadius(4)
-                    Text("›")
-                        .font(.system(size: 10))
-                        .foregroundColor(.ypText3)
-                        .opacity(0.3)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(.ypText4)
                 }
             }
             .onTapGesture {
                 SettingsWindowController.shared.showWindow(nil)
             }
 
-            settingsRow(icon: "✨", label: "Cleanup Model") {
+            settingsRow(systemImage: "sparkles", label: "Cleanup Model") {
                 HStack(spacing: 4) {
                     Text(currentLLMModelName)
                         .font(.system(size: 10, weight: .semibold))
@@ -368,25 +372,23 @@ struct PopoverView: View {
                         .padding(.vertical, 2)
                         .background(Color.ypPillWarm)
                         .cornerRadius(4)
-                    Text("›")
-                        .font(.system(size: 10))
-                        .foregroundColor(.ypText3)
-                        .opacity(0.3)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(.ypText4)
                 }
             }
             .onTapGesture {
                 SettingsWindowController.shared.showWindow(nil)
             }
 
-            settingsRow(icon: "🌐", label: "Language") {
+            settingsRow(systemImage: "globe", label: "Language") {
                 HStack(spacing: 4) {
                     Text(currentLanguage)
                         .font(.system(size: 11))
                         .foregroundColor(.ypText3)
-                    Text("›")
-                        .font(.system(size: 10))
-                        .foregroundColor(.ypText3)
-                        .opacity(0.3)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(.ypText4)
                 }
             }
             .onTapGesture {
@@ -400,7 +402,7 @@ struct PopoverView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
 
-            settingsRow(icon: "📋", label: "Copy to clipboard") {
+            settingsRow(systemImage: "doc.on.clipboard", label: "Copy to clipboard") {
                 Toggle("", isOn: Binding(
                     get: { copyToClipboard },
                     set: { newValue in
@@ -416,12 +418,12 @@ struct PopoverView: View {
         .padding(8)
     }
 
-    private func settingsRow<Content: View>(icon: String, label: String, @ViewBuilder trailing: () -> Content) -> some View {
+    private func settingsRow<Content: View>(systemImage: String, label: String, @ViewBuilder trailing: () -> Content) -> some View {
         HStack {
             HStack(spacing: 8) {
-                Text(icon)
-                    .font(.system(size: 12))
-                    .opacity(0.5)
+                Image(systemName: systemImage)
+                    .font(.system(size: 11))
+                    .foregroundColor(.ypText3)
                     .frame(width: 16)
                 Text(label)
                     .font(.system(size: 12.5))
@@ -446,11 +448,16 @@ struct PopoverView: View {
             Button(action: { SettingsWindowController.shared.showWindow(nil) }) {
                 HStack {
                     HStack(spacing: 8) {
-                        Text("⚙️").font(.system(size: 12)).opacity(0.5).frame(width: 16)
-                        Text("Settings…").font(.system(size: 12.5)).foregroundColor(.ypText2)
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 11))
+                            .foregroundColor(.ypText3)
+                            .frame(width: 16)
+                        Text("Settings\u{2026}")
+                            .font(.system(size: 12.5))
+                            .foregroundColor(.ypText2)
                     }
                     Spacer()
-                    Text("⌘ ,")
+                    Text("\u{2318},")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundColor(.ypText4)
                 }
@@ -464,11 +471,16 @@ struct PopoverView: View {
             Button(action: { NSApp.terminate(nil) }) {
                 HStack {
                     HStack(spacing: 8) {
-                        Text("🚪").font(.system(size: 12)).opacity(0.5).frame(width: 16)
-                        Text("Quit YapYap").font(.system(size: 12.5)).foregroundColor(.ypText3)
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: 11))
+                            .foregroundColor(.ypText3)
+                            .frame(width: 16)
+                        Text("Quit YapYap")
+                            .font(.system(size: 12.5))
+                            .foregroundColor(.ypText3)
                     }
                     Spacer()
-                    Text("⌘ Q")
+                    Text("\u{2318}Q")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundColor(.ypText4)
                 }
