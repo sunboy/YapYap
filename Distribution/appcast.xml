@@ -32,5 +32,26 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
         </item>
 
+        <item>
+    <title>Version 0.2.2</title>
+    <link>https://github.com/sunboy/YapYap/releases/tag/v0.2.2</link>
+    <sparkle:version>0.2.2</sparkle:version>
+    <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
+    <description><![CDATA[
+        <h2>What's New in 0.2.2</h2>
+        <p>See <a href="https://github.com/sunboy/YapYap/releases/tag/v0.2.2">release notes</a> for details.</p>
+    ]]></description>
+    <pubDate>Sat, 28 Feb 2026 14:44:08 +0000</pubDate>
+    <enclosure
+        url="https://github.com/sunboy/YapYap/releases/download/v0.2.2/YapYap-v0.2.2.dmg"
+        sparkle:version="0.2.2"
+        sparkle:shortVersionString="0.2.2"
+        length="8614069"
+        type="application/octet-stream"
+        sparkle:edSignature="E8FZxWLGBjNCw+g8G8annxnRs5MUWkt2Zo/6FH5BGBQwuVZ42CV6PpxR4sitr4Imk6c2uGahMBL6/62QJg6DAQ=="
+    />
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+</item>
+
     </channel>
 </rss>
