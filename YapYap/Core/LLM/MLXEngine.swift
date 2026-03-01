@@ -19,11 +19,6 @@ class MLXEngine: LLMEngine {
     private var promptCachePrefixTokenCount: Int = 0
     private var promptCachePrefixKey: String?
 
-    /// Pre-compiled regex patterns for output sanitization (compiled once, reused)
-    private static let sanitizationRegexes = SanitizationRegexes()
-
-    /// Matches lines starting with list markers: "1. ", "2) ", "- ", "* ", "• "
-    private static let listMarkerRegex = try! NSRegularExpression(pattern: "^(\\d+[.)]\\s|[-•*]\\s)")
 
     var isLoaded: Bool { lmContext != nil }
 
@@ -218,11 +213,12 @@ class MLXEngine: LLMEngine {
 
         let input = LMInput(tokens: MLXArray(inputTokens))
 
-        // Cap output tokens: cleanup output ≈ input length
-        let userTokenCount = lmContext.tokenizer.encode(text: rawText).count
-        let maxOutputTokens = max(32, min(userTokenCount * 2, 512))
+        // Cap output tokens: cleanup output ≈ input length.
+        // Use suffixTokens.count as a proxy for user text token count to avoid
+        // an extra full tokenization pass. Suffix is rawText with a small wrapper.
+        let maxOutputTokens = max(32, min(suffixTokens.count * 2, 512))
 
-        NSLog("[MLXEngine] Prompt: \(totalTokenCount) tokens, user: \(userTokenCount) tokens, maxOutput: \(maxOutputTokens), family: \(family.rawValue)")
+        NSLog("[MLXEngine] Prompt: \(totalTokenCount) tokens, suffix: \(suffixTokens.count) tokens, maxOutput: \(maxOutputTokens), family: \(family.rawValue)")
 
         let parameters = GenerateParameters(
             maxTokens: maxOutputTokens,
@@ -238,6 +234,8 @@ class MLXEngine: LLMEngine {
         // Stop tokens that signal end of model response — truncate output here.
         // Gemma uses <end_of_turn>, others use <|im_end|>, <|eot_id|>, etc.
         let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>"]
+        // Max stop-sequence length for O(1) tail scanning instead of O(n) full-string search
+        let maxStopLen = stopSequences.map(\.count).max() ?? 0
 
         var outputText = ""
         var stopped = false
@@ -258,9 +256,15 @@ class MLXEngine: LLMEngine {
                     NSLog("[MLXEngine] Prefill: \(String(format: "%.0f", prefillMs))ms (\(inputTokens.count) tokens, \(totalTokenCount) total)")
                 }
                 outputText += text
+                // Only scan the tail of outputText for stop sequences (O(1) per token)
+                let tailStart = outputText.index(outputText.endIndex, offsetBy: -(maxStopLen + text.count), limitedBy: outputText.startIndex) ?? outputText.startIndex
+                let tail = String(outputText[tailStart...])
                 for stop in stopSequences {
-                    if let range = outputText.range(of: stop) {
-                        outputText = String(outputText[..<range.lowerBound])
+                    if let range = tail.range(of: stop) {
+                        // Convert tail range back to outputText range
+                        let offset = outputText.distance(from: outputText.startIndex, to: tailStart)
+                        let fullStart = outputText.index(outputText.startIndex, offsetBy: offset + tail.distance(from: tail.startIndex, to: range.lowerBound))
+                        outputText = String(outputText[..<fullStart])
                         stopped = true
                         break
                     }
@@ -284,7 +288,7 @@ class MLXEngine: LLMEngine {
             promptCachePrefixKey = templatePrefix
         }
 
-        let result = Self.sanitizeOutput(outputText)
+        let result = LLMOutputSanitizer.sanitize(outputText)
         NSLog("[MLXEngine] Cleanup result (\(result.count) chars): \"\(String(result.prefix(80)))...\"")
         return result
     }
@@ -314,130 +318,4 @@ class MLXEngine: LLMEngine {
         }
     }
 
-    // MARK: - Pre-compiled Sanitization Regexes
-
-    /// Pre-compiled regex patterns for output sanitization.
-    /// Compiled once at class load time, reused across all calls.
-    private struct SanitizationRegexes {
-        let specialTokens = [
-            "<|endoftext|>", "<|im_end|>", "<|im_start|>",
-            "<|eot_id|>", "<|end|>", "</s>", "<s>",
-            "<|assistant|>", "<|user|>", "<|system|>",
-            "</output>", "<output>", "<input>", "</input>"
-        ]
-
-        let preambleRegexes: [NSRegularExpression]
-        let trailingRegexes: [NSRegularExpression]
-        let codeLanguageRegex: NSRegularExpression?
-
-        init() {
-            let preamblePatterns = [
-                "(?i)^\\s*(the\\s+)?cleaned\\s+(text|version)\\s*(is)?\\s*:?\\s*",
-                "(?i)^\\s*here\\s+(is|are)\\s+(the\\s+)?.*?:\\s*",
-                "(?i)^\\s*here'?s\\s+the\\s+.*?:\\s*",
-                "(?i)^\\s*(cleaned|corrected|fixed)\\s+(text|version)\\s*:?\\s*",
-                "(?i)^\\s*output\\s*:\\s*",
-                "(?i)^\\s*result\\s*:\\s*",
-                "(?i)^\\s*(I'?d\\s+love\\s+to|sure[,!.]?|of\\s+course[,!.]?|certainly[,!.]?|absolutely[,!.]?)\\s+.*?[:\\.!]\\s*",
-                "(?i)^\\s*I'?m\\s+sorry.*$",
-                "(?i)^\\s*I\\s+cannot\\s+.*$",
-                "(?i)^\\s*I\\s+can'?t\\s+provide.*$",
-                // Echo patterns: model emits few-shot example structure instead of cleaned text
-                "(?i)^\\s*EXAMPLE\\s+\\d+\\s*:?\\s*",
-                "(?i)^\\s*Input\\s*:\\s*",
-                "(?i)^\\s*<example>\\s*",
-                "(?i)^\\s*in\\s*:\\s*",
-                "(?i)^\\s*out\\s*:\\s*",
-            ]
-
-            let trailingPatterns = [
-                "(?i)\\s*no\\s+further\\s+(changes|edits|modifications)\\s+(are\\s+)?(required|needed|necessary).*$",
-                "(?i)\\s*\\(no\\s+changes.*?\\)\\s*$",
-                "(?i)\\s*I('ve|\\s+have)\\s+cleaned\\s+up.*$",
-                "(?i)\\s*note:.*$",
-            ]
-
-            let codeLanguages = ["python", "swift", "javascript", "typescript", "bash", "shell", "ruby", "java", "go", "rust", "cpp", "c\\+\\+", "html", "css", "sql"]
-            let langPattern = "(?i)^\\s*(" + codeLanguages.joined(separator: "|") + ")\\s*\\n"
-
-            preambleRegexes = preamblePatterns.compactMap { try? NSRegularExpression(pattern: $0) }
-            trailingRegexes = trailingPatterns.compactMap { try? NSRegularExpression(pattern: $0) }
-            codeLanguageRegex = try? NSRegularExpression(pattern: langPattern)
-        }
-    }
-
-    /// Strip LLM artifacts: special tokens, meta-commentary, labels, etc.
-    /// Uses pre-compiled regex patterns for performance.
-    private static func sanitizeOutput(_ text: String) -> String {
-        var cleaned = text
-        let regexes = sanitizationRegexes
-
-        // Remove special tokens
-        for token in regexes.specialTokens {
-            cleaned = cleaned.replacingOccurrences(of: token, with: "")
-        }
-
-        // Remove common LLM preambles/labels
-        for regex in regexes.preambleRegexes {
-            let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
-            cleaned = regex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "")
-        }
-
-        // Remove trailing meta-commentary
-        for regex in regexes.trailingRegexes {
-            let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
-            cleaned = regex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "")
-        }
-
-        // Remove markdown code fences if the LLM wrapped its output
-        if cleaned.contains("```") {
-            cleaned = cleaned.replacingOccurrences(of: "```", with: "")
-        }
-
-        // Remove leading code language identifiers
-        if let regex = regexes.codeLanguageRegex {
-            let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
-            cleaned = regex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "")
-        }
-
-        // Strip lines that are just code comments if output looks like generated code
-        let lines = cleaned.components(separatedBy: "\n")
-        let commentLines = lines.filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("#") || $0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-        if commentLines.count > lines.count / 2 && lines.count > 2 {
-            // More than half the lines are comments — LLM generated code, not cleanup
-            return ""
-        }
-
-        // Remove wrapping single backticks
-        cleaned = cleaned.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-        if cleaned.hasPrefix("`") && cleaned.hasSuffix("`") && cleaned.count > 2 {
-            cleaned = String(cleaned.dropFirst().dropLast())
-        }
-
-        // Remove quotes if the LLM quoted the entire output
-        cleaned = cleaned.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-        if cleaned.hasPrefix("\"") && cleaned.hasSuffix("\"") && cleaned.count > 2 {
-            cleaned = String(cleaned.dropFirst().dropLast())
-        }
-
-        // Collapse newlines into spaces, EXCEPT when the LLM produced an intentional
-        // list (2+ lines starting with numbered/bulleted markers like "1.", "-", "*").
-        let splitLines = cleaned.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        let listLineCount = splitLines.filter { line in
-            let range = NSRange(line.startIndex..<line.endIndex, in: line)
-            return listMarkerRegex.firstMatch(in: line, range: range) != nil
-        }.count
-
-        if listLineCount >= 2 {
-            // Preserve newlines — this is an intentional list from the LLM
-            cleaned = splitLines.joined(separator: "\n")
-        } else {
-            // Collapse newlines — prose that the LLM split unnecessarily
-            cleaned = splitLines.joined(separator: " ")
-        }
-
-        return cleaned.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-    }
 }

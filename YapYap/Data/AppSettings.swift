@@ -95,7 +95,7 @@ final class AppSettings {
     }
 
     static func defaults() -> AppSettings {
-        let profile = MachineProfile.detect()
+        let profile = MachineProfile.current
         return AppSettings(
             llmModelId: profile.recommendedMLXModelId,
             ollamaModelName: profile.recommendedOllamaModelName

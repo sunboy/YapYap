@@ -306,37 +306,4 @@ struct CleanupPromptBuilder {
         return (prefix, suffix)
     }
 
-    // MARK: - Legacy toneHint (kept for backward compatibility)
-
-    /// Brief tone hint from app category.
-    /// Prefer naturalLanguageContext() for new code.
-    private static func toneHint(for appContext: AppContext) -> String {
-        if appContext.isIDEChatPanel {
-            return "IDE chat panel, prefix filenames with @, keep technical terms exact"
-        }
-        switch appContext.category {
-        case .personalMessaging:
-            return "casual messaging"
-        case .workMessaging:
-            return "work messaging (Slack/Teams), keep @mentions and #channels intact"
-        case .email:
-            return "email, use proper sentences and paragraph structure"
-        case .codeEditor:
-            return "code editor, keep technical terms exact"
-        case .browser:
-            return "browser"
-        case .documents:
-            return "document, clean prose"
-        case .aiChat:
-            return "AI chat, keep technical terms and code references exact"
-        case .terminal:
-            return "terminal, no sentence-ending periods on commands"
-        case .notes:
-            return "notes, support markdown formatting"
-        case .social:
-            return "social media, keep concise"
-        case .other:
-            return "general"
-        }
-    }
 }

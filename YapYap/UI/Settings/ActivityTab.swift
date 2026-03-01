@@ -20,7 +20,7 @@ struct ActivityTab: View {
                 AnalyticsTab()
             }
 
-            settingsSectionDivider
+            SettingsSectionDivider()
 
             // Section 2: History
             VStack(alignment: .leading, spacing: 0) {
@@ -39,10 +39,4 @@ struct ActivityTab: View {
         }
     }
 
-    private var settingsSectionDivider: some View {
-        Rectangle()
-            .fill(Color.ypBorderLight)
-            .frame(height: 1)
-            .padding(.vertical, 28)
-    }
 }

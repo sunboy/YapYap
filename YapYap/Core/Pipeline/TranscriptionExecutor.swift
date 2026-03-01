@@ -164,8 +164,11 @@ actor TranscriptionExecutor {
     // MARK: - Warmup
 
     func warmupEngines() async {
-        await sttEngine?.warmup()
-        await llmEngine?.warmup()
+        // Run STT and LLM warmups concurrently — they use different hardware
+        // (STT may use ANE, LLM uses GPU) and are completely independent.
+        async let sttWarmup: Void = sttEngine?.warmup() ?? ()
+        async let llmWarmup: Void = llmEngine?.warmup() ?? ()
+        _ = await (sttWarmup, llmWarmup)
     }
 
     func unloadAll() {

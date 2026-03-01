@@ -34,10 +34,7 @@ class OllamaEngine: LLMEngine {
         // Users configure the Ollama model name in settings (e.g., "qwen2.5:1.5b").
         let modelTag = id
 
-        // First, verify the Ollama server is reachable
-        try await verifyServerReachable()
-
-        // Check if the model is available locally, pull if needed
+        // Check if the model is available locally (also verifies server is reachable)
         let isAvailable = try await isModelAvailable(modelTag)
         if !isAvailable {
             NSLog("[OllamaEngine] Model '\(modelTag)' not found locally, pulling...")
@@ -120,35 +117,31 @@ class OllamaEngine: LLMEngine {
         let elapsed = Date().timeIntervalSince(startTime)
         NSLog("[OllamaEngine] Cleanup completed in \(String(format: "%.1f", elapsed))s, result: \(result.count) chars")
 
-        let sanitized = sanitizeOutput(result)
+        let sanitized = LLMOutputSanitizer.sanitize(result)
         NSLog("[OllamaEngine] Cleanup result (\(sanitized.count) chars): \"\(String(sanitized.prefix(80)))...\"")
         return sanitized
     }
 
     // MARK: - Ollama HTTP API
 
-    /// Verify the Ollama server is reachable
-    private func verifyServerReachable() async throws {
+    /// Check if a model is available locally in Ollama.
+    /// Also verifies the server is reachable (single /api/tags call).
+    private func isModelAvailable(_ model: String) async throws -> Bool {
         let url = URL(string: "\(endpoint)/api/tags")!
         let request = URLRequest(url: url)
+        let data: Data
         do {
-            let (_, response) = try await session.data(for: request)
+            let (responseData, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
                 throw OllamaError.serverUnreachable(endpoint)
             }
+            data = responseData
         } catch let error as OllamaError {
             throw error
         } catch {
             throw OllamaError.serverUnreachable(endpoint)
         }
-    }
-
-    /// Check if a model is available locally in Ollama
-    private func isModelAvailable(_ model: String) async throws -> Bool {
-        let url = URL(string: "\(endpoint)/api/tags")!
-        let request = URLRequest(url: url)
-        let (data, _) = try await session.data(for: request)
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let models = json["models"] as? [[String: Any]] else {
@@ -272,52 +265,6 @@ class OllamaEngine: LLMEngine {
         return response
     }
 
-    // MARK: - Output Sanitization
-
-    /// Reuses similar sanitization logic as MLXEngine for consistency.
-    private func sanitizeOutput(_ text: String) -> String {
-        var cleaned = text
-
-        // Remove common special tokens that Ollama models might emit
-        let specialTokens = [
-            "<|endoftext|>", "<|im_end|>", "<|im_start|>",
-            "<|eot_id|>", "<|end|>", "</s>", "<s>",
-            "<|assistant|>", "<|user|>", "<|system|>",
-            "</output>", "<output>", "<input>", "</input>"
-        ]
-        for token in specialTokens {
-            cleaned = cleaned.replacingOccurrences(of: token, with: "")
-        }
-
-        // Remove common LLM preambles
-        let preamblePatterns = [
-            "(?i)^\\s*(the\\s+)?cleaned\\s+(text|version)\\s*(is)?\\s*:?\\s*",
-            "(?i)^\\s*here\\s+(is|are)\\s+(the\\s+)?.*?:\\s*",
-            "(?i)^\\s*here'?s\\s+the\\s+.*?:\\s*",
-            "(?i)^\\s*(cleaned|corrected|fixed)\\s+(text|version)\\s*:?\\s*",
-            "(?i)^\\s*output\\s*:\\s*",
-            "(?i)^\\s*result\\s*:\\s*",
-        ]
-        for pattern in preamblePatterns {
-            if let regex = try? NSRegularExpression(pattern: pattern) {
-                let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
-                cleaned = regex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "")
-            }
-        }
-
-        // Remove markdown code fences
-        if cleaned.contains("```") {
-            cleaned = cleaned.replacingOccurrences(of: "```", with: "")
-        }
-
-        // Remove wrapping quotes
-        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned.hasPrefix("\"") && cleaned.hasSuffix("\"") && cleaned.count > 2 {
-            cleaned = String(cleaned.dropFirst().dropLast())
-        }
-
-        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
 
 // MARK: - Ollama Errors

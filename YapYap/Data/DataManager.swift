@@ -118,6 +118,13 @@ final class DataManager {
         NotificationCenter.default.post(name: .yapSettingsChanged, object: nil)
     }
 
+    /// Convenience: fetch settings, apply an update closure, and persist + notify.
+    func updateSettings(_ update: (AppSettings) -> Void) {
+        let settings = fetchSettings()
+        update(settings)
+        saveSettings()
+    }
+
     func saveTranscription(raw: String, cleaned: String, duration: Double, sttModel: String, llmModel: String, sourceApp: String?) {
         let context = ModelContext(container)
         let entry = Transcription(

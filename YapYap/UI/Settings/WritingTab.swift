@@ -8,7 +8,7 @@ struct WritingTab: View {
             // Section 1: Language, Formality, Cleanup Level
             WritingStyleTab()
 
-            settingsSectionDivider
+            SettingsSectionDivider()
 
             // Section 2: Per-App Output Styles
             VStack(alignment: .leading, spacing: 0) {
@@ -32,10 +32,4 @@ struct WritingTab: View {
         }
     }
 
-    private var settingsSectionDivider: some View {
-        Rectangle()
-            .fill(Color.ypBorderLight)
-            .frame(height: 1)
-            .padding(.vertical, 28)
-    }
 }

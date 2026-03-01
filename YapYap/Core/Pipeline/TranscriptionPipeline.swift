@@ -230,13 +230,13 @@ class TranscriptionPipeline {
         NSLog("[TranscriptionPipeline] Pre-cached context: \(appContext.appName) (\(appContext.category.rawValue)), target app pid: \(self.targetApp?.processIdentifier ?? -1)")
 
         // Auto-pause media playback if enabled
-        if (try? fetchSettings())?.pauseMediaDuringRecording == true {
+        if settings.pauseMediaDuringRecording {
             didPauseMedia = true
             MediaPlaybackController.shared.pauseIfPlaying()
         }
 
         // Pass selected microphone from settings
-        let micId = (try? fetchSettings())?.microphoneId
+        let micId = settings.microphoneId
         try await audioCapture.startCapture(microphoneId: micId) { [weak self] rms in
             DispatchQueue.main.async {
                 self?.appState.currentRMS = rms
@@ -273,7 +273,6 @@ class TranscriptionPipeline {
         // Start streaming STT if the engine supports it
         let isStreaming = await executor.isStreaming
         if !isStreaming {
-            let settings = try fetchSettings()
             let hasStreamingSupport = await executor.streamingEngine != nil
             if hasStreamingSupport {
                 try await executor.startStreaming(

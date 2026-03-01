@@ -17,6 +17,9 @@ struct MachineProfile {
     let cpuCoreCount: Int
     let tier: MachineTier
 
+    /// Cached profile — hardware never changes during the app's lifetime.
+    static let current = detect()
+
     /// Detect current machine capabilities
     static func detect() -> MachineProfile {
         let ram = ProcessInfo.processInfo.physicalMemory

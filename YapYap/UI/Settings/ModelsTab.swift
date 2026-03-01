@@ -469,7 +469,7 @@ struct ModelsTab: View {
                 .foregroundColor(.ypText1)
                 .padding(.bottom, 4)
 
-            let profile = MachineProfile.detect()
+            let profile = MachineProfile.current
             HStack(spacing: 6) {
                 Image(systemName: "memorychip")
                     .font(.system(size: 11))
@@ -791,9 +791,7 @@ struct ModelsTab: View {
     }
 
     private func saveSettings(_ update: (AppSettings) -> Void) {
-        let settings = DataManager.shared.fetchSettings()
-        update(settings)
-        DataManager.shared.saveSettings()
+        DataManager.shared.updateSettings(update)
     }
 
     // MARK: - Download Detection

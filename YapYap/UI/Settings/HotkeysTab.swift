@@ -67,9 +67,7 @@ struct HotkeysTab: View {
 
     private func saveSettings(_ update: @escaping (AppSettings) -> Void) {
         Task { @MainActor in
-            let settings = DataManager.shared.fetchSettings()
-            update(settings)
-            DataManager.shared.saveSettings()
+            DataManager.shared.updateSettings(update)
         }
     }
 

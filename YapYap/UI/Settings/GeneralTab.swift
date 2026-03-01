@@ -141,9 +141,7 @@ struct GeneralTab: View {
     }
 
     private func saveSettings(_ update: (AppSettings) -> Void) {
-        let settings = DataManager.shared.fetchSettings()
-        update(settings)
-        DataManager.shared.saveSettings()
+        DataManager.shared.updateSettings(update)
     }
 
     private func historyLimitToInt(_ str: String) -> Int {

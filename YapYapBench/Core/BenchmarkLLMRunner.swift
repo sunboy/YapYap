@@ -26,41 +26,6 @@ class BenchmarkLLMRunner {
 
     var isLoaded: Bool { lmContext != nil }
 
-    // MARK: - Pre-compiled sanitization (mirrors MLXEngine)
-
-    private static let specialTokens = [
-        "<|endoftext|>", "<|im_end|>", "<|im_start|>",
-        "<|eot_id|>", "<|end|>", "</s>", "<s>",
-        "<|assistant|>", "<|user|>", "<|system|>"
-    ]
-
-    private static let preambleRegexes: [NSRegularExpression] = {
-        let patterns = [
-            "(?i)^\\s*(the\\s+)?cleaned\\s+(text|version)\\s*(is)?\\s*:?\\s*",
-            "(?i)^\\s*here\\s+(is|are)\\s+(the\\s+)?.*?:\\s*",
-            "(?i)^\\s*here'?s\\s+the\\s+.*?:\\s*",
-            "(?i)^\\s*(cleaned|corrected|fixed)\\s+(text|version)\\s*:?\\s*",
-            "(?i)^\\s*output\\s*:\\s*",
-            "(?i)^\\s*result\\s*:\\s*",
-            "(?i)^\\s*(I'?d\\s+love\\s+to|sure[,!.]?|of\\s+course[,!.]?|certainly[,!.]?|absolutely[,!.]?)\\s+.*?[:\\.!]\\s*",
-            "(?i)^\\s*I'?m\\s+sorry.*$",
-            "(?i)^\\s*I\\s+cannot\\s+.*$",
-            "(?i)^\\s*I\\s+can'?t\\s+provide.*$",
-        ]
-        return patterns.compactMap { try? NSRegularExpression(pattern: $0) }
-    }()
-
-    private static let trailingRegexes: [NSRegularExpression] = {
-        let patterns = [
-            "(?i)\\s*no\\s+further\\s+(changes|edits|modifications)\\s+(are\\s+)?(required|needed|necessary).*$",
-            "(?i)\\s*\\(no\\s+changes.*?\\)\\s*$",
-            "(?i)\\s*I('ve|\\s+have)\\s+cleaned\\s+up.*$",
-            "(?i)\\s*note:.*$",
-        ]
-        return patterns.compactMap { try? NSRegularExpression(pattern: $0) }
-    }()
-
-    private static let listMarkerRegex = try! NSRegularExpression(pattern: "^(\\d+[.)]\\s|[-•*]\\s)")
 
     // MARK: - Model Loading
 
@@ -173,7 +138,7 @@ class BenchmarkLLMRunner {
         let generationMs = Int(endTime.timeIntervalSince(firstTokenTime ?? endTime) * 1000)
         let totalMs = Int(endTime.timeIntervalSince(startTime) * 1000)
 
-        let sanitized = Self.sanitizeOutput(outputText)
+        let sanitized = LLMOutputSanitizer.sanitize(outputText)
 
         return LLMRunMetrics(
             rawOutput: outputText,
@@ -192,59 +157,4 @@ class BenchmarkLLMRunner {
         CleanupPromptBuilder.buildMessages(rawText: rawText, context: context, modelId: modelId)
     }
 
-    // MARK: - Sanitization (mirrors MLXEngine.sanitizeOutput)
-
-    private static func sanitizeOutput(_ text: String) -> String {
-        var cleaned = text
-
-        for token in specialTokens {
-            cleaned = cleaned.replacingOccurrences(of: token, with: "")
-        }
-
-        for regex in preambleRegexes {
-            let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
-            cleaned = regex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "")
-        }
-
-        for regex in trailingRegexes {
-            let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
-            cleaned = regex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "")
-        }
-
-        if cleaned.contains("```") {
-            cleaned = cleaned.replacingOccurrences(of: "```", with: "")
-        }
-
-        let lines = cleaned.components(separatedBy: "\n")
-        let commentLines = lines.filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("#") || $0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-        if commentLines.count > lines.count / 2 && lines.count > 2 {
-            return ""
-        }
-
-        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned.hasPrefix("`") && cleaned.hasSuffix("`") && cleaned.count > 2 {
-            cleaned = String(cleaned.dropFirst().dropLast())
-        }
-
-        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned.hasPrefix("\"") && cleaned.hasSuffix("\"") && cleaned.count > 2 {
-            cleaned = String(cleaned.dropFirst().dropLast())
-        }
-
-        let splitLines = cleaned.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        let listLineCount = splitLines.filter { line in
-            let range = NSRange(line.startIndex..<line.endIndex, in: line)
-            return listMarkerRegex.firstMatch(in: line, range: range) != nil
-        }.count
-
-        if listLineCount >= 2 {
-            cleaned = splitLines.joined(separator: "\n")
-        } else {
-            cleaned = splitLines.joined(separator: " ")
-        }
-
-        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }

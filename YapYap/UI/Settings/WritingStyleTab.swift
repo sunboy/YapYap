@@ -120,10 +120,7 @@ struct WritingStyleTab: View {
     }
 
     private func saveSettings(_ update: @escaping (AppSettings) -> Void) {
-        let settings = DataManager.shared.fetchSettings()
-        update(settings)
-        DataManager.shared.saveSettings()
-        NotificationCenter.default.post(name: .yapSettingsChanged, object: nil)
+        DataManager.shared.updateSettings(update)
     }
 
     /// Compute available languages as the intersection of the selected STT and LLM models

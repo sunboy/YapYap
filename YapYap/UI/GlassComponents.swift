@@ -208,3 +208,13 @@ struct GlassRowStyle: ViewModifier {
 extension View {
     func glassRow() -> some View { modifier(GlassRowStyle()) }
 }
+
+/// Shared section divider for settings tabs
+struct SettingsSectionDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.ypBorderLight)
+            .frame(height: 1)
+            .padding(.vertical, 28)
+    }
+}
