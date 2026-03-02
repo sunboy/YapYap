@@ -90,6 +90,11 @@ struct CleanupPromptBuilder {
             }
         }
 
+        // Inject user's custom style instruction
+        if !context.stylePrompt.isEmpty {
+            prompt += " " + context.stylePrompt
+        }
+
         return prompt
     }
 
@@ -121,6 +126,11 @@ struct CleanupPromptBuilder {
             break
         case .formal:
             system += "\n\nTONE:\n" + PromptTemplates.Formality.formalMedium
+        }
+
+        // Inject user's custom style instruction
+        if !context.stylePrompt.isEmpty {
+            system += "\n\nCUSTOM STYLE:\n" + context.stylePrompt
         }
 
         return system
@@ -169,6 +179,13 @@ struct CleanupPromptBuilder {
 
     private static func buildRichAppRules(for appContext: AppContext?) -> String {
         guard let ctx = appContext else { return "" }
+
+        // Check for user-defined override first
+        let overrides = PromptOverrides.loadFromUserDefaults()
+        if let customRules = overrides.effectiveRules(for: ctx.category), !ctx.isIDEChatPanel {
+            return customRules
+        }
+
         if ctx.isIDEChatPanel {
             return PromptTemplates.AppRules.Medium.cursorChat
         }
@@ -199,6 +216,12 @@ struct CleanupPromptBuilder {
     // MARK: - Small Model App Rule (compact, 1-line)
 
     private static func smallAppRule(for appContext: AppContext) -> String {
+        // Check for user-defined override first
+        let overrides = PromptOverrides.loadFromUserDefaults()
+        if let customRules = overrides.effectiveRules(for: appContext.category), !appContext.isIDEChatPanel {
+            return customRules
+        }
+
         if appContext.isIDEChatPanel {
             return PromptTemplates.AppRules.Small.cursorChat
         }
