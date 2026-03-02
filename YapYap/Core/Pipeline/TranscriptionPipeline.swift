@@ -272,7 +272,7 @@ class TranscriptionPipeline {
         audioCapture.startDeviceChangeMonitoring()
 
         // Start streaming STT if the engine supports it and mode is not batch
-        let isBatchMode = (settings.sttMode ?? "streaming") == "batch"
+        let isBatchMode = (settings.sttMode ?? "batch") == "batch"
         if !isBatchMode {
             let isStreaming = await executor.isStreaming
             if !isStreaming {
