@@ -80,11 +80,24 @@ actor TranscriptionExecutor {
         let framework = LLMInferenceFramework(rawValue: settings.llmInferenceFramework) ?? .mlx
         let ollamaEndpoint = settings.ollamaEndpoint
         let ollamaModelName = settings.ollamaModelName
-        let effectiveLLMId = framework == .ollama ? ollamaModelName : llmModelId
+        let llamacppModelId = settings.llamacppModelId
+
+        // Determine the effective model ID based on framework
+        let effectiveLLMId: String
+        switch framework {
+        case .mlx:      effectiveLLMId = llmModelId
+        case .llamacpp: effectiveLLMId = llamacppModelId
+        case .ollama:   effectiveLLMId = ollamaModelName
+        }
 
         // Reload if: no engine, not loaded, model changed, or framework changed
-        let currentIsOllama = llmEngine is OllamaEngine
-        let frameworkChanged = (framework == .ollama) != currentIsOllama
+        let currentFramework: LLMInferenceFramework? = {
+            if llmEngine is MLXEngine { return .mlx }
+            if llmEngine is LlamaCppEngine { return .llamacpp }
+            if llmEngine is OllamaEngine { return .ollama }
+            return nil
+        }()
+        let frameworkChanged = currentFramework != framework
         let needsLLMReload = llmEngine == nil || !llmEngine!.isLoaded
             || llmEngine!.modelId != effectiveLLMId || frameworkChanged
         if needsLLMReload {
@@ -96,10 +109,13 @@ actor TranscriptionExecutor {
             NSLog("[TranscriptionExecutor] Loading LLM: \(effectiveLLMId) via \(framework.rawValue)")
 
             let engine = LLMEngineFactory.create(framework: framework, ollamaEndpoint: ollamaEndpoint)
-            // For Ollama: set the MLX registry model ID so the prompt builder
-            // uses the same family/size tier as MLX, producing identical prompts.
+            // For Ollama and llama.cpp: set the MLX registry model ID so the
+            // prompt builder uses the same family/size tier as MLX, producing
+            // identical prompts regardless of inference framework.
             if let ollamaEngine = engine as? OllamaEngine {
                 ollamaEngine.promptModelId = llmModelId
+            } else if let llamaCppEngine = engine as? LlamaCppEngine {
+                llamaCppEngine.promptModelId = llmModelId
             }
             do {
                 try await engine.loadModel(id: effectiveLLMId, progressHandler: onLLMProgress)
@@ -108,7 +124,12 @@ actor TranscriptionExecutor {
             } catch {
                 llmEngine = nil
                 NSLog("[TranscriptionExecutor] ⚠️ LLM failed: \(error)")
-                let errorHint = framework == .ollama ? "Is Ollama running?" : "Recording still works without cleanup."
+                let errorHint: String
+                switch framework {
+                case .ollama: errorHint = "Is Ollama running?"
+                case .llamacpp: errorHint = "GGUF model download may have failed."
+                case .mlx: errorHint = "Recording still works without cleanup."
+                }
                 await onStatus("Cleanup model unavailable — \(errorHint)")
             }
         }

@@ -23,6 +23,7 @@ struct ModelsTab: View {
     @State private var ollamaEndpoint = OllamaEngine.defaultEndpoint
     @State private var ollamaModelName = "qwen2.5:1.5b"
     @State private var ollamaStatus: OllamaConnectionStatus = .unknown
+    @State private var selectedGGUF = GGUFModelRegistry.recommendedModel.id
 
     // All models live under ~/Library/Application Support/YapYap/models/.
     // Application Support is never iCloud-synced, preventing eviction of large
@@ -56,7 +57,7 @@ struct ModelsTab: View {
 
                 divider
 
-                // LLM Section
+                // LLM Section — framework picker first, then models
                 Text("Cleanup & Rewrite Model")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.ypText1)
@@ -64,14 +65,21 @@ struct ModelsTab: View {
                 Text("Choose which LLM cleans up your transcription.")
                     .font(.system(size: 12))
                     .foregroundColor(.ypText3)
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 12)
 
-                llmModelGrid
+                // Inference framework picker (always visible)
+                inferenceFrameworkPicker
+                    .padding(.bottom, 16)
 
-                divider
-
-                // Inference Framework Section
-                inferenceFrameworkSection
+                // Framework-specific model selection
+                switch inferenceFramework {
+                case .mlx:
+                    mlxModelSection
+                case .llamacpp:
+                    ggufModelSection
+                case .ollama:
+                    ollamaConfigSection
+                }
 
                 divider
 
@@ -116,6 +124,10 @@ struct ModelsTab: View {
             guard didLoadSettings, !isRefreshingSettings else { return }
             saveSettings { $0.ollamaModelName = newValue }
         }
+        .onChange(of: selectedGGUF) { _, newValue in
+            guard didLoadSettings, !isRefreshingSettings else { return }
+            saveSettings { $0.llamacppModelId = newValue }
+        }
         .alert("Delete Model", isPresented: $showDeleteConfirm) {
             Button("Cancel", role: .cancel) { modelToDelete = nil }
             Button("Delete", role: .destructive) {
@@ -127,6 +139,7 @@ struct ModelsTab: View {
         } message: {
             if let id = modelToDelete {
                 let name = LLMModelRegistry.model(for: id)?.name
+                    ?? GGUFModelRegistry.model(for: id)?.name
                     ?? STTModelRegistry.model(for: id)?.name
                     ?? id
                 Text("Delete \(name)? This will free up disk space. The model can be re-downloaded later.")
@@ -460,15 +473,10 @@ struct ModelsTab: View {
         }
     }
 
-    // MARK: - Inference Framework Section
+    // MARK: - Inference Framework Picker
 
-    private var inferenceFrameworkSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Inference Framework")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.ypText1)
-                .padding(.bottom, 4)
-
+    private var inferenceFrameworkPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
             let profile = MachineProfile.current
             HStack(spacing: 6) {
                 Image(systemName: "memorychip")
@@ -478,47 +486,199 @@ struct ModelsTab: View {
                     .font(.system(size: 11))
                     .foregroundColor(.ypText3)
             }
-            .padding(.bottom, 4)
 
-            Text("Choose how the cleanup LLM runs. MLX runs models on-device via Apple GPU. Ollama delegates to a separate local server.")
-                .font(.system(size: 12))
-                .foregroundColor(.ypText3)
-                .padding(.bottom, 8)
-
-            // Framework picker
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ForEach(LLMInferenceFramework.allCases, id: \.rawValue) { framework in
-                    frameworkCard(framework: framework)
+                    frameworkPill(framework: framework)
                 }
-            }
-
-            // Ollama configuration (shown only when Ollama is selected)
-            if inferenceFramework == .ollama {
-                ollamaConfigSection
             }
         }
     }
 
-    private func frameworkCard(framework: LLMInferenceFramework) -> some View {
+    private func frameworkPill(framework: LLMInferenceFramework) -> some View {
         let isSelected = inferenceFramework == framework
-        return VStack(alignment: .leading, spacing: 4) {
+        return HStack(spacing: 4) {
+            Image(systemName: framework.iconName)
+                .font(.system(size: 10))
+            Text(framework.displayName)
+                .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+        }
+        .foregroundColor(isSelected ? .ypLavender : .ypText3)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(isSelected ? Color.ypPillLavender : Color.ypCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1)
+        )
+        .cornerRadius(8)
+        .contentShape(Rectangle())
+        .onTapGesture { inferenceFramework = framework }
+    }
+
+    // MARK: - MLX Model Section
+
+    private var mlxModelSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "cpu")
+                    .font(.system(size: 10))
+                    .foregroundColor(.ypText3)
+                Text("MLX models — Apple GPU optimized, safetensors format")
+                    .font(.system(size: 11))
+                    .foregroundColor(.ypText3)
+            }
+            llmModelGrid
+        }
+    }
+
+    // MARK: - GGUF Model Section
+
+    private var ggufModelSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: "terminal")
+                    .font(.system(size: 10))
+                    .foregroundColor(.ypText3)
+                Text("GGUF models — llama.cpp embedded, no external software needed")
+                    .font(.system(size: 11))
+                    .foregroundColor(.ypText3)
+            }
+            ggufModelGrid
+        }
+    }
+
+    private var ggufModelGrid: some View {
+        let models = GGUFModelRegistry.allModels
+        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            ForEach(models, id: \.id) { model in
+                let isSelected = selectedGGUF == model.id
+                let isDownloaded = downloadedModels.contains(model.id)
+                let isDownloading = downloadingModel == model.id
+
+                ggufModelCard(model: model, isSelected: isSelected, isDownloaded: isDownloaded, isDownloading: isDownloading)
+            }
+        }
+    }
+
+    private func ggufModelCard(model: GGUFModelInfo, isSelected: Bool, isDownloaded: Bool, isDownloading: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(framework.displayName)
+                Text(model.name)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.ypText1)
                 Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.ypLavender)
-                }
+                statusBadge(modelId: model.id, isDownloaded: isDownloaded, isComingSoon: false)
             }
-            Text(framework.description)
+
+            Text(model.description)
                 .font(.system(size: 11))
                 .foregroundColor(.ypText3)
+                .lineSpacing(2)
                 .lineLimit(2)
+
+            HStack(spacing: 4) {
+                Text("GGUF Q4_K_M")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundColor(.ypText4)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.ypText4.opacity(0.1))
+                    .cornerRadius(3)
+                Text(modelSizes[model.id] ?? model.sizeDescription)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.ypText4)
+            }
+
+            Spacer().frame(height: 4)
+
+            if isDownloading {
+                VStack(spacing: 2) {
+                    ProgressView(value: downloadProgress)
+                        .progressViewStyle(.linear)
+                        .tint(.ypLavender)
+                    Text("\(Int(downloadProgress * 100))%")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.ypText4)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    if isSelected && isDownloaded {
+                        Text("Active")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.ypLavender)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.ypPillLavender)
+                            .cornerRadius(4)
+                    } else if isSelected && !isDownloaded {
+                        Button(action: { downloadAndSelectGGUFModel(model) }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.down.circle")
+                                    .font(.system(size: 9))
+                                Text("Download to Activate")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundColor(.orange)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    } else if isDownloaded {
+                        Button(action: { selectGGUFModel(model.id) }) {
+                            Text("Select")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.ypText2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.ypCard2)
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Button(action: { downloadAndSelectGGUFModel(model) }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.down.circle")
+                                    .font(.system(size: 9))
+                                Text("Download & Select")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundColor(.ypLavender)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.ypPillLavender)
+                            .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Spacer()
+
+                    if isDownloaded && !isSelected {
+                        Button(action: {
+                            modelToDelete = model.id
+                            showDeleteConfirm = true
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 9))
+                                Text("Delete")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundColor(.red.opacity(0.8))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.red.opacity(0.08))
+                            .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(isSelected ? Color.ypPillLavender : Color.ypCard)
         .overlay(
@@ -526,9 +686,9 @@ struct ModelsTab: View {
                 .stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1.5)
         )
         .cornerRadius(10)
-        .contentShape(Rectangle())
-        .onTapGesture { inferenceFramework = framework }
     }
+
+    // MARK: - Ollama Config Section
 
     private var ollamaConfigSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -619,8 +779,16 @@ struct ModelsTab: View {
                 .padding(.bottom, 4)
 
             storagePathRow(
-                label: "LLM models",
+                label: "MLX models",
                 path: llmCacheDir.path.replacingOccurrences(
+                    of: FileManager.default.homeDirectoryForCurrentUser.path,
+                    with: "~"
+                )
+            )
+
+            storagePathRow(
+                label: "GGUF models",
+                path: GGUFModelRegistry.ggufModelsDir.path.replacingOccurrences(
                     of: FileManager.default.homeDirectoryForCurrentUser.path,
                     with: "~"
                 )
@@ -674,6 +842,64 @@ struct ModelsTab: View {
         selectedLLM = id
         saveSettings { $0.llmModelId = id }
         NotificationCenter.default.post(name: .yapModelSelected, object: nil)
+    }
+
+    private func selectGGUFModel(_ id: String) {
+        selectedGGUF = id
+        saveSettings { $0.llamacppModelId = id }
+        NotificationCenter.default.post(name: .yapModelSelected, object: nil)
+    }
+
+    private func downloadAndSelectGGUFModel(_ model: GGUFModelInfo) {
+        guard downloadingModel == nil else { return }
+        downloadingModel = model.id
+        downloadProgress = 0
+
+        Task {
+            do {
+                let ggufDir = GGUFModelRegistry.ggufModelsDir
+                try? FileManager.default.createDirectory(at: ggufDir, withIntermediateDirectories: true)
+
+                let destination = GGUFModelRegistry.localPath(for: model)
+                let (tempURL, response) = try await URLSession.shared.download(from: model.downloadURL)
+
+                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                    throw LlamaCppError.downloadFailed(model.downloadURL.absoluteString)
+                }
+
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.removeItem(at: destination)
+                }
+                try FileManager.default.moveItem(at: tempURL, to: destination)
+
+                await MainActor.run {
+                    downloadedModels.insert(model.id)
+                    downloadingModel = nil
+                    downloadProgress = 0
+                    selectGGUFModel(model.id)
+                }
+
+                // Compute file size
+                let modelId = model.id
+                let destPath = destination
+                DispatchQueue.global(qos: .utility).async {
+                    if let attrs = try? FileManager.default.attributesOfItem(atPath: destPath.path),
+                       let size = attrs[.size] as? Int64 {
+                        let formatted = Self.formatBytes(size)
+                        DispatchQueue.main.async {
+                            self.modelSizes[modelId] = formatted
+                        }
+                    }
+                }
+            } catch {
+                NSLog("[ModelsTab] GGUF download failed for \(model.id): \(error)")
+                await MainActor.run {
+                    downloadingModel = nil
+                    downloadProgress = 0
+                    downloadError = "Failed to download \(model.name): \(error.localizedDescription)"
+                }
+            }
+        }
     }
 
     private func downloadAndSelectLLMModel(_ model: LLMModelInfo) {
@@ -738,6 +964,19 @@ struct ModelsTab: View {
         let llmCache = llmCacheDir
         let whisperCache = whisperCacheDir
         Task.detached(priority: .utility) {
+            // Try GGUF model deletion
+            if let ggufModel = GGUFModelRegistry.model(for: id) {
+                let ggufPath = GGUFModelRegistry.localPath(for: ggufModel)
+                if FileManager.default.fileExists(atPath: ggufPath.path) {
+                    do {
+                        try FileManager.default.removeItem(at: ggufPath)
+                        NSLog("[ModelsTab] Deleted GGUF model: \(id) at \(ggufPath.path)")
+                    } catch {
+                        NSLog("[ModelsTab] Failed to delete GGUF model \(id): \(error)")
+                    }
+                }
+            }
+
             // Try LLM model deletion — HubApi stores at {llmCache}/models/{huggingFaceId}
             if let llmModel = LLMModelRegistry.model(for: id) {
                 let modelDir = llmCache.appendingPathComponent("models/\(llmModel.huggingFaceId)")
@@ -786,6 +1025,7 @@ struct ModelsTab: View {
         inferenceFramework = LLMInferenceFramework(rawValue: settings.llmInferenceFramework) ?? .mlx
         ollamaEndpoint = settings.ollamaEndpoint
         ollamaModelName = settings.ollamaModelName
+        selectedGGUF = settings.llamacppModelId
         didLoadSettings = true
         if inferenceFramework == .ollama { checkOllamaConnection() }
     }
@@ -835,6 +1075,19 @@ struct ModelsTab: View {
                        !snapshots.isEmpty {
                         downloaded.insert(model.id)
                         if let size = Self.directorySize(at: legacyPythonModelDir) { sizes[model.id] = Self.formatBytes(size) }
+                    }
+                }
+            }
+
+            // Check GGUF models — ~/Library/Application Support/YapYap/models/gguf/
+            let ggufDir = GGUFModelRegistry.ggufModelsDir
+            for model in GGUFModelRegistry.allModels {
+                let ggufPath = GGUFModelRegistry.localPath(for: model)
+                if FileManager.default.fileExists(atPath: ggufPath.path) {
+                    downloaded.insert(model.id)
+                    if let attrs = try? FileManager.default.attributesOfItem(atPath: ggufPath.path),
+                       let size = attrs[.size] as? Int64 {
+                        sizes[model.id] = Self.formatBytes(size)
                     }
                 }
             }

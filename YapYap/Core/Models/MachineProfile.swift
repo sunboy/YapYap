@@ -55,6 +55,18 @@ struct MachineProfile {
         }
     }
 
+    /// Recommended GGUF model ID for llama.cpp on this machine's tier
+    var recommendedGGUFModelId: String {
+        switch tier {
+        case .low:
+            return "gguf-qwen-2.5-1.5b"
+        case .mid:
+            return "gguf-gemma-3-4b"
+        case .high:
+            return "gguf-qwen-2.5-7b"
+        }
+    }
+
     /// Recommended Ollama model tag for this machine's tier
     var recommendedOllamaModelName: String {
         switch tier {

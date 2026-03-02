@@ -29,12 +29,14 @@ final class AppSettings {
     /// Comma-separated list of model IDs that have been successfully loaded at least once.
     /// Used to detect downloaded models that use non-standard cache layouts (e.g. xet).
     var downloadedModelIds: String?
-    /// Which inference framework to use for LLM cleanup: "mlx" or "ollama"
+    /// Which inference framework to use for LLM cleanup: "mlx", "llamacpp", or "ollama"
     var llmInferenceFramework: String
     /// Ollama server endpoint URL (only used when llmInferenceFramework is "ollama")
     var ollamaEndpoint: String
     /// Ollama model name/tag (e.g. "qwen2.5:1.5b", "llama3.2:3b"). Only used with Ollama.
     var ollamaModelName: String
+    /// Selected GGUF model ID for llama.cpp framework (e.g. "gguf-gemma-3-4b")
+    var llamacppModelId: String
 
     init(
         sttModelId: String = "whisper-small",
@@ -63,7 +65,8 @@ final class AppSettings {
         downloadedModelIds: String? = nil,
         llmInferenceFramework: String = LLMInferenceFramework.mlx.rawValue,
         ollamaEndpoint: String = OllamaEngine.defaultEndpoint,
-        ollamaModelName: String = "qwen2.5:1.5b"
+        ollamaModelName: String = "qwen2.5:1.5b",
+        llamacppModelId: String = GGUFModelRegistry.recommendedModel.id
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -92,13 +95,15 @@ final class AppSettings {
         self.llmInferenceFramework = llmInferenceFramework
         self.ollamaEndpoint = ollamaEndpoint
         self.ollamaModelName = ollamaModelName
+        self.llamacppModelId = llamacppModelId
     }
 
     static func defaults() -> AppSettings {
         let profile = MachineProfile.current
         return AppSettings(
             llmModelId: profile.recommendedMLXModelId,
-            ollamaModelName: profile.recommendedOllamaModelName
+            ollamaModelName: profile.recommendedOllamaModelName,
+            llamacppModelId: profile.recommendedGGUFModelId
         )
     }
 }

@@ -62,6 +62,9 @@ packages:
   PostHog:
     url: https://github.com/PostHog/posthog-ios.git
     from: "3.0.0"
+  llama-swift:
+    url: https://github.com/mattt/llama.swift.git
+    from: "2.8184.0"
 
 targets:
   YapYap:
@@ -99,6 +102,8 @@ targets:
         product: Sentry
       - package: PostHog
         product: PostHog
+      - package: llama-swift
+        product: LlamaSwift
     entitlements:
       path: YapYap/YapYap.entitlements
       properties:
@@ -131,6 +136,7 @@ targets:
           - "MLXEngine.swift"
           - "LLMEngineFactory.swift"
           - "OllamaEngine.swift"
+          - "LlamaCppEngine.swift"
       - path: YapYap/Core/STT
       - path: YapYap/Core/Context
       - path: YapYap/Core/Models/ModelStorage.swift

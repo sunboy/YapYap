@@ -89,6 +89,16 @@ final class MachineProfileTests: XCTestCase {
         }
     }
 
+    func testGGUFRecommendationExistsForAllTiers() {
+        for tier in [MachineTier.low, .mid, .high] {
+            let profile = MachineProfile(totalRAMBytes: 8 * 1024 * 1024 * 1024, cpuCoreCount: 8, tier: tier)
+            let ggufId = profile.recommendedGGUFModelId
+            XCTAssertFalse(ggufId.isEmpty, "Tier \(tier) should have a GGUF recommendation")
+            XCTAssertTrue(ggufId.hasPrefix("gguf-"), "GGUF recommendation should have gguf- prefix")
+            XCTAssertNotNil(GGUFModelRegistry.model(for: ggufId), "GGUF recommendation \(ggufId) should exist in registry")
+        }
+    }
+
     // MARK: - Display Strings
 
     func testRamDescriptionNotEmpty() {
