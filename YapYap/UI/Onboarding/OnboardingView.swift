@@ -12,7 +12,7 @@ struct OnboardingView: View {
     @State private var micPermissionGranted = false
     @State private var accessibilityGranted = false
     @State private var selectedSTTModel = STTModelRegistry.recommendedModel.id
-    @State private var selectedLLMModel = LLMModelRegistry.recommendedModel.id
+    @State private var selectedLLMModel = MachineProfile.current.recommendedMLXModelId
     @State private var loadingFailed = false
     @State private var accessibilityPollTask: Task<Void, Never>? = nil
 
@@ -569,10 +569,15 @@ struct OnboardingView: View {
 
     private func startModelLoading() {
         let settings = DataManager.shared.fetchSettings()
+        let profile = MachineProfile.current
         settings.sttModelId = selectedSTTModel
         settings.llmModelId = selectedLLMModel
+        // Set the equivalent model for all other backends at the same tier,
+        // so switching inference framework in Settings gives a sensible default.
+        settings.llamacppModelId = profile.recommendedGGUFModelId
+        settings.ollamaModelName = profile.recommendedOllamaModelName
         try? DataManager.shared.container.mainContext.save()
-        print("[OnboardingView] Saved STT: \(selectedSTTModel), LLM: \(selectedLLMModel)")
+        print("[OnboardingView] Saved STT: \(selectedSTTModel), LLM (MLX): \(selectedLLMModel), LLM (GGUF): \(settings.llamacppModelId), LLM (Ollama): \(settings.ollamaModelName)")
 
         Task {
             do {
