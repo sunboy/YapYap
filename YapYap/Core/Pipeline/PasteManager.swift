@@ -25,7 +25,7 @@ class PasteManager {
     func paste(_ text: String, targetApp: NSRunningApplication? = nil) {
         let resolvedApp = targetApp ?? NSWorkspace.shared.frontmostApplication
         let appName = resolvedApp?.localizedName ?? "unknown"
-        NSLog("[PasteManager] Paste requested: \(text.count) chars → \(appName)")
+        NSLog("[PasteManager] Paste requested: \(text.count) chars → \(appName) (pid: \(resolvedApp?.processIdentifier ?? -1))")
 
         // Strategy 1: Accessibility API setValue (no clipboard pollution)
         // Skip for terminal apps — they accept AX writes silently but don't render them
@@ -127,7 +127,8 @@ class PasteManager {
         // Ensure the target app is ready to receive the paste.
         // Use the pre-captured target app from recording start (prevents pasting into
         // YapYap itself when processing takes a long time and YapYap becomes frontmost).
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+        // Allow 50ms for clipboard write to propagate before activating the app.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             // Activate the target app to make sure it can receive key events.
             // Detect self-paste: if target is YapYap itself, fall back to another active app.
             let appToActivate = targetApp ?? NSWorkspace.shared.frontmostApplication
@@ -136,13 +137,12 @@ class PasteManager {
                 if isSelf {
                     NSLog("[PasteManager] Target is YapYap itself, looking for previous app")
                     // Fall back to frontmost non-self app
-                    if let fallback = NSWorkspace.shared.runningApplications.first(where: {
-                        $0.isActive && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
-                    }) {
+                    if let fallback = NSWorkspace.shared.frontmostApplication,
+                       fallback.processIdentifier != ProcessInfo.processInfo.processIdentifier {
                         NSLog("[PasteManager] Activating fallback app: \(fallback.localizedName ?? "unknown") (pid: \(fallback.processIdentifier))")
                         fallback.activate()
                     } else {
-                        NSLog("[PasteManager] No suitable target app found")
+                        NSLog("[PasteManager] ⚠️ No suitable target app found — frontmost is YapYap")
                     }
                 } else {
                     NSLog("[PasteManager] Activating app: \(app.localizedName ?? "unknown") (pid: \(app.processIdentifier))")
@@ -152,14 +152,29 @@ class PasteManager {
                 NSLog("[PasteManager] ⚠️ No target app found")
             }
 
-            // Small additional delay after activation to ensure the app is ready
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
-                NSLog("[PasteManager] Sending synthetic Cmd+V")
+            // Allow 50ms after activation for the app to become ready to receive input.
+            // Previous 15ms was too short on fresh installs or under heavy load.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 self.simulatePaste()
+
+                // Retry: send a second Cmd+V after a short delay if the first one was
+                // silently dropped (common on fresh installs where accessibility permission
+                // cache is stale). The clipboard still holds our text so this is safe.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    // Check if the target app is now frontmost — if not, the first paste
+                    // likely failed so retry
+                    if let app = appToActivate, !app.isActive {
+                        NSLog("[PasteManager] ⚠️ Target app not active after first paste, retrying activation + Cmd+V")
+                        app.activate()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            self.simulatePaste()
+                        }
+                    }
+                }
 
                 // Restore previous clipboard content after paste has been processed
                 if let previous = previousContent {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
                         pasteboard.clearContents()
                         pasteboard.setString(previous, forType: .string)
                         NSLog("[PasteManager] Clipboard restored")
@@ -174,20 +189,28 @@ class PasteManager {
     private func simulatePaste() {
         // CGEvent requires accessibility permission — check first
         let trusted = AXIsProcessTrusted()
-        NSLog("[PasteManager] AXIsProcessTrusted: \(trusted)")
+        if !trusted {
+            NSLog("[PasteManager] ⚠️ AXIsProcessTrusted returned FALSE — CGEvent paste will fail. Reset accessibility: tccutil reset Accessibility dev.yapyap.app")
+        }
 
         let source = CGEventSource(stateID: .hidSystemState)
-        NSLog("[PasteManager] CGEventSource created: \(source != nil)")
+        guard source != nil else {
+            NSLog("[PasteManager] ❌ Failed to create CGEventSource — accessibility permission may be stale despite AXIsProcessTrusted=\(trusted)")
+            return
+        }
 
         // Key code for 'V' is 0x09
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: UInt16(kVK_ANSI_V), keyDown: true)
         keyDown?.flags = .maskCommand
+        guard keyDown != nil else {
+            NSLog("[PasteManager] ❌ Failed to create CGEvent keyDown")
+            return
+        }
         keyDown?.post(tap: .cghidEventTap)
-        NSLog("[PasteManager] Cmd+V keyDown posted: \(keyDown != nil)")
 
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: UInt16(kVK_ANSI_V), keyDown: false)
         keyUp?.flags = .maskCommand
         keyUp?.post(tap: .cghidEventTap)
-        NSLog("[PasteManager] Cmd+V keyUp posted: \(keyUp != nil)")
+        NSLog("[PasteManager] Cmd+V posted (keyDown + keyUp)")
     }
 }

@@ -54,10 +54,10 @@ struct OnboardingView: View {
                     .padding(.horizontal, 40)
                     .padding(.bottom, 36)
             }
-            .frame(width: 560, height: 560)
+            .frame(width: 560, height: 700)
             .glassPanel(cornerRadius: 24, tint: .ypLavender, tintOpacity: 0.04)
         }
-        .frame(width: 560, height: 560)
+        .frame(width: 560, height: 700)
         .onAppear {
             checkPermissions()
         }
@@ -268,7 +268,7 @@ struct OnboardingView: View {
     }
 
     private var modelSelectionStep: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             Text("Choose Your Models")
                 .font(.ypHeadingRounded)
                 .foregroundColor(.ypText1)
@@ -278,61 +278,64 @@ struct OnboardingView: View {
                 .foregroundColor(.ypText3)
                 .multilineTextAlignment(.center)
 
-            // STT Model Selection
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 6) {
-                    Image(systemName: "waveform")
-                        .font(.system(size: 12))
-                        .foregroundColor(.ypLavender)
-                    Text("Speech-to-Text")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(.ypText1)
-                }
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 16) {
+                    // STT Model Selection
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 12))
+                                .foregroundColor(.ypLavender)
+                            Text("Speech-to-Text")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundColor(.ypText1)
+                        }
 
-                VStack(spacing: 6) {
-                    ForEach(STTModelRegistry.allModels.filter { $0.id != "voxtral-mini-3b" }, id: \.id) { model in
-                        onboardingModelCard(
-                            name: model.name,
-                            size: model.sizeDescription,
-                            description: model.description,
-                            isRecommended: model.isRecommended,
-                            isSelected: selectedSTTModel == model.id,
-                            tint: .ypLavender
-                        ) {
-                            selectedSTTModel = model.id
+                        VStack(spacing: 6) {
+                            ForEach(STTModelRegistry.allModels.filter { $0.id != "voxtral-mini-3b" }, id: \.id) { model in
+                                onboardingModelCard(
+                                    name: model.name,
+                                    size: model.sizeDescription,
+                                    description: model.description,
+                                    isRecommended: model.isRecommended,
+                                    isSelected: selectedSTTModel == model.id,
+                                    tint: .ypLavender
+                                ) {
+                                    selectedSTTModel = model.id
+                                }
+                            }
+                        }
+                    }
+
+                    // LLM Model Selection
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 12))
+                                .foregroundColor(.ypWarm)
+                            Text("Text Cleanup")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundColor(.ypText1)
+                        }
+
+                        VStack(spacing: 6) {
+                            ForEach(LLMModelRegistry.allModels, id: \.id) { model in
+                                onboardingModelCard(
+                                    name: model.name,
+                                    size: model.sizeDescription,
+                                    description: model.description,
+                                    isRecommended: model.isRecommended,
+                                    isSelected: selectedLLMModel == model.id,
+                                    tint: .ypWarm
+                                ) {
+                                    selectedLLMModel = model.id
+                                }
+                            }
                         }
                     }
                 }
+                .padding(.horizontal, 32)
             }
-            .padding(.horizontal, 32)
-
-            // LLM Model Selection
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 12))
-                        .foregroundColor(.ypWarm)
-                    Text("Text Cleanup")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(.ypText1)
-                }
-
-                VStack(spacing: 6) {
-                    ForEach(LLMModelRegistry.allModels, id: \.id) { model in
-                        onboardingModelCard(
-                            name: model.name,
-                            size: model.sizeDescription,
-                            description: model.description,
-                            isRecommended: model.isRecommended,
-                            isSelected: selectedLLMModel == model.id,
-                            tint: .ypWarm
-                        ) {
-                            selectedLLMModel = model.id
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 32)
         }
     }
 
