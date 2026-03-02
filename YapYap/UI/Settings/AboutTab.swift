@@ -64,10 +64,6 @@ struct AboutTab: View {
             .buttonStyle(.plain)
             .disabled(updater?.canCheckForUpdates == false)
             .padding(.bottom, 20)
-
-            Text("MIT Licensed · Made with 💜 and too much coffee")
-                .font(.system(size: 11))
-                .foregroundColor(.ypText4)
         }
         .frame(maxWidth: .infinity)
     }
@@ -76,7 +72,7 @@ struct AboutTab: View {
         let urlString: String
         switch title {
         case "GitHub":  urlString = "https://github.com/sunboy/yapyap"
-        case "Website": urlString = "https://yapyap.app"
+        case "Website": urlString = "https://yapyap.tech"
         case "License": urlString = "https://github.com/sunboy/yapyap/blob/main/LICENSE"
         default:        urlString = ""
         }
