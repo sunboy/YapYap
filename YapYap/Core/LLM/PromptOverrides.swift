@@ -20,6 +20,12 @@ struct PromptOverrides: Codable {
         var isEnabled: Bool = true
     }
 
+    /// Categories that have meaningful prompt rules (browser/other use empty generic defaults).
+    static let editableCategories: [AppCategory] = [
+        .personalMessaging, .workMessaging, .email, .codeEditor,
+        .aiChat, .terminal, .notes, .social, .documents
+    ]
+
     // MARK: - Query
 
     /// Returns the custom rules for a category if an override exists and is enabled.
@@ -35,39 +41,17 @@ struct PromptOverrides: Codable {
     /// Returns the default (built-in) rules text for a category.
     /// This is shown in the UI as the starting point for customization.
     static func defaultRules(for category: AppCategory) -> String {
-        switch category {
-        case .workMessaging:     return PromptTemplates.AppRules.Medium.slack
-        case .email:             return PromptTemplates.AppRules.Medium.mail
-        case .codeEditor:        return PromptTemplates.AppRules.Medium.cursor
-        case .personalMessaging: return PromptTemplates.AppRules.Medium.messages
-        case .aiChat:            return PromptTemplates.AppRules.Medium.claude
-        case .terminal:          return PromptTemplates.AppRules.Medium.terminal
-        case .notes:             return PromptTemplates.AppRules.Medium.notes
-        case .social:            return PromptTemplates.AppRules.Medium.social
-        case .documents:         return PromptTemplates.AppRules.Medium.docs
-        case .browser, .other:   return PromptTemplates.AppRules.Medium.generic
-        }
+        PromptTemplates.AppRules.medium(for: category)
     }
 
     /// Returns the default small-model rules text for a category.
     static func defaultSmallRules(for category: AppCategory) -> String {
-        switch category {
-        case .workMessaging:     return PromptTemplates.AppRules.Small.slack
-        case .email:             return PromptTemplates.AppRules.Small.mail
-        case .codeEditor:        return PromptTemplates.AppRules.Small.cursor
-        case .personalMessaging: return PromptTemplates.AppRules.Small.messages
-        case .aiChat:            return PromptTemplates.AppRules.Small.claude
-        case .terminal:          return PromptTemplates.AppRules.Small.terminal
-        case .notes:             return PromptTemplates.AppRules.Small.notes
-        case .social:            return PromptTemplates.AppRules.Small.social
-        case .documents:         return PromptTemplates.AppRules.Small.docs
-        case .browser, .other:   return PromptTemplates.AppRules.Small.generic
-        }
+        PromptTemplates.AppRules.small(for: category)
     }
 
     // MARK: - Persistence
 
-    private static let userDefaultsKey = "yapyap.promptOverrides"
+    static let userDefaultsKey = "yapyap.promptOverrides"
 
     func saveToUserDefaults() {
         if let data = try? JSONEncoder().encode(self) {

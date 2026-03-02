@@ -283,6 +283,38 @@ enum PromptTemplates {
             - No abbreviations unless spoken
             """
         }
+
+        /// Returns the medium/large model rules for a category.
+        static func medium(for category: AppCategory) -> String {
+            switch category {
+            case .workMessaging:     return Medium.slack
+            case .email:             return Medium.mail
+            case .codeEditor:        return Medium.cursor
+            case .personalMessaging: return Medium.messages
+            case .aiChat:            return Medium.claude
+            case .terminal:          return Medium.terminal
+            case .notes:             return Medium.notes
+            case .social:            return Medium.social
+            case .documents:         return Medium.docs
+            case .browser, .other:   return Medium.generic
+            }
+        }
+
+        /// Returns the small model rules for a category.
+        static func small(for category: AppCategory) -> String {
+            switch category {
+            case .workMessaging:     return Small.slack
+            case .email:             return Small.mail
+            case .codeEditor:        return Small.cursor
+            case .personalMessaging: return Small.messages
+            case .aiChat:            return Small.claude
+            case .terminal:          return Small.terminal
+            case .notes:             return Small.notes
+            case .social:            return Small.social
+            case .documents:         return Small.docs
+            case .browser, .other:   return Small.generic
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════

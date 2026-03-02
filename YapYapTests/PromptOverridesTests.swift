@@ -8,12 +8,12 @@ final class PromptOverridesTests: XCTestCase {
     override func setUp() {
         super.setUp()
         // Clear any saved overrides before each test
-        UserDefaults.standard.removeObject(forKey: "yapyap.promptOverrides")
+        UserDefaults.standard.removeObject(forKey: PromptOverrides.userDefaultsKey)
     }
 
     override func tearDown() {
         // Clean up after each test
-        UserDefaults.standard.removeObject(forKey: "yapyap.promptOverrides")
+        UserDefaults.standard.removeObject(forKey: PromptOverrides.userDefaultsKey)
         super.tearDown()
     }
 
@@ -56,22 +56,14 @@ final class PromptOverridesTests: XCTestCase {
     }
 
     func testDefaultRulesExistForAllEditableCategories() {
-        let editableCategories: [AppCategory] = [
-            .personalMessaging, .workMessaging, .email, .codeEditor,
-            .aiChat, .terminal, .notes, .social, .documents
-        ]
-        for category in editableCategories {
+        for category in PromptOverrides.editableCategories {
             let rules = PromptOverrides.defaultRules(for: category)
             XCTAssertFalse(rules.isEmpty, "Default rules should exist for \(category.rawValue)")
         }
     }
 
     func testDefaultSmallRulesExistForAllEditableCategories() {
-        let editableCategories: [AppCategory] = [
-            .personalMessaging, .workMessaging, .email, .codeEditor,
-            .aiChat, .terminal, .notes, .social, .documents
-        ]
-        for category in editableCategories {
+        for category in PromptOverrides.editableCategories {
             let rules = PromptOverrides.defaultSmallRules(for: category)
             XCTAssertFalse(rules.isEmpty, "Default small rules should exist for \(category.rawValue)")
         }
@@ -307,9 +299,7 @@ final class PromptOverridesTests: XCTestCase {
         stylePrompt: String = "",
         formality: CleanupContext.Formality = .neutral,
         cleanupLevel: CleanupContext.CleanupLevel = .medium,
-        appContext: AppContext? = nil,
-        removeFillers: Bool = true,
-        experimentalPrompts: Bool = false
+        appContext: AppContext? = nil
     ) -> CleanupContext {
         CleanupContext(
             stylePrompt: stylePrompt,
@@ -317,8 +307,8 @@ final class PromptOverridesTests: XCTestCase {
             language: "en",
             appContext: appContext,
             cleanupLevel: cleanupLevel,
-            removeFillers: removeFillers,
-            experimentalPrompts: experimentalPrompts
+            removeFillers: true,
+            experimentalPrompts: false
         )
     }
 }

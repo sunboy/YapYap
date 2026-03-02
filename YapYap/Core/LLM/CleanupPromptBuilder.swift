@@ -47,18 +47,21 @@ struct CleanupPromptBuilder {
     // MARK: - System Prompt
 
     private static func buildSystemPrompt(context: CleanupContext, family: LLMModelFamily, size: LLMModelSize) -> String {
+        // Load overrides once for the entire prompt build
+        let overrides = PromptOverrides.loadFromUserDefaults()
+
         // Small models (<=2B): ultra-minimal system prompt.
         if size == .small {
-            return buildSmallModelSystemPrompt(context: context, family: family)
+            return buildSmallModelSystemPrompt(context: context, family: family, overrides: overrides)
         }
 
         // Medium+ models (3B+): unified benchmark-proven prompt for ALL families
-        return buildUnifiedSystemPrompt(context: context)
+        return buildUnifiedSystemPrompt(context: context, overrides: overrides)
     }
 
     /// Concise system prompt for small models (<=2B params).
     /// Adopts the "text refinement tool" framing with minimal rules.
-    private static func buildSmallModelSystemPrompt(context: CleanupContext, family: LLMModelFamily) -> String {
+    private static func buildSmallModelSystemPrompt(context: CleanupContext, family: LLMModelFamily, overrides: PromptOverrides) -> String {
         var prompt: String
         switch context.cleanupLevel {
         case .light:
@@ -84,7 +87,7 @@ struct CleanupPromptBuilder {
 
         // Add concise app context hint
         if let appContext = context.appContext {
-            let appRule = smallAppRule(for: appContext)
+            let appRule = smallAppRule(for: appContext, overrides: overrides)
             if !appRule.isEmpty {
                 prompt += " " + appRule
             }
@@ -99,9 +102,9 @@ struct CleanupPromptBuilder {
     }
 
     /// Unified benchmark-proven system prompt for medium+ models (all families).
-    private static func buildUnifiedSystemPrompt(context: CleanupContext) -> String {
+    private static func buildUnifiedSystemPrompt(context: CleanupContext, overrides: PromptOverrides) -> String {
         let contextLine = buildContextLine(for: context.appContext)
-        let richRules = buildRichAppRules(for: context.appContext)
+        let richRules = buildRichAppRules(for: context.appContext, overrides: overrides)
         let levelKey: String
         switch context.cleanupLevel {
         case .light: levelKey = "light"
@@ -177,11 +180,10 @@ struct CleanupPromptBuilder {
 
     // MARK: - Rich App Rules (Medium/Large)
 
-    private static func buildRichAppRules(for appContext: AppContext?) -> String {
+    private static func buildRichAppRules(for appContext: AppContext?, overrides: PromptOverrides) -> String {
         guard let ctx = appContext else { return "" }
 
-        // Check for user-defined override first
-        let overrides = PromptOverrides.loadFromUserDefaults()
+        // User-defined overrides take precedence (except IDE chat panels)
         if let customRules = overrides.effectiveRules(for: ctx.category), !ctx.isIDEChatPanel {
             return customRules
         }
@@ -189,35 +191,13 @@ struct CleanupPromptBuilder {
         if ctx.isIDEChatPanel {
             return PromptTemplates.AppRules.Medium.cursorChat
         }
-        switch ctx.category {
-        case .workMessaging:
-            return PromptTemplates.AppRules.Medium.slack
-        case .email:
-            return PromptTemplates.AppRules.Medium.mail
-        case .codeEditor:
-            return PromptTemplates.AppRules.Medium.cursor
-        case .personalMessaging:
-            return PromptTemplates.AppRules.Medium.messages
-        case .aiChat:
-            return PromptTemplates.AppRules.Medium.claude
-        case .terminal:
-            return PromptTemplates.AppRules.Medium.terminal
-        case .notes:
-            return PromptTemplates.AppRules.Medium.notes
-        case .social:
-            return PromptTemplates.AppRules.Medium.social
-        case .documents:
-            return PromptTemplates.AppRules.Medium.docs
-        case .browser, .other:
-            return PromptTemplates.AppRules.Medium.generic
-        }
+        return PromptTemplates.AppRules.medium(for: ctx.category)
     }
 
     // MARK: - Small Model App Rule (compact, 1-line)
 
-    private static func smallAppRule(for appContext: AppContext) -> String {
-        // Check for user-defined override first
-        let overrides = PromptOverrides.loadFromUserDefaults()
+    private static func smallAppRule(for appContext: AppContext, overrides: PromptOverrides) -> String {
+        // User-defined overrides take precedence (except IDE chat panels)
         if let customRules = overrides.effectiveRules(for: appContext.category), !appContext.isIDEChatPanel {
             return customRules
         }
@@ -225,28 +205,7 @@ struct CleanupPromptBuilder {
         if appContext.isIDEChatPanel {
             return PromptTemplates.AppRules.Small.cursorChat
         }
-        switch appContext.category {
-        case .workMessaging:
-            return PromptTemplates.AppRules.Small.slack
-        case .email:
-            return PromptTemplates.AppRules.Small.mail
-        case .codeEditor:
-            return PromptTemplates.AppRules.Small.cursor
-        case .personalMessaging:
-            return PromptTemplates.AppRules.Small.messages
-        case .aiChat:
-            return PromptTemplates.AppRules.Small.claude
-        case .terminal:
-            return PromptTemplates.AppRules.Small.terminal
-        case .notes:
-            return PromptTemplates.AppRules.Small.notes
-        case .social:
-            return PromptTemplates.AppRules.Small.social
-        case .documents:
-            return PromptTemplates.AppRules.Small.docs
-        case .browser, .other:
-            return ""
-        }
+        return PromptTemplates.AppRules.small(for: appContext.category)
     }
 
     // MARK: - User Message

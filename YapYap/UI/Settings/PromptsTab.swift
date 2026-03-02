@@ -1,18 +1,12 @@
 // PromptsTab.swift
 // YapYap — Settings tab for viewing and customizing per-category LLM prompts
 import SwiftUI
-import SwiftData
 
 struct PromptsTab: View {
     @State private var overrides = PromptOverrides()
     @State private var expandedCategory: AppCategory?
     @State private var didLoad = false
-
-    /// Categories that have meaningful prompt rules (skip browser/other which have empty defaults)
-    private let editableCategories: [AppCategory] = [
-        .personalMessaging, .workMessaging, .email, .codeEditor,
-        .aiChat, .terminal, .notes, .social, .documents
-    ]
+    @State private var saveTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -29,7 +23,7 @@ struct PromptsTab: View {
 
             // Category list
             VStack(spacing: 2) {
-                ForEach(editableCategories) { category in
+                ForEach(PromptOverrides.editableCategories) { category in
                     categoryRow(category)
                 }
             }
@@ -39,6 +33,22 @@ struct PromptsTab: View {
             overrides = PromptOverrides.loadFromUserDefaults()
             didLoad = true
         }
+    }
+
+    // MARK: - Debounced Save
+
+    private func debounceSave() {
+        saveTask?.cancel()
+        saveTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s debounce
+            guard !Task.isCancelled else { return }
+            overrides.saveToUserDefaults()
+        }
+    }
+
+    private func saveImmediately() {
+        saveTask?.cancel()
+        overrides.saveToUserDefaults()
     }
 
     // MARK: - Category Row
@@ -113,7 +123,6 @@ struct PromptsTab: View {
     @ViewBuilder
     private func categoryEditor(_ category: AppCategory) -> some View {
         let currentOverride = overrides.categories[category.rawValue]
-        let rulesText = currentOverride?.rules ?? PromptOverrides.defaultRules(for: category)
         let isCustom = currentOverride != nil
 
         VStack(alignment: .leading, spacing: 10) {
@@ -128,7 +137,7 @@ struct PromptsTab: View {
                     if isCustom {
                         Button("Reset to Default") {
                             overrides.categories.removeValue(forKey: category.rawValue)
-                            overrides.saveToUserDefaults()
+                            saveImmediately()
                         }
                         .font(.system(size: 10))
                         .foregroundColor(.ypText3)
@@ -164,7 +173,7 @@ struct PromptsTab: View {
                                 rules: PromptOverrides.defaultRules(for: category),
                                 isEnabled: true
                             )
-                            overrides.saveToUserDefaults()
+                            saveImmediately()
                         }
                         .font(.system(size: 10))
                         .foregroundColor(.ypLavender)
@@ -178,7 +187,7 @@ struct PromptsTab: View {
                             get: { overrides.categories[category.rawValue]?.isEnabled ?? false },
                             set: { newVal in
                                 overrides.categories[category.rawValue]?.isEnabled = newVal
-                                overrides.saveToUserDefaults()
+                                saveImmediately()
                             }
                         ))
                         .toggleStyle(.switch)
@@ -195,7 +204,7 @@ struct PromptsTab: View {
                         get: { overrides.categories[category.rawValue]?.rules ?? "" },
                         set: { newVal in
                             overrides.categories[category.rawValue]?.rules = newVal
-                            overrides.saveToUserDefaults()
+                            debounceSave()
                         }
                     ))
                     .font(.system(size: 11, design: .monospaced))
