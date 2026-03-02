@@ -317,16 +317,19 @@ class TranscriptionPipeline {
             var detectedLanguage: String
             var stageStart = Date()
             let settings = try fetchSettings()
+            NSLog("[TranscriptionPipeline] ⏱ fetchSettings: \(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms")
 
             // Stop streaming if active (cleans up polling task), then always
             // use batch transcription on the full audio buffer for accuracy.
+            stageStart = Date()
             let isCurrentlyStreaming = await executor.isStreaming
             if isCurrentlyStreaming {
                 _ = try? await executor.stopStreaming()
-                NSLog("[TranscriptionPipeline] Streaming stopped, using batch for final result")
+                NSLog("[TranscriptionPipeline] Streaming stopped, using batch for final result (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
             }
 
             // Batch path: stop capture, then run STT on full buffer
+            stageStart = Date()
             guard let audioBuffer = audioCapture.stopCapture() else {
                 NSLog("[TranscriptionPipeline] ❌ No audio buffer captured (too short or empty)")
                 appState.creatureState = .sleeping
@@ -334,15 +337,16 @@ class TranscriptionPipeline {
                 throw YapYapError.noAudioRecorded
             }
             audioDuration = Double(audioBuffer.frameLength) / audioCapture.sampleRate
-            NSLog("[TranscriptionPipeline] ✅ Audio buffer: \(audioBuffer.frameLength) frames (\(String(format: "%.1f", audioDuration))s)")
+            NSLog("[TranscriptionPipeline] ⏱ stopCapture: \(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms — \(audioBuffer.frameLength) frames (\(String(format: "%.1f", audioDuration))s)")
 
             // VAD pre-filter: strip silence/noise segments before passing to STT.
             // Prevents Whisper hallucinations on silence and reduces STT time.
+            stageStart = Date()
             let sttBuffer: AVAudioPCMBuffer
             let speechSegments = vadManager.filterSpeechSegments(from: audioBuffer)
             if speechSegments.isEmpty {
                 // No speech detected — use original buffer (VAD may be too aggressive)
-                NSLog("[TranscriptionPipeline] VAD: no speech segments detected, using full buffer")
+                NSLog("[TranscriptionPipeline] VAD: no speech segments detected, using full buffer (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
                 sttBuffer = audioBuffer
             } else {
                 // Check if VAD filtered enough to justify the concatenation overhead.
@@ -352,23 +356,24 @@ class TranscriptionPipeline {
                 let reductionRatio = 1.0 - Double(speechFrames) / Double(totalFrames)
 
                 if reductionRatio < 0.10 {
-                    NSLog("[TranscriptionPipeline] VAD: minimal reduction (\(String(format: "%.0f", reductionRatio * 100))%%), using full buffer")
+                    NSLog("[TranscriptionPipeline] VAD: minimal reduction (\(String(format: "%.0f", reductionRatio * 100))%%), using full buffer (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
                     sttBuffer = audioBuffer
                 } else if let concatenated = AudioSegment.concatenate(speechSegments) {
                     let filteredDuration = Double(concatenated.frameLength) / audioCapture.sampleRate
-                    NSLog("[TranscriptionPipeline] VAD: \(speechSegments.count) speech segments, \(String(format: "%.1f", filteredDuration))s (\(String(format: "%.0f", reductionRatio * 100))%% reduction)")
+                    NSLog("[TranscriptionPipeline] VAD: \(speechSegments.count) speech segments, \(String(format: "%.1f", filteredDuration))s (\(String(format: "%.0f", reductionRatio * 100))%% reduction, \(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
                     sttBuffer = concatenated
                 } else {
-                    NSLog("[TranscriptionPipeline] VAD: concatenation failed, using full buffer")
+                    NSLog("[TranscriptionPipeline] VAD: concatenation failed, using full buffer (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
                     sttBuffer = audioBuffer
                 }
             }
 
+            stageStart = Date()
             let transcription = try await executor.transcribe(audioBuffer: sttBuffer, language: settings.language)
             rawText = Self.stripWhisperArtifacts(transcription.text.trimmingCharacters(in: .whitespacesAndNewlines))
             rawText = OutputFormatter.applyMetaCommandStripping(rawText)
             detectedLanguage = transcription.language ?? settings.language
-            NSLog("[TranscriptionPipeline] STT (batch): \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+            NSLog("[TranscriptionPipeline] ⏱ STT (batch): \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
 
             guard !rawText.isEmpty else {
                 NSLog("[TranscriptionPipeline] ❌ Empty transcription")

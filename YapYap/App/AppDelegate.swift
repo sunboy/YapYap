@@ -239,7 +239,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             print("[AppDelegate] Creating onboarding window...")
 
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 560, height: 560),
+                contentRect: NSRect(x: 0, y: 0, width: 560, height: 700),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
