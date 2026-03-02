@@ -308,6 +308,7 @@ jobs:
           gh release create "v${VERSION}" \
             "build/${DMG_NAME}" \
             --title "YapYap v${VERSION}" \
+            --latest \
             --notes "## YapYap v${VERSION}
 
           Download the DMG below and drag YapYap to your Applications folder.
