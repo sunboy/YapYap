@@ -62,8 +62,6 @@ enum PromptTemplates {
                 ruleNum += 1
                 rules.append("\(ruleNum). Self-corrections: \"X no wait Y\" / \"X I mean Y\" → keep only Y.")
                 ruleNum += 1
-                rules.append("\(ruleNum). Tighten phrasing but preserve meaning.")
-                ruleNum += 1
             default: // medium
                 rules.append("\(ruleNum). Remove fillers: uh, um, like (filler), you know, I mean, basically, right, kind of, sort of.")
                 ruleNum += 1
