@@ -297,11 +297,21 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Save the updated appcast before switching branches.
+          # The action checks out at the tag (detached HEAD), so we must switch to
+          # main, pull latest (avoids "fetch first" if main moved during the build),
+          # then re-apply our change and push.
+          cp Distribution/appcast.xml /tmp/appcast_updated.xml
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          cp /tmp/appcast_updated.xml Distribution/appcast.xml
           git add Distribution/appcast.xml
-          git commit -m "chore: update appcast.xml for v${VERSION}"
-          git push origin HEAD:main
+          git diff --cached --quiet || git commit -m "chore: update appcast.xml for v${VERSION}"
+          git push origin main
 
       - name: Create GitHub Release
+        if: "!cancelled()"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
