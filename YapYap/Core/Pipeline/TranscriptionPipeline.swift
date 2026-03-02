@@ -342,14 +342,24 @@ class TranscriptionPipeline {
                 // No speech detected — use original buffer (VAD may be too aggressive)
                 NSLog("[TranscriptionPipeline] VAD: no speech segments detected, using full buffer")
                 sttBuffer = audioBuffer
-            } else if let concatenated = AudioSegment.concatenate(speechSegments) {
-                let filteredDuration = Double(concatenated.frameLength) / audioCapture.sampleRate
-                let reductionPct = (1.0 - filteredDuration / audioDuration) * 100
-                NSLog("[TranscriptionPipeline] VAD: \(speechSegments.count) speech segments, \(String(format: "%.1f", filteredDuration))s (\(String(format: "%.0f", reductionPct))%% reduction)")
-                sttBuffer = concatenated
             } else {
-                NSLog("[TranscriptionPipeline] VAD: concatenation failed, using full buffer")
-                sttBuffer = audioBuffer
+                // Check if VAD filtered enough to justify the concatenation overhead.
+                // If <10% was removed, the copy cost outweighs the STT savings.
+                let speechFrames = speechSegments.reduce(0) { $0 + Int($1.buffer.frameLength) }
+                let totalFrames = Int(audioBuffer.frameLength)
+                let reductionRatio = 1.0 - Double(speechFrames) / Double(totalFrames)
+
+                if reductionRatio < 0.10 {
+                    NSLog("[TranscriptionPipeline] VAD: minimal reduction (\(String(format: "%.0f", reductionRatio * 100))%%), using full buffer")
+                    sttBuffer = audioBuffer
+                } else if let concatenated = AudioSegment.concatenate(speechSegments) {
+                    let filteredDuration = Double(concatenated.frameLength) / audioCapture.sampleRate
+                    NSLog("[TranscriptionPipeline] VAD: \(speechSegments.count) speech segments, \(String(format: "%.1f", filteredDuration))s (\(String(format: "%.0f", reductionRatio * 100))%% reduction)")
+                    sttBuffer = concatenated
+                } else {
+                    NSLog("[TranscriptionPipeline] VAD: concatenation failed, using full buffer")
+                    sttBuffer = audioBuffer
+                }
             }
 
             let transcription = try await executor.transcribe(audioBuffer: sttBuffer, language: settings.language)

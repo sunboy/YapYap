@@ -33,9 +33,11 @@ class PersonalDictionary: ObservableObject {
         didSet { rebuildRegexCache() }
     }
 
-    /// Cached compiled regexes for each enabled dictionary entry (rebuilt when entries change)
-    /// Tuple: (regex, replacement, key, appName?)
-    private var cachedRegexes: [(NSRegularExpression, String, String, String?)] = []
+    /// Cached compiled regexes for each enabled dictionary entry (rebuilt when entries change).
+    /// Pre-partitioned into global (no app) and per-app buckets so applyCorrections
+    /// only iterates relevant entries instead of scanning all + filtering.
+    private var globalRegexes: [(NSRegularExpression, String, String)] = []
+    private var perAppRegexes: [String: [(NSRegularExpression, String, String)]] = [:]
 
     private let fileURL: URL = {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -51,23 +53,35 @@ class PersonalDictionary: ObservableObject {
     /// Apply dictionary corrections to text (before LLM cleanup).
     /// Pass activeAppName to also apply per-app corrections.
     func applyCorrections(to text: String, activeAppName: String? = nil) -> String {
-        guard !cachedRegexes.isEmpty else { return text }
+        guard !globalRegexes.isEmpty || !perAppRegexes.isEmpty else { return text }
         var result = text
-        for (regex, replacement, key, entryApp) in cachedRegexes {
-            // Skip per-app entries that don't match the active app
-            if let entryApp = entryApp, entryApp != activeAppName {
-                continue
-            }
+
+        // Apply global corrections (always run)
+        for (regex, replacement, key) in globalRegexes {
             let range = NSRange(result.startIndex..<result.endIndex, in: result)
             let before = result
             result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: replacement)
-            // Increment hit count if a replacement actually happened
             if result != before, var entry = entries[key] {
                 entry.hitCount += 1
                 entries[key] = entry
                 saveWithoutRebuild()
             }
         }
+
+        // Apply per-app corrections only for the active app (skip all others)
+        if let appName = activeAppName, let appRegexes = perAppRegexes[appName] {
+            for (regex, replacement, key) in appRegexes {
+                let range = NSRange(result.startIndex..<result.endIndex, in: result)
+                let before = result
+                result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: replacement)
+                if result != before, var entry = entries[key] {
+                    entry.hitCount += 1
+                    entries[key] = entry
+                    saveWithoutRebuild()
+                }
+            }
+        }
+
         return result
     }
 
@@ -252,16 +266,28 @@ class PersonalDictionary: ObservableObject {
 
     // MARK: - Regex Cache
 
-    /// Rebuild the compiled regex cache from current entries (only enabled entries)
+    /// Rebuild the compiled regex cache from current entries (only enabled entries).
+    /// Pre-partitions into global + per-app buckets so applyCorrections only iterates
+    /// relevant entries — avoids scanning all regexes when most are for other apps.
     private func rebuildRegexCache() {
-        cachedRegexes = entries.compactMap { (key, entry) in
-            guard entry.isEnabled else { return nil }
+        var global: [(NSRegularExpression, String, String)] = []
+        var perApp: [String: [(NSRegularExpression, String, String)]] = [:]
+
+        for (key, entry) in entries {
+            guard entry.isEnabled else { continue }
             let escaped = NSRegularExpression.escapedPattern(for: entry.spoken)
             guard let regex = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: [.caseInsensitive]) else {
-                return nil
+                continue
             }
-            return (regex, entry.corrected, key, entry.appName)
+            if let appName = entry.appName {
+                perApp[appName, default: []].append((regex, entry.corrected, key))
+            } else {
+                global.append((regex, entry.corrected, key))
+            }
         }
+
+        globalRegexes = global
+        perAppRegexes = perApp
     }
 
     // MARK: - Persistence

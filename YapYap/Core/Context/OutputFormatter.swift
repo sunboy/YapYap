@@ -358,7 +358,25 @@ struct OutputFormatter {
         }
     }()
 
+    /// Quick-scan keywords: if none of these substrings appear in the text (case-insensitive),
+    /// skip the full emoji regex iteration. Covers all entries in emojiMap.
+    private static let emojiQuickScanKeywords: [String] = {
+        // Extract the first word of each emoji phrase for fast substring matching
+        let phrases = [
+            "praying", "party", "light", "money", "cross", "x mark", "green",
+            "check", "fist", "ok hand", "raised", "mind", "crying", "smiley",
+            "broken", "red heart", "thumbs", "checkmark", "sparkles", "clapping",
+            "facepalm", "rocket", "muscle", "shrug", "tada", "wink"
+        ]
+        return phrases
+    }()
+
     static func applyEmojiConversion(_ text: String) -> String {
+        // Fast pre-check: skip all 26+ regex scans if text contains none of the emoji keywords
+        let lower = text.lowercased()
+        let hasAnyEmojiKeyword = emojiQuickScanKeywords.contains { lower.contains($0) }
+        guard hasAnyEmojiKeyword else { return text }
+
         var result = text
         for (regex, emoji) in emojiMap {
             let range = NSRange(result.startIndex..<result.endIndex, in: result)
