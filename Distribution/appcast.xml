@@ -53,5 +53,26 @@
     <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
 </item>
 
+        <item>
+    <title>Version 0.2.3</title>
+    <link>https://github.com/sunboy/yapyap/releases/tag/v0.2.3</link>
+    <sparkle:version>0.2.3</sparkle:version>
+    <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
+    <description><![CDATA[
+        <h2>What's New in 0.2.3</h2>
+        <p>See <a href="https://github.com/sunboy/yapyap/releases/tag/v0.2.3">release notes</a> for details.</p>
+    ]]></description>
+    <pubDate>Mon, 02 Mar 2026 08:11:06 +0000</pubDate>
+    <enclosure
+        url="https://github.com/sunboy/yapyap/releases/download/v0.2.3/YapYap-v0.2.3.dmg"
+        sparkle:version="0.2.3"
+        sparkle:shortVersionString="0.2.3"
+        length="11894416"
+        type="application/octet-stream"
+        sparkle:edSignature="xoe/EouDBkc0zDQS2tm8ucGEMugmlaSPWwXofImMAR2BoAA4vMLzqNa4kiuEH6c3HQ4KfD10a2kKN63FwCZwCw=="
+    />
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+</item>
+
     </channel>
 </rss>
