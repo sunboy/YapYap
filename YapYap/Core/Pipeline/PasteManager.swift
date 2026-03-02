@@ -27,6 +27,12 @@ class PasteManager {
         let appName = resolvedApp?.localizedName ?? "unknown"
         NSLog("[PasteManager] Paste requested: \(text.count) chars → \(appName)")
 
+        guard AXIsProcessTrusted() else {
+            NSLog("[PasteManager] ❌ Accessibility not granted — paste skipped. Showing permission alert.")
+            DispatchQueue.main.async { Permissions.showAccessibilityPermissionAlert() }
+            return
+        }
+
         // Strategy 1: Accessibility API setValue (no clipboard pollution)
         // Skip for terminal apps — they accept AX writes silently but don't render them
         let bundleId = resolvedApp?.bundleIdentifier ?? ""
@@ -172,10 +178,6 @@ class PasteManager {
     // MARK: - CGEvent Helpers
 
     private func simulatePaste() {
-        // CGEvent requires accessibility permission — check first
-        let trusted = AXIsProcessTrusted()
-        NSLog("[PasteManager] AXIsProcessTrusted: \(trusted)")
-
         let source = CGEventSource(stateID: .hidSystemState)
         NSLog("[PasteManager] CGEventSource created: \(source != nil)")
 
