@@ -104,14 +104,11 @@ class OllamaEngine: LLMEngine {
         }
         chatMessages.append(["role": "user", "content": messages.user])
 
-        let userTokenEstimate = rawText.split(separator: " ").count
-        let maxTokens = max(32, min(userTokenEstimate * 4, 512))
-
         let startTime = Date()
         let result = try await chatCompletion(
             model: tag,
             messages: chatMessages,
-            maxTokens: maxTokens,
+            maxTokens: -1,
             temperature: 0.0
         )
         let elapsed = Date().timeIntervalSince(startTime)

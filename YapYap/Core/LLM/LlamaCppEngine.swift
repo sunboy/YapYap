@@ -121,11 +121,7 @@ class LlamaCppEngine: LLMEngine {
             throw LlamaCppError.tokenizationFailed
         }
 
-        // Cap output: cleanup output should be roughly the same length as input
-        let userTokenCount = tokenize(rawText, addSpecial: false).count
-        let maxOutputTokens = max(32, min(userTokenCount * 2, 512))
-
-        NSLog("[LlamaCppEngine] Prompt: \(tokens.count) tokens, maxOutput: \(maxOutputTokens)")
+        NSLog("[LlamaCppEngine] Prompt: \(tokens.count) tokens")
 
         // Clear KV cache for fresh inference
         llama_memory_clear(llama_get_memory(context), true)
@@ -157,7 +153,7 @@ class LlamaCppEngine: LLMEngine {
         var outputTokens: [llama_token] = []
         var outputText = ""
 
-        for _ in 0..<maxOutputTokens {
+        while true {
             let newToken = llama_sampler_sample(sampler, context, -1)
 
             // Stop on EOS

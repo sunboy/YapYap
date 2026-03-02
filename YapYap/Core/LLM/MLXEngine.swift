@@ -237,15 +237,10 @@ class MLXEngine: LLMEngine {
 
         let input = LMInput(tokens: MLXArray(inputTokens))
 
-        // Cap output tokens: cleanup output ≈ input length.
-        // Use suffixTokens.count as a proxy for user text token count to avoid
-        // an extra full tokenization pass. Suffix is rawText with a small wrapper.
-        let maxOutputTokens = max(32, min(suffixTokens.count * 2, 512))
-
-        NSLog("[MLXEngine] Prompt: \(totalTokenCount) tokens, suffix: \(suffixTokens.count) tokens, maxOutput: \(maxOutputTokens), family: \(family.rawValue)")
+        NSLog("[MLXEngine] Prompt: \(totalTokenCount) tokens, suffix: \(suffixTokens.count) tokens, family: \(family.rawValue)")
 
         let parameters = GenerateParameters(
-            maxTokens: maxOutputTokens,
+            maxTokens: nil,
             temperature: family.temperature,
             topP: family.topP,
             repetitionPenalty: family.repetitionPenalty,
