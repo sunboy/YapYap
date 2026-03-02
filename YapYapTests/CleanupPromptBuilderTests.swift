@@ -82,11 +82,11 @@ final class CleanupPromptBuilderTests: XCTestCase {
         XCTAssertTrue(messages.system.contains("#channels"))
     }
 
-    func testSmallModelOmitsStylePrompt() {
+    func testSmallModelIncludesStylePrompt() {
         let context = makeContext(stylePrompt: "Be concise and direct")
         let messages = CleanupPromptBuilder.buildMessages(rawText: "test", context: context, modelId: "qwen-2.5-1.5b")
-        // Small models don't get custom stylePrompt (it's not wired through)
-        XCTAssertFalse(messages.system.contains("Be concise and direct"))
+        // Small models now receive the custom stylePrompt appended to the system prompt
+        XCTAssertTrue(messages.system.contains("Be concise and direct"))
     }
 
     // MARK: - Medium Model Prompts (3B-4B: Llama 3B, Qwen 3B, Gemma 4B)

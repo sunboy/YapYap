@@ -234,7 +234,7 @@ class TranscriptionPipeline {
         NSLog("[TranscriptionPipeline] Pre-cached context: \(appContext.appName) (\(appContext.category.rawValue)), target app pid: \(self.targetApp?.processIdentifier ?? -1)")
 
         // Auto-pause media playback if enabled
-        if settings.pauseMediaDuringRecording {
+        if settings.pauseMediaDuringRecording ?? false {
             didPauseMedia = true
             MediaPlaybackController.shared.pauseIfPlaying()
         }
