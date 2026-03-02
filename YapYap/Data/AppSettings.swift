@@ -40,7 +40,7 @@ final class AppSettings {
     /// Word count threshold below which LLM cleanup is skipped (fast path). Default 20.
     var llmSkipWordThreshold: Int
     /// STT pipeline mode: "streaming" (live preview) or "batch" (fastest, no preview).
-    /// Optional for SwiftData migration — nil treated as "streaming".
+    /// Optional for SwiftData migration — nil treated as "batch".
     var sttMode: String?
 
     init(

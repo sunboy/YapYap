@@ -17,7 +17,7 @@ struct GeneralTab: View {
     @State private var historyLimit = "Last 100"
     @State private var micOptions: [String] = ["Default"]
     @State private var didLoadSettings = false
-    @State private var sttMode: String = "streaming"
+    @State private var sttMode: String = "batch"
 
     private let positions = ["Bottom center", "Bottom left", "Bottom right", "Top center"]
     private let historyOptions = ["Last 50", "Last 100", "Last 500", "Keep all", "Don't save"]
@@ -146,7 +146,7 @@ struct GeneralTab: View {
         experimentalPrompts = settings.experimentalPrompts
         floatingBarPosition = settings.floatingBarPosition
         historyLimit = intToHistoryLimit(settings.historyLimit)
-        sttMode = settings.sttMode ?? "streaming"
+        sttMode = settings.sttMode ?? "batch"
 
         // Load saved mic selection
         if let micId = settings.microphoneId, micOptions.contains(micId) {
