@@ -6,6 +6,7 @@ struct WritingStyleTab: View {
     @State private var formality = "Casual — like texting a friend"
     @State private var stylePrompt = "Write like a senior engineer — concise, direct, no fluff. Prefer short sentences. Skip pleasantries."
     @State private var cleanupLevel = "Medium — restructure sentences, improve clarity"
+    @State private var llmSkipWordThreshold = 20
     @State private var availableLanguages: [String] = ["English (US)"]
     @State private var didLoadSettings = false
 
@@ -72,6 +73,17 @@ struct WritingStyleTab: View {
                 .labelsHidden()
             }
 
+            // LLM Skip Threshold
+            formGroup(label: "LLM SKIP THRESHOLD", description: "Transcriptions with this many words or fewer skip LLM cleanup and use only basic formatting. Lower values send more text through the LLM for higher quality; higher values improve speed for short phrases.") {
+                HStack(spacing: 12) {
+                    Stepper(value: $llmSkipWordThreshold, in: 0...100, step: 5) {
+                        Text("\(llmSkipWordThreshold) words")
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundColor(.ypText1)
+                    }
+                }
+            }
+
             // Preview
             previewCard
         }
@@ -94,6 +106,10 @@ struct WritingStyleTab: View {
             guard didLoadSettings else { return }
             saveSettings { $0.cleanupLevel = cleanupLevelToValue(newValue) }
         }
+        .onChange(of: llmSkipWordThreshold) { _, newValue in
+            guard didLoadSettings else { return }
+            saveSettings { $0.llmSkipWordThreshold = newValue }
+        }
     }
 
     private func loadSettings() {
@@ -101,6 +117,7 @@ struct WritingStyleTab: View {
         formality = valueToFormality(settings.formality)
         stylePrompt = settings.stylePrompt
         cleanupLevel = valueToCleanupLevel(settings.cleanupLevel)
+        llmSkipWordThreshold = settings.llmSkipWordThreshold
 
         // Compute available languages from intersection of STT and LLM model capabilities
         availableLanguages = Self.computeAvailableLanguages(

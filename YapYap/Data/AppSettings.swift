@@ -37,6 +37,8 @@ final class AppSettings {
     var ollamaModelName: String
     /// Selected GGUF model ID for llama.cpp framework (e.g. "gguf-gemma-3-4b")
     var llamacppModelId: String
+    /// Word count threshold below which LLM cleanup is skipped (fast path). Default 20.
+    var llmSkipWordThreshold: Int
 
     init(
         sttModelId: String = "whisper-small",
@@ -66,7 +68,8 @@ final class AppSettings {
         llmInferenceFramework: String = LLMInferenceFramework.mlx.rawValue,
         ollamaEndpoint: String = OllamaEngine.defaultEndpoint,
         ollamaModelName: String = "qwen2.5:1.5b",
-        llamacppModelId: String = GGUFModelRegistry.recommendedModel.id
+        llamacppModelId: String = GGUFModelRegistry.recommendedModel.id,
+        llmSkipWordThreshold: Int = 20
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -96,6 +99,7 @@ final class AppSettings {
         self.ollamaEndpoint = ollamaEndpoint
         self.ollamaModelName = ollamaModelName
         self.llamacppModelId = llamacppModelId
+        self.llmSkipWordThreshold = llmSkipWordThreshold
     }
 
     static func defaults() -> AppSettings {

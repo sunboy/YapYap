@@ -15,9 +15,6 @@ class TranscriptionPipeline {
     private let container: ModelContainer
     private var isCommandMode: Bool = false
 
-    /// Word count threshold: transcriptions this short skip LLM and just get regex cleanup
-    private let fastPathWordThreshold = 20
-
     /// Common filler words that indicate the text would benefit from LLM cleanup
     private static let fillerWords: Set<String> = [
         "um", "uh", "uh,", "um,", "like", "basically", "you know",
@@ -409,7 +406,8 @@ class TranscriptionPipeline {
             // This saves 500-1500ms for quick phrases like "hello" or "sounds good".
             // Exception: if fillers are detected, route through LLM even if short.
             let hasFillers = Self.containsFillers(correctedText)
-            if wordCount <= fastPathWordThreshold && !hasFillers {
+            let fastPathThreshold = settings.llmSkipWordThreshold
+            if wordCount <= fastPathThreshold && !hasFillers {
                 NSLog("[TranscriptionPipeline] Fast path: \(wordCount) words, no fillers, skipping LLM")
                 cleanedText = correctedText
                 // Apply basic capitalization fix
