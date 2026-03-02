@@ -290,7 +290,33 @@ class AudioCaptureManager {
         var conv: AVAudioConverter?
 
         let tapHandler: (AVAudioPCMBuffer, AVAudioTime) -> Void = { [weak self] buffer, _ in
-            guard let self = self, let conv = conv else { return }
+            guard let self = self else { return }
+
+            // Fast path: if the tap format already matches our target (16kHz mono float32),
+            // skip the AVAudioConverter entirely — just copy samples directly.
+            let formatMatches = buffer.format.sampleRate == self.sampleRate
+                && buffer.format.channelCount == self.channelCount
+                && buffer.format.commonFormat == .pcmFormatFloat32
+
+            if formatMatches {
+                guard let channelData = buffer.floatChannelData?[0] else { return }
+                let count = Int(buffer.frameLength)
+                let bufferPointer = UnsafeBufferPointer(start: channelData, count: count)
+
+                self.audioLock.lock()
+                self.accumulatedFrames.append(contentsOf: bufferPointer)
+                self.audioLock.unlock()
+
+                let rms = Self.calculateRMSFromPointer(bufferPointer)
+                DispatchQueue.main.async {
+                    self.rmsCallback?(rms)
+                }
+                self.consecutiveErrors = 0
+                return
+            }
+
+            // Slow path: format mismatch — use AVAudioConverter
+            guard let conv = conv else { return }
 
             let frameCount = AVAudioFrameCount(
                 Double(buffer.frameLength) * self.sampleRate / buffer.format.sampleRate
@@ -448,6 +474,15 @@ class AudioCaptureManager {
         let copy = accumulatedFrames
         audioLock.unlock()
         return copy
+    }
+
+    /// Thread-safe count of accumulated frames — avoids a full array copy
+    /// when callers only need to check how much audio has accumulated.
+    func currentAudioSampleCount() -> Int {
+        audioLock.lock()
+        let count = accumulatedFrames.count
+        audioLock.unlock()
+        return count
     }
 
     // MARK: - RMS Calculation

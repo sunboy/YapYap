@@ -15,19 +15,22 @@ class VADManager {
 
     /// Filter audio buffer to extract only speech segments.
     /// Called BEFORE passing audio to any STT engine.
-    func filterSpeechSegments(from buffer: AVAudioPCMBuffer) async throws -> [AudioSegment] {
-        let floatArray = bufferToFloatArray(buffer)
+    func filterSpeechSegments(from buffer: AVAudioPCMBuffer) -> [AudioSegment] {
+        guard let channelData = buffer.floatChannelData?[0] else { return [] }
+        let totalFrames = Int(buffer.frameLength)
         let sampleRate = Int(buffer.format.sampleRate)
         let chunkSize = 512 // Optimal for Silero CoreML
 
-        // Process chunks and get speech probabilities using energy-based VAD
-        // (Silero CoreML model would be used in production; here we use energy-based fallback)
+        // Process chunks and get speech probabilities using energy-based VAD.
+        // Operates on pointer slices to avoid per-chunk Array allocations.
         var speechProbs: [(index: Int, probability: Float)] = []
-        for i in stride(from: 0, to: floatArray.count, by: chunkSize) {
-            let end = min(i + chunkSize, floatArray.count)
-            let chunk = Array(floatArray[i..<end])
-            let energy = calculateEnergy(chunk)
-            // Map energy to probability (0-1 range)
+        speechProbs.reserveCapacity(totalFrames / chunkSize + 1)
+
+        for i in stride(from: 0, to: totalFrames, by: chunkSize) {
+            let end = min(i + chunkSize, totalFrames)
+            let count = end - i
+            // Calculate energy directly from pointer — no Array copy
+            let energy = calculateEnergyFromPointer(channelData + i, count: count)
             let prob = min(1.0, energy * 10.0)
             speechProbs.append((i, prob))
         }
@@ -39,16 +42,18 @@ class VADManager {
             chunkSize: chunkSize
         )
 
-        // Extract audio segments with padding
+        // Extract audio segments with padding, creating buffers from pointer slices
         return rawSegments.compactMap { segment -> AudioSegment? in
             let padSamples = Int(Float(config.speechPadMs) / 1000.0 * Float(sampleRate))
             let start = max(0, segment.start - padSamples)
-            let end = min(floatArray.count, segment.end + padSamples)
+            let end = min(totalFrames, segment.end + padSamples)
 
             guard end > start else { return nil }
 
-            let segmentFrames = Array(floatArray[start..<end])
-            guard let segmentBuffer = createBuffer(from: segmentFrames, sampleRate: buffer.format.sampleRate) else { return nil }
+            let count = end - start
+            guard let segmentBuffer = createBufferFromPointer(
+                channelData + start, count: count, sampleRate: buffer.format.sampleRate
+            ) else { return nil }
 
             return AudioSegment(startSample: start, endSample: end, buffer: segmentBuffer)
         }
@@ -103,19 +108,19 @@ class VADManager {
         return segments
     }
 
-    private func calculateEnergy(_ samples: [Float]) -> Float {
-        guard !samples.isEmpty else { return 0 }
-        let sumOfSquares = samples.reduce(0.0) { $0 + $1 * $1 }
-        return sqrt(sumOfSquares / Float(samples.count))
+    /// RMS energy from a raw pointer — avoids Array allocation
+    private func calculateEnergyFromPointer(_ samples: UnsafePointer<Float>, count: Int) -> Float {
+        guard count > 0 else { return 0 }
+        var sumOfSquares: Float = 0.0
+        for i in 0..<count {
+            let s = samples[i]
+            sumOfSquares += s * s
+        }
+        return sqrt(sumOfSquares / Float(count))
     }
 
-    private func bufferToFloatArray(_ buffer: AVAudioPCMBuffer) -> [Float] {
-        let frameLength = Int(buffer.frameLength)
-        guard let channelData = buffer.floatChannelData?[0] else { return [] }
-        return Array(UnsafeBufferPointer(start: channelData, count: frameLength))
-    }
-
-    private func createBuffer(from samples: [Float], sampleRate: Double) -> AVAudioPCMBuffer? {
+    /// Create an AVAudioPCMBuffer from a raw pointer slice — avoids intermediate Array
+    private func createBufferFromPointer(_ source: UnsafePointer<Float>, count: Int, sampleRate: Double) -> AVAudioPCMBuffer? {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: sampleRate,
@@ -123,13 +128,11 @@ class VADManager {
             interleaved: false
         ) else { return nil }
 
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)) else { return nil }
-        buffer.frameLength = AVAudioFrameCount(samples.count)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(count)) else { return nil }
+        buffer.frameLength = AVAudioFrameCount(count)
 
         if let channelData = buffer.floatChannelData?[0] {
-            for i in 0..<samples.count {
-                channelData[i] = samples[i]
-            }
+            channelData.initialize(from: source, count: count)
         }
 
         return buffer

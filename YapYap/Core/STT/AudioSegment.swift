@@ -19,15 +19,14 @@ struct AudioSegment {
         let totalFrames = segments.reduce(0) { $0 + Int($1.buffer.frameLength) }
         guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(totalFrames)) else { return nil }
 
+        guard let dstData = outputBuffer.floatChannelData?[0] else { return nil }
         var offset = 0
         for segment in segments {
-            guard let srcData = segment.buffer.floatChannelData?[0],
-                  let dstData = outputBuffer.floatChannelData?[0] else { continue }
+            guard let srcData = segment.buffer.floatChannelData?[0] else { continue }
 
             let frameCount = Int(segment.buffer.frameLength)
-            for i in 0..<frameCount {
-                dstData[offset + i] = srcData[i]
-            }
+            // Bulk memory copy — replaces element-by-element loop
+            (dstData + offset).initialize(from: srcData, count: frameCount)
             offset += frameCount
         }
 

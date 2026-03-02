@@ -13,6 +13,7 @@ class FluidAudioEngine: STTEngine, StreamingSTTEngine {
     private(set) var isStreaming: Bool = false
     private var streamingTask: Task<Void, Never>?
     private var audioProvider: (() -> [Float])?
+    private var audioSampleCountProvider: (() -> Int)?
     private var updateCallback: ((StreamingTranscriptionUpdate) -> Void)?
     private var lastTranscribedSampleCount: Int = 0
     private var lastTranscribedText: String = ""
@@ -87,6 +88,7 @@ class FluidAudioEngine: STTEngine, StreamingSTTEngine {
 
     func startStreaming(
         audioSamplesProvider: @escaping () -> [Float],
+        audioSampleCountProvider: (() -> Int)? = nil,
         language: String,
         onUpdate: @escaping (StreamingTranscriptionUpdate) -> Void
     ) async throws {
@@ -96,11 +98,13 @@ class FluidAudioEngine: STTEngine, StreamingSTTEngine {
         lastTranscribedSampleCount = 0
         lastTranscribedText = ""
         audioProvider = audioSamplesProvider
+        self.audioSampleCountProvider = audioSampleCountProvider
         updateCallback = onUpdate
 
         NSLog("[FluidAudioEngine] Streaming started (poll-based, reusing loaded AsrManager)")
 
-        // Poll audio buffer every ~2s and run batch transcription for partial results
+        // Poll audio buffer every ~300ms and run batch transcription for partial results.
+        // Previous 2s interval caused perceptible latency for short utterances.
         streamingTask = Task { [weak self] in
             guard let format = AVAudioFormat(
                 commonFormat: .pcmFormatFloat32,
@@ -110,27 +114,30 @@ class FluidAudioEngine: STTEngine, StreamingSTTEngine {
             ) else { return }
 
             while let self = self, self.isStreaming, !Task.isCancelled {
-                // Wait 2 seconds between transcription attempts
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
                 guard self.isStreaming, !Task.isCancelled else { break }
 
                 guard let provider = self.audioProvider,
                       let asr = self.asrManager else { break }
 
-                let allSamples = provider()
-                let sampleCount = allSamples.count
+                // Use lightweight count check to avoid full array copy when skipping
+                let sampleCount = self.audioSampleCountProvider?() ?? 0
 
-                // Need at least 1.5s of audio and 0.5s of new audio since last run
-                guard sampleCount >= 24000,
-                      sampleCount - self.lastTranscribedSampleCount >= 8000 else { continue }
+                // Need at least 0.5s of audio and 0.3s of new audio since last run.
+                // Previous thresholds (1.5s total, 0.5s new) caused excessive latency.
+                guard sampleCount >= 8000,
+                      sampleCount - self.lastTranscribedSampleCount >= 4800 else { continue }
+
+                // Only fetch full sample array when we're actually going to transcribe
+                let allSamples = provider()
 
                 // Convert [Float] to AVAudioPCMBuffer
-                let frameCount = AVAudioFrameCount(sampleCount)
+                let frameCount = AVAudioFrameCount(allSamples.count)
                 guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { continue }
                 buffer.frameLength = frameCount
                 if let channelData = buffer.floatChannelData?[0] {
                     allSamples.withUnsafeBufferPointer { src in
-                        channelData.initialize(from: src.baseAddress!, count: sampleCount)
+                        channelData.initialize(from: src.baseAddress!, count: allSamples.count)
                     }
                 }
 
@@ -166,6 +173,7 @@ class FluidAudioEngine: STTEngine, StreamingSTTEngine {
         // TranscriptionPipeline (stopRecordingAndProcess runs on the full buffer)
         let text = lastTranscribedText
         audioProvider = nil
+        audioSampleCountProvider = nil
         updateCallback = nil
         lastTranscribedSampleCount = 0
         lastTranscribedText = ""

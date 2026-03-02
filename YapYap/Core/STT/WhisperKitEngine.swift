@@ -26,6 +26,7 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
     private var confirmedSegments: [StreamSegment] = []
     private var unconfirmedSegments: [StreamSegment] = []
     private var audioProvider: (() -> [Float])?
+    private var audioSampleCountProvider: (() -> Int)?
     private var updateCallback: ((StreamingTranscriptionUpdate) -> Void)?
     private var streamingLanguage: String = "en"
     private let requiredSegmentsForConfirmation = 2
@@ -264,6 +265,7 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
 
     func startStreaming(
         audioSamplesProvider: @escaping () -> [Float],
+        audioSampleCountProvider: (() -> Int)? = nil,
         language: String,
         onUpdate: @escaping (StreamingTranscriptionUpdate) -> Void
     ) async throws {
@@ -276,6 +278,7 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
         confirmedSegments = []
         unconfirmedSegments = []
         audioProvider = audioSamplesProvider
+        self.audioSampleCountProvider = audioSampleCountProvider
         updateCallback = onUpdate
         streamingLanguage = language.components(separatedBy: "-").first ?? "en"
 
@@ -331,6 +334,7 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
 
         // Clean up
         audioProvider = nil
+        audioSampleCountProvider = nil
         updateCallback = nil
         confirmedSegments = []
         unconfirmedSegments = []
@@ -343,18 +347,22 @@ class WhisperKitEngine: STTEngine, StreamingSTTEngine {
     private func transcribeCurrentBuffer(isFinal: Bool) async throws {
         guard let pipe = pipe, let audioProvider = audioProvider else { return }
 
-        let samples = audioProvider()
-        let sampleCount = samples.count
+        // Check sample count first via the lightweight accessor to avoid
+        // a full array copy when we're just going to skip transcription.
+        let sampleCount = audioSampleCountProvider?() ?? 0
         let newSamples = sampleCount - lastBufferSize
 
-        // Skip if less than 1 second of new audio (unless finalizing)
-        if !isFinal && newSamples < Int(16000) {
+        // Skip if less than 0.3 seconds of new audio (unless finalizing).
+        // Previous 1s threshold added perceptible latency for short utterances.
+        if !isFinal && newSamples < Int(4800) {
             return
         }
 
         // Skip if no audio at all
         guard sampleCount > 0 else { return }
 
+        // Only now fetch the full sample array for actual transcription
+        let samples = audioProvider()
         lastBufferSize = sampleCount
 
         // Speed-optimized options for streaming — fewer retries, timestamps enabled

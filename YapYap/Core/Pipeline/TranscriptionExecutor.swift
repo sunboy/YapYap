@@ -58,22 +58,9 @@ actor TranscriptionExecutor {
         onLLMProgress: @escaping (Double) -> Void,
         onStatus: @escaping (String) async -> Void
     ) async throws {
-        // STT
+        // Determine what needs reloading BEFORE launching any async work
         let needsSTTReload = sttEngine == nil || !sttEngine!.isLoaded
             || sttEngine!.modelInfo.id != sttModelId
-        if needsSTTReload {
-            if let existing = sttEngine, existing.isLoaded {
-                NSLog("[TranscriptionExecutor] STT model changed: \(existing.modelInfo.id) → \(sttModelId)")
-                existing.unloadModel()
-            }
-            await onStatus("Loading speech model...")
-            NSLog("[TranscriptionExecutor] Loading STT: \(sttModelId)")
-
-            let newEngine = STTEngineFactory.create(modelId: sttModelId)
-            sttEngine = newEngine
-            try await newEngine.loadModel(progressHandler: onSTTProgress)
-            NSLog("[TranscriptionExecutor] ✅ STT loaded")
-        }
 
         // LLM — read inference framework from settings
         let settings = await MainActor.run { DataManager.shared.fetchSettings() }
@@ -82,7 +69,6 @@ actor TranscriptionExecutor {
         let ollamaModelName = settings.ollamaModelName
         let llamacppModelId = settings.llamacppModelId
 
-        // Determine the effective model ID based on framework
         let effectiveLLMId: String
         switch framework {
         case .mlx:      effectiveLLMId = llmModelId
@@ -90,7 +76,6 @@ actor TranscriptionExecutor {
         case .ollama:   effectiveLLMId = ollamaModelName
         }
 
-        // Reload if: no engine, not loaded, model changed, or framework changed
         let currentFramework: LLMInferenceFramework? = {
             if llmEngine is MLXEngine { return .mlx }
             if llmEngine is LlamaCppEngine { return .llamacpp }
@@ -100,26 +85,82 @@ actor TranscriptionExecutor {
         let frameworkChanged = currentFramework != framework
         let needsLLMReload = llmEngine == nil || !llmEngine!.isLoaded
             || llmEngine!.modelId != effectiveLLMId || frameworkChanged
+
+        // Prepare engines that need reloading (unload old ones, create new instances)
+        var newSTTEngine: (any STTEngine)?
+        if needsSTTReload {
+            if let existing = sttEngine, existing.isLoaded {
+                NSLog("[TranscriptionExecutor] STT model changed: \(existing.modelInfo.id) → \(sttModelId)")
+                existing.unloadModel()
+            }
+            newSTTEngine = STTEngineFactory.create(modelId: sttModelId)
+            sttEngine = newSTTEngine
+        }
+
+        var newLLMEngine: (any LLMEngine)?
         if needsLLMReload {
             if let existing = llmEngine, existing.isLoaded {
                 NSLog("[TranscriptionExecutor] LLM model changed: \(existing.modelId ?? "?") → \(effectiveLLMId) (framework: \(framework.rawValue))")
                 existing.unloadModel()
             }
-            await onStatus("Loading language model...")
-            NSLog("[TranscriptionExecutor] Loading LLM: \(effectiveLLMId) via \(framework.rawValue)")
-
             let engine = LLMEngineFactory.create(framework: framework, ollamaEndpoint: ollamaEndpoint)
-            // For Ollama and llama.cpp: set the MLX registry model ID so the
-            // prompt builder uses the same family/size tier as MLX, producing
-            // identical prompts regardless of inference framework.
             if let ollamaEngine = engine as? OllamaEngine {
                 ollamaEngine.promptModelId = llmModelId
             } else if let llamaCppEngine = engine as? LlamaCppEngine {
                 llamaCppEngine.promptModelId = llmModelId
             }
+            newLLMEngine = engine
+        }
+
+        // Launch both model loads in parallel when both need reloading.
+        // STT uses ANE/GPU, LLM uses GPU — they can load concurrently.
+        if let sttEng = newSTTEngine, let llmEng = newLLMEngine {
+            await onStatus("Loading models...")
+            NSLog("[TranscriptionExecutor] Loading STT + LLM in parallel: \(sttModelId), \(effectiveLLMId)")
+
+            async let sttLoad: Void = sttEng.loadModel(progressHandler: onSTTProgress)
+            async let llmLoad: Result<Void, Error> = {
+                do {
+                    try await llmEng.loadModel(id: effectiveLLMId, progressHandler: onLLMProgress)
+                    return .success(())
+                } catch {
+                    return .failure(error)
+                }
+            }()
+
+            // STT is critical — let it throw
+            try await sttLoad
+            NSLog("[TranscriptionExecutor] ✅ STT loaded")
+
+            // LLM failure is non-fatal — recording works without cleanup
+            switch await llmLoad {
+            case .success:
+                llmEngine = llmEng
+                NSLog("[TranscriptionExecutor] ✅ LLM loaded via \(framework.rawValue)")
+            case .failure(let error):
+                llmEngine = nil
+                NSLog("[TranscriptionExecutor] ⚠️ LLM failed: \(error)")
+                let errorHint: String
+                switch framework {
+                case .ollama: errorHint = "Is Ollama running?"
+                case .llamacpp: errorHint = "GGUF model download may have failed."
+                case .mlx: errorHint = "Recording still works without cleanup."
+                }
+                await onStatus("Cleanup model unavailable — \(errorHint)")
+            }
+        } else if let sttEng = newSTTEngine {
+            // Only STT needs reloading
+            await onStatus("Loading speech model...")
+            NSLog("[TranscriptionExecutor] Loading STT: \(sttModelId)")
+            try await sttEng.loadModel(progressHandler: onSTTProgress)
+            NSLog("[TranscriptionExecutor] ✅ STT loaded")
+        } else if let llmEng = newLLMEngine {
+            // Only LLM needs reloading
+            await onStatus("Loading language model...")
+            NSLog("[TranscriptionExecutor] Loading LLM: \(effectiveLLMId) via \(framework.rawValue)")
             do {
-                try await engine.loadModel(id: effectiveLLMId, progressHandler: onLLMProgress)
-                llmEngine = engine
+                try await llmEng.loadModel(id: effectiveLLMId, progressHandler: onLLMProgress)
+                llmEngine = llmEng
                 NSLog("[TranscriptionExecutor] ✅ LLM loaded via \(framework.rawValue)")
             } catch {
                 llmEngine = nil
@@ -157,6 +198,7 @@ actor TranscriptionExecutor {
 
     func startStreaming(
         audioSamplesProvider: @escaping () -> [Float],
+        audioSampleCountProvider: (() -> Int)? = nil,
         language: String,
         onUpdate: @escaping (StreamingTranscriptionUpdate) -> Void
     ) async throws {
@@ -166,6 +208,7 @@ actor TranscriptionExecutor {
         }
         try await streaming.startStreaming(
             audioSamplesProvider: audioSamplesProvider,
+            audioSampleCountProvider: audioSampleCountProvider,
             language: language,
             onUpdate: onUpdate
         )

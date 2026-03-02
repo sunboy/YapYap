@@ -55,6 +55,7 @@ protocol StreamingSTTEngine: STTEngine {
 
     func startStreaming(
         audioSamplesProvider: @escaping () -> [Float],
+        audioSampleCountProvider: (() -> Int)?,
         language: String,
         onUpdate: @escaping (StreamingTranscriptionUpdate) -> Void
     ) async throws
