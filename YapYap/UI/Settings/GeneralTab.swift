@@ -17,6 +17,7 @@ struct GeneralTab: View {
     @State private var historyLimit = "Last 100"
     @State private var micOptions: [String] = ["Default"]
     @State private var didLoadSettings = false
+    @State private var sttMode: String = "streaming"
 
     private let positions = ["Bottom center", "Bottom left", "Bottom right", "Top center"]
     private let historyOptions = ["Last 50", "Last 100", "Last 500", "Keep all", "Don't save"]
@@ -49,6 +50,17 @@ struct GeneralTab: View {
                 .padding(.bottom, 8)
 
             toggleRow(label: "Detailed prompts for small models", subtitle: "Use 3B+ model prompts on ≤1B models (may reduce accuracy)", isOn: $experimentalPrompts)
+
+            divider
+
+            Text("TRANSCRIPTION MODE")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.ypText2)
+                .tracking(0.8)
+                .padding(.bottom, 8)
+
+            sttModePicker
+                .padding(.bottom, 16)
 
             divider
 
@@ -104,6 +116,10 @@ struct GeneralTab: View {
             let micId = newValue == "Default" ? nil : newValue
             saveSettings { $0.microphoneId = micId }
         }
+        .onChange(of: sttMode) { _, newValue in
+            guard didLoadSettings else { return }
+            saveSettings { $0.sttMode = newValue }
+        }
     }
 
     private func enumerateMicrophones() {
@@ -130,6 +146,7 @@ struct GeneralTab: View {
         experimentalPrompts = settings.experimentalPrompts
         floatingBarPosition = settings.floatingBarPosition
         historyLimit = intToHistoryLimit(settings.historyLimit)
+        sttMode = settings.sttMode ?? "streaming"
 
         // Load saved mic selection
         if let micId = settings.microphoneId, micOptions.contains(micId) {
@@ -164,6 +181,33 @@ struct GeneralTab: View {
         case 0: return "Don't save"
         default: return "Last 100"
         }
+    }
+
+    private var sttModePicker: some View {
+        HStack(spacing: 8) {
+            sttModePill(mode: "streaming", title: "Streaming", subtitle: "Live preview while recording")
+            sttModePill(mode: "batch",     title: "Batch",     subtitle: "Fastest — no live preview")
+        }
+    }
+
+    private func sttModePill(mode: String, title: String, subtitle: String) -> some View {
+        let isSelected = sttMode == mode
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                .foregroundColor(isSelected ? .ypLavender : .ypText2)
+            Text(subtitle)
+                .font(.system(size: 10))
+                .foregroundColor(isSelected ? .ypLavender.opacity(0.8) : .ypText3)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSelected ? Color.ypPillLavender : Color.ypCard)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1))
+        .cornerRadius(8)
+        .contentShape(Rectangle())
+        .onTapGesture { sttMode = mode }
     }
 
     private func toggleRow(label: String, subtitle: String, isOn: Binding<Bool>) -> some View {

@@ -271,27 +271,32 @@ class TranscriptionPipeline {
         }
         audioCapture.startDeviceChangeMonitoring()
 
-        // Start streaming STT if the engine supports it
-        let isStreaming = await executor.isStreaming
-        if !isStreaming {
-            let hasStreamingSupport = await executor.streamingEngine != nil
-            if hasStreamingSupport {
-                try await executor.startStreaming(
-                    audioSamplesProvider: { [weak self] in
-                        self?.audioCapture.currentAudioSamples() ?? []
-                    },
-                    audioSampleCountProvider: { [weak self] in
-                        self?.audioCapture.currentAudioSampleCount() ?? 0
-                    },
-                    language: settings.language,
-                    onUpdate: { [weak self] update in
-                        Task { @MainActor in
-                            self?.appState.partialTranscription = update.currentText.isEmpty ? nil : update.currentText
+        // Start streaming STT if the engine supports it and mode is not batch
+        let isBatchMode = (settings.sttMode ?? "streaming") == "batch"
+        if !isBatchMode {
+            let isStreaming = await executor.isStreaming
+            if !isStreaming {
+                let hasStreamingSupport = await executor.streamingEngine != nil
+                if hasStreamingSupport {
+                    try await executor.startStreaming(
+                        audioSamplesProvider: { [weak self] in
+                            self?.audioCapture.currentAudioSamples() ?? []
+                        },
+                        audioSampleCountProvider: { [weak self] in
+                            self?.audioCapture.currentAudioSampleCount() ?? 0
+                        },
+                        language: settings.language,
+                        onUpdate: { [weak self] update in
+                            Task { @MainActor in
+                                self?.appState.partialTranscription = update.currentText.isEmpty ? nil : update.currentText
+                            }
                         }
-                    }
-                )
-                NSLog("[TranscriptionPipeline] Streaming STT started")
+                    )
+                    NSLog("[TranscriptionPipeline] Streaming STT started")
+                }
             }
+        } else {
+            NSLog("[TranscriptionPipeline] Batch mode: skipping streaming STT")
         }
     }
 
@@ -702,10 +707,29 @@ class TranscriptionPipeline {
 
         // Check for known example phrases from few-shot prompts
         let exampleMarkers = [
+            // benchmark outputs (PromptTemplates.Examples.benchmark)
             "I was thinking we should meet on Tuesday",
             "Can you grab the spreadsheet from the shared folder",
             "I told her we should move the meeting to Thursday",
             "The package got delivered to the wrong address",
+            "Open the `@main.py` file.",
+            "I need to buy:",
+            "Plan a birthday party for Isha.",
+            "Brainstorm ideas for a blog post.",
+            "Draft an email to the team.",
+            "Write a summary of the meeting.",
+            "Check the `@constants.ts` file.",
+            "I think the bug is in `@user_controller.py` line 45.",
+            "I told her we should move the meeting to Thursday because everyone is busy on Wednesday.",
+            "We need to pick up the flowers before the party starts at 5.",
+            // mediumEmail output
+            "Hi Sarah,",
+            // mediumCodeEditor outputs
+            "Can you update the handleSubmit function in auth.ts",
+            "Run npm run build, then push to origin main with --force.",
+            // mediumSocial outputs
+            "Just shipped the new feature",
+            "Great work @teamname",
         ]
         for marker in exampleMarkers {
             if cleaned.contains(marker), !input.lowercased().contains(marker.lowercased().prefix(20)) {

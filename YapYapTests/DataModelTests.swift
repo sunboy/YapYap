@@ -80,6 +80,19 @@ final class DataModelTests: XCTestCase {
         XCTAssertNotNil(stats.date)
     }
 
+    // MARK: - sttMode
+
+    func testSTTModeDefaultIsNil() {
+        let s = AppSettings()
+        XCTAssertNil(s.sttMode)
+        XCTAssertEqual(s.sttMode ?? "streaming", "streaming")
+    }
+
+    func testSTTModeBatchRoundTrip() {
+        let s = AppSettings(sttMode: "batch")
+        XCTAssertEqual(s.sttMode, "batch")
+    }
+
     // MARK: - PowerModeRule
 
     func testPowerModeRuleInit() {

@@ -39,6 +39,9 @@ final class AppSettings {
     var llamacppModelId: String
     /// Word count threshold below which LLM cleanup is skipped (fast path). Default 20.
     var llmSkipWordThreshold: Int
+    /// STT pipeline mode: "streaming" (live preview) or "batch" (fastest, no preview).
+    /// Optional for SwiftData migration — nil treated as "streaming".
+    var sttMode: String?
 
     init(
         sttModelId: String = "whisper-small",
@@ -69,7 +72,8 @@ final class AppSettings {
         ollamaEndpoint: String = OllamaEngine.defaultEndpoint,
         ollamaModelName: String = "qwen2.5:1.5b",
         llamacppModelId: String = GGUFModelRegistry.recommendedModel.id,
-        llmSkipWordThreshold: Int = 20
+        llmSkipWordThreshold: Int = 20,
+        sttMode: String? = nil
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -100,6 +104,7 @@ final class AppSettings {
         self.ollamaModelName = ollamaModelName
         self.llamacppModelId = llamacppModelId
         self.llmSkipWordThreshold = llmSkipWordThreshold
+        self.sttMode = sttMode
     }
 
     static func defaults() -> AppSettings {

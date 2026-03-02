@@ -186,7 +186,10 @@ class LlamaCppEngine: LLMEngine {
         let elapsed = Date().timeIntervalSince(startTime)
         let genMs = Date().timeIntervalSince(prefillTime) * 1000
         let tokPerSec = outputTokens.count > 0 ? Double(outputTokens.count) / (genMs / 1000) : 0
-        NSLog("[LlamaCppEngine] Generation: \(outputTokens.count) tokens in \(String(format: "%.0f", genMs))ms (\(String(format: "%.0f", tokPerSec)) tok/s), total \(String(format: "%.1f", elapsed))s")
+        let memWarning = tokPerSec < 5 ? " ⚠️ MEMORY PRESSURE — model likely swapped to disk" :
+                         tokPerSec < 20 ? " ⚠️ SLOW — possible memory pressure" : ""
+        NSLog("[LlamaCppEngine] Generation: %d tokens in %.0fms (%.0f tok/s), total %.1fs%@",
+              outputTokens.count, genMs, tokPerSec, elapsed, memWarning)
 
         let result = LLMOutputSanitizer.sanitize(outputText)
         NSLog("[LlamaCppEngine] Cleanup result (\(result.count) chars): \"\(String(result.prefix(80)))...\"")

@@ -19,9 +19,10 @@ class MLXEngine: LLMEngine {
     private var promptCachePrefixTokenCount: Int = 0
     private var promptCachePrefixKey: String?
 
-    /// BPE split validation cache: avoids triple-tokenizing every cleanup call.
-    /// The splitValid result is deterministic for a given prefix string — cache it.
-    private var bpeSplitValidCache: (prefix: String, valid: Bool, prefixTokens: [Int])?
+    /// Caches encoded prefix tokens to avoid re-encoding the static prefix each call.
+    private var prefixTokenCache: (prefix: String, tokens: [Int])?
+    /// Joint-encoded prefix slice stored for cache hit validation on the next call.
+    private var promptCacheJointPrefixSlice: [Int]?
 
 
     var isLoaded: Bool { lmContext != nil }
@@ -66,7 +67,8 @@ class MLXEngine: LLMEngine {
         promptCache = nil
         promptCachePrefixTokenCount = 0
         promptCachePrefixKey = nil
-        bpeSplitValidCache = nil
+        prefixTokenCache = nil
+        promptCacheJointPrefixSlice = nil
 
         // Set GPU cache limit to prevent Metal from freeing compute buffers between
         // inference calls. Without this, MLX deallocates Metal buffers after each
@@ -84,7 +86,8 @@ class MLXEngine: LLMEngine {
         promptCache = nil
         promptCachePrefixTokenCount = 0
         promptCachePrefixKey = nil
-        bpeSplitValidCache = nil
+        prefixTokenCache = nil
+        promptCacheJointPrefixSlice = nil
         lmContext = nil
         modelId = nil
     }
@@ -158,86 +161,61 @@ class MLXEngine: LLMEngine {
             family: family
         )
 
-        // Encode prefix and suffix tokens separately.
-        // The split is always at a newline boundary, so BPE produces identical
-        // tokens regardless of whether prefix and suffix are encoded together or apart.
-        // We validate this: if separate encoding differs from joint, fall back to joint.
-        //
-        // BPE split validation is cached per prefix string — the result is deterministic
-        // and the prefix is static per app context, so this avoids triple-tokenizing
-        // on every cleanup call (saves ~20-50ms).
+        // Encode prefix alone (cached) to know the split point, then tokenize
+        // prefix+suffix JOINTLY so BPE merges at the boundary are always captured.
+        // This eliminates the "BPE boundary mismatch" cache miss entirely.
         let prefixTokens: [Int]
-        let splitValid: Bool
-        if let cached = bpeSplitValidCache, cached.prefix == templatePrefix {
-            prefixTokens = cached.prefixTokens
-            splitValid = cached.valid
+        if let cached = prefixTokenCache, cached.prefix == templatePrefix {
+            prefixTokens = cached.tokens
         } else {
             prefixTokens = lmContext.tokenizer.encode(text: templatePrefix)
-            let suffixProbe = lmContext.tokenizer.encode(text: templateSuffix)
-            let jointProbe = lmContext.tokenizer.encode(text: templatePrefix + templateSuffix)
-            splitValid = (prefixTokens + suffixProbe == jointProbe)
-            bpeSplitValidCache = (templatePrefix, splitValid, prefixTokens)
+            prefixTokenCache = (templatePrefix, prefixTokens)
         }
-        let suffixTokens = lmContext.tokenizer.encode(text: templateSuffix)
 
-        // Prompt caching: reuse KV state from the static prefix if it hasn't changed.
-        // On cache hit, trim the saved cache to the prefix length and only prefill
-        // the suffix (rawText). This skips ~1000 tokens of prefill for medium models.
+        let jointTokens = lmContext.tokenizer.encode(text: templatePrefix + templateSuffix)
+        let splitPoint = min(prefixTokens.count, jointTokens.count)
+        let jointPrefixSlice = Array(jointTokens[0..<splitPoint])
+        let totalTokenCount = jointTokens.count
+
+        NSLog("[MLXEngine] Joint encode: %d tokens (prefix: %d, suffix: %d) — prompt %.0f chars",
+              jointTokens.count, splitPoint, jointTokens.count - splitPoint,
+              Double((templatePrefix + templateSuffix).count))
+
         let cache: [any KVCache]
         let inputTokens: [Int]
-        let totalTokenCount: Int
 
-        if !splitValid {
-            // BPE boundary mismatch: separate encoding differs from joint.
-            // This means a BPE merge spans the split point. Disable caching for safety.
-            // Must use actual joint encoding here since prefix+suffix tokens differ.
-            let jointTokens = lmContext.tokenizer.encode(text: templatePrefix + templateSuffix)
-            totalTokenCount = jointTokens.count
-            cache = lmContext.model.newCache(parameters: nil)
-            inputTokens = jointTokens
-            promptCache = nil
-            NSLog("[MLXEngine] BPE boundary mismatch (split: %d, joint: %d) — caching disabled, full prefill %d tokens",
-                  prefixTokens.count + suffixTokens.count, jointTokens.count, totalTokenCount)
-        } else if let existingCache = promptCache,
-                  promptCachePrefixKey == templatePrefix,
-                  promptCachePrefixTokenCount == prefixTokens.count {
-            // Cache hit: trim back to prefix length, feed only suffix tokens.
-            // trim(_:) REMOVES n tokens from the cache (decrements offset by n).
-            // We remove everything past the prefix: offset - prefixTokenCount tokens.
-            totalTokenCount = prefixTokens.count + suffixTokens.count
+        if let existingCache = promptCache,
+           promptCachePrefixKey == templatePrefix,
+           promptCachePrefixTokenCount == splitPoint,
+           jointPrefixSlice == (promptCacheJointPrefixSlice ?? []) {
+            // Cache hit — trim to prefix, prefill only suffix
             var trimmed = true
             for c in existingCache {
                 if c.isTrimmable {
-                    let tokensToRemove = c.offset - promptCachePrefixTokenCount
-                    if tokensToRemove > 0 {
-                        c.trim(tokensToRemove)
-                    }
-                } else {
-                    trimmed = false
-                    break
-                }
+                    let tokensToRemove = c.offset - splitPoint
+                    if tokensToRemove > 0 { c.trim(tokensToRemove) }
+                } else { trimmed = false; break }
             }
             if trimmed {
                 cache = existingCache
-                inputTokens = suffixTokens
-                NSLog("[MLXEngine] Prompt cache HIT — skipping %d prefix tokens, prefilling %d suffix tokens", prefixTokens.count, suffixTokens.count)
+                inputTokens = Array(jointTokens[splitPoint...])
+                NSLog("[MLXEngine] Prompt cache HIT — skipping %d prefix tokens, prefilling %d suffix tokens",
+                      splitPoint, inputTokens.count)
             } else {
-                // Cache not trimmable, fall back to full prefill
                 cache = lmContext.model.newCache(parameters: nil)
-                inputTokens = prefixTokens + suffixTokens
+                inputTokens = jointTokens
                 NSLog("[MLXEngine] Prompt cache not trimmable — full prefill %d tokens", totalTokenCount)
             }
         } else {
-            // Cache miss: new prefix, full prefill
-            totalTokenCount = prefixTokens.count + suffixTokens.count
+            // Cache miss
             cache = lmContext.model.newCache(parameters: nil)
-            inputTokens = prefixTokens + suffixTokens
-            NSLog("[MLXEngine] Prompt cache MISS — full prefill %d tokens (prefix: %d, suffix: %d)", totalTokenCount, prefixTokens.count, suffixTokens.count)
+            inputTokens = jointTokens
+            NSLog("[MLXEngine] Prompt cache MISS — full prefill %d tokens (prefix: %d)", totalTokenCount, splitPoint)
         }
 
         let input = LMInput(tokens: MLXArray(inputTokens))
 
-        NSLog("[MLXEngine] Prompt: \(totalTokenCount) tokens, suffix: \(suffixTokens.count) tokens, family: \(family.rawValue)")
+        NSLog("[MLXEngine] Prompt: \(totalTokenCount) tokens, suffix: \(jointTokens.count - splitPoint) tokens, family: \(family.rawValue)")
 
         let parameters = GenerateParameters(
             maxTokens: nil,
@@ -272,7 +250,10 @@ class MLXEngine: LLMEngine {
                 if firstTokenTime == nil {
                     firstTokenTime = Date()
                     let prefillMs = firstTokenTime!.timeIntervalSince(startTime) * 1000
-                    NSLog("[MLXEngine] Prefill: \(String(format: "%.0f", prefillMs))ms (\(inputTokens.count) tokens, \(totalTokenCount) total)")
+                    let prefillTokPerSec = prefillMs > 0 ? Double(inputTokens.count) / (prefillMs / 1000) : 0
+                    let prefillWarning = prefillTokPerSec < 50 ? " ⚠️ SLOW PREFILL" : ""
+                    NSLog("[MLXEngine] Prefill: %.0fms (%d tokens, %.0f tok/s)%@",
+                          prefillMs, inputTokens.count, prefillTokPerSec, prefillWarning)
                 }
                 outputText += text
                 // Only scan the tail of outputText for stop sequences (O(1) per token)
@@ -291,7 +272,11 @@ class MLXEngine: LLMEngine {
             case .info(let info):
                 let elapsed = Date().timeIntervalSince(startTime)
                 let genMs = firstTokenTime.map { Date().timeIntervalSince($0) * 1000 } ?? 0
-                NSLog("[MLXEngine] Generation: \(info.generationTokenCount) tokens in \(String(format: "%.0f", genMs))ms (\(String(format: "%.0f", info.tokensPerSecond)) tok/s), total \(String(format: "%.1f", elapsed))s")
+                let genTokPerSec = info.tokensPerSecond
+                let memWarning = genTokPerSec < 5 ? " ⚠️ MEMORY PRESSURE — model likely swapped to disk" :
+                                 genTokPerSec < 20 ? " ⚠️ SLOW — possible memory pressure" : ""
+                NSLog("[MLXEngine] Generation: %d tokens in %.0fms (%.0f tok/s), total %.1fs%@",
+                      info.generationTokenCount, genMs, genTokPerSec, elapsed, memWarning)
             default:
                 break
             }
@@ -300,12 +285,11 @@ class MLXEngine: LLMEngine {
         // Save cache for next call. The cache now contains KV state for
         // prefix + suffix + generated tokens. On next call, we'll trim it
         // back to just the prefix if the prefix hasn't changed.
-        // Only save when BPE split is valid — otherwise the cache can never be reused.
-        if splitValid {
-            promptCache = cache
-            promptCachePrefixTokenCount = prefixTokens.count
-            promptCachePrefixKey = templatePrefix
-        }
+        // Always save — BPE boundary no longer causes invalid cache state.
+        promptCache = cache
+        promptCachePrefixTokenCount = splitPoint
+        promptCachePrefixKey = templatePrefix
+        promptCacheJointPrefixSlice = jointPrefixSlice
 
         let result = LLMOutputSanitizer.sanitize(outputText)
         NSLog("[MLXEngine] Cleanup result (\(result.count) chars): \"\(String(result.prefix(80)))...\"")

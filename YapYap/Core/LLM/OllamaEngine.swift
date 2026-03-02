@@ -112,7 +112,9 @@ class OllamaEngine: LLMEngine {
             temperature: 0.0
         )
         let elapsed = Date().timeIntervalSince(startTime)
-        NSLog("[OllamaEngine] Cleanup completed in \(String(format: "%.1f", elapsed))s, result: \(result.count) chars")
+        let outputWords = result.split(separator: " ").count
+        NSLog("[OllamaEngine] Cleanup completed in %.1fs (~%d words, %.0f ms/word)",
+              elapsed, outputWords, outputWords > 0 ? elapsed * 1000 / Double(outputWords) : 0)
 
         let sanitized = LLMOutputSanitizer.sanitize(result)
         NSLog("[OllamaEngine] Cleanup result (\(sanitized.count) chars): \"\(String(sanitized.prefix(80)))...\"")
