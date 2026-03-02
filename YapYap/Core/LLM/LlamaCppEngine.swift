@@ -54,7 +54,7 @@ class LlamaCppEngine: LLMEngine {
         var ctxParams = llama_context_default_params()
         ctxParams.n_ctx = 2048       // Context window sufficient for cleanup
         ctxParams.n_batch = 512      // Batch size for prompt processing
-        ctxParams.n_threads = UInt32(max(1, ProcessInfo.processInfo.processorCount - 2))
+        ctxParams.n_threads = Int32(max(1, ProcessInfo.processInfo.processorCount - 2))
 
         guard let ctx = llama_init_from_model(loadedModel, ctxParams) else {
             llama_model_free(loadedModel)
@@ -81,20 +81,18 @@ class LlamaCppEngine: LLMEngine {
     }
 
     func warmup() async {
-        guard let model = model, let context = context else { return }
-        do {
-            let startTime = Date()
-            // Tokenize a minimal prompt and run one decode step
-            let tokens = tokenize("Hello", addSpecial: true)
-            guard !tokens.isEmpty else { return }
+        guard model != nil, let context = context else { return }
+        let startTime = Date()
+        // Tokenize a minimal prompt and run one decode step
+        let tokens = tokenize("Hello", addSpecial: true)
+        guard !tokens.isEmpty else { return }
 
-            let batch = llama_batch_get_one(UnsafeMutablePointer(mutating: tokens), Int32(tokens.count))
-            llama_decode(context, batch)
-            llama_kv_cache_clear(context)
+        let batch = llama_batch_get_one(UnsafeMutablePointer(mutating: tokens), Int32(tokens.count))
+        llama_decode(context, batch)
+        llama_memory_clear(llama_get_memory(context), true)
 
-            let elapsed = Date().timeIntervalSince(startTime) * 1000
-            NSLog("[LlamaCppEngine] Keep-alive warmup complete (\(String(format: "%.0f", elapsed))ms)")
-        }
+        let elapsed = Date().timeIntervalSince(startTime) * 1000
+        NSLog("[LlamaCppEngine] Keep-alive warmup complete (\(String(format: "%.0f", elapsed))ms)")
     }
 
     func cleanup(rawText: String, context cleanupContext: CleanupContext) async throws -> String {
@@ -130,7 +128,7 @@ class LlamaCppEngine: LLMEngine {
         NSLog("[LlamaCppEngine] Prompt: \(tokens.count) tokens, maxOutput: \(maxOutputTokens)")
 
         // Clear KV cache for fresh inference
-        llama_kv_cache_clear(context)
+        llama_memory_clear(llama_get_memory(context), true)
 
         // Decode prompt (prefill)
         let startTime = Date()
@@ -257,7 +255,7 @@ class LlamaCppEngine: LLMEngine {
         var buf = [CChar](repeating: 0, count: 8192)
         let result = chatMessages.withUnsafeBufferPointer { messagesPtr in
             llama_chat_apply_template(
-                llama_model_get_template(model),
+                llama_model_chat_template(model, nil),
                 messagesPtr.baseAddress,
                 messagesPtr.count,
                 true,  // add generation prompt
@@ -266,7 +264,7 @@ class LlamaCppEngine: LLMEngine {
             )
         }
 
-        if result > 0 && result < buf.count {
+        if result > 0 && Int(result) < buf.count {
             return String(cString: buf.prefix(Int(result)) + [0])
         }
 
@@ -279,33 +277,52 @@ class LlamaCppEngine: LLMEngine {
     // MARK: - GGUF Download
 
     private func downloadGGUF(from url: URL, to destination: URL, progressHandler: @escaping (Double) -> Void) async throws {
-        let (tempURL, response) = try await URLSession.shared.download(from: url, delegate: DownloadProgressDelegate(handler: progressHandler))
+        // Use bytes(from:) for streaming download with progress tracking
+        let (bytes, response) = try await URLSession.shared.bytes(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw LlamaCppError.downloadFailed(url.absoluteString)
         }
 
-        // Move downloaded file to destination
+        let expectedLength = httpResponse.expectedContentLength  // -1 if unknown
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".gguf")
+
+        // Stream bytes to a temp file, reporting progress
+        FileManager.default.createFile(atPath: tempURL.path, contents: nil)
+        let fileHandle = try FileHandle(forWritingTo: tempURL)
+        defer { try? fileHandle.close() }
+
+        var bytesReceived: Int64 = 0
+        let chunkSize = 1024 * 256  // 256KB buffer
+        var buffer = Data()
+        buffer.reserveCapacity(chunkSize)
+
+        for try await byte in bytes {
+            buffer.append(byte)
+            if buffer.count >= chunkSize {
+                fileHandle.write(buffer)
+                bytesReceived += Int64(buffer.count)
+                buffer.removeAll(keepingCapacity: true)
+                if expectedLength > 0 {
+                    progressHandler(Double(bytesReceived) / Double(expectedLength))
+                }
+            }
+        }
+
+        // Write remaining bytes
+        if !buffer.isEmpty {
+            fileHandle.write(buffer)
+            bytesReceived += Int64(buffer.count)
+        }
+        try fileHandle.close()
+        progressHandler(1.0)
+
+        // Move to final destination
         if FileManager.default.fileExists(atPath: destination.path) {
             try FileManager.default.removeItem(at: destination)
         }
         try FileManager.default.moveItem(at: tempURL, to: destination)
-        NSLog("[LlamaCppEngine] Downloaded GGUF to \(destination.path)")
-    }
-}
-
-// MARK: - Download Progress Delegate
-
-private final class DownloadProgressDelegate: NSObject, URLSessionTaskDelegate {
-    let handler: (Double) -> Void
-
-    init(handler: @escaping (Double) -> Void) {
-        self.handler = handler
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
-        // This delegate method is for uploads, not downloads.
-        // Download progress is reported via URLSessionDownloadDelegate.
+        NSLog("[LlamaCppEngine] Downloaded GGUF to \(destination.path) (\(bytesReceived) bytes)")
     }
 }
 
