@@ -19,6 +19,7 @@ class FloatingBarPanel: NSPanel {
         self.hasShadow = false
         self.hidesOnDeactivate = false
         self.isOpaque = false
+        self.acceptsMouseMovedEvents = true
     }
 
     // Never become key window (never steal focus)

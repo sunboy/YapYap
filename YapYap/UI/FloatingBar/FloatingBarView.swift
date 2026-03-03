@@ -13,118 +13,118 @@ struct FloatingBarView: View {
     @State private var isHovered: Bool = false
 
     var body: some View {
-        VStack(spacing: 6) {
-            // Hover tooltip — only when idle (not recording/loading/processing)
-            if isHovered && !appState.isRecording && !appState.isLoadingModels && !appState.isProcessing {
-                hoverTooltip
-            }
+        HStack(spacing: 6) {
+            // Creature - always visible, shows state through animation
+            CreatureView(state: appState.creatureState, size: 28)
 
-            // Clipboard paste hint
-            if appState.showClipboardPasteHint {
-                pasteHintBanner
-            }
+            // Contextual indicator next to creature
+            if appState.isLoadingModels {
+                // Use indeterminate spinner when progress is 0 (WhisperKit
+                // doesn't report incremental progress during download/ANE compile).
+                // Switch to determinate bar once real progress is reported.
+                if appState.modelLoadingProgress > 0 && appState.modelLoadingProgress < 1.0 {
+                    ProgressView(value: appState.modelLoadingProgress)
+                        .progressViewStyle(.linear)
+                        .frame(width: 48)
+                        .tint(Color.ypWarm)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(Color.ypWarm)
+                }
+                Text(appState.modelLoadingStatus.isEmpty ? "Loading…" : appState.modelLoadingStatus)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.ypText2)
+                    .lineLimit(1)
+                    .transition(.opacity)
+            } else if appState.isProcessing, let preview = appState.partialTranscription {
+                // Type-ahead preview: show raw STT text while LLM cleanup runs
+                Text(preview)
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundColor(.ypText2.opacity(0.7))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 200)
+                    .transition(.opacity)
 
-            // The pill
-            HStack(spacing: 6) {
-                // Creature - always visible, shows state through animation
-                CreatureView(state: appState.creatureState, size: 28)
-
-                // Contextual indicator next to creature
-                if appState.isLoadingModels {
-                    // Use indeterminate spinner when progress is 0 (WhisperKit
-                    // doesn't report incremental progress during download/ANE compile).
-                    // Switch to determinate bar once real progress is reported.
-                    if appState.modelLoadingProgress > 0 && appState.modelLoadingProgress < 1.0 {
-                        ProgressView(value: appState.modelLoadingProgress)
-                            .progressViewStyle(.linear)
-                            .frame(width: 48)
-                            .tint(Color.ypWarm)
-                    } else {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(Color.ypWarm)
-                    }
-                    Text(appState.modelLoadingStatus.isEmpty ? "Loading…" : appState.modelLoadingStatus)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(.ypText2)
-                        .lineLimit(1)
-                        .transition(.opacity)
-                } else if appState.isProcessing, let preview = appState.partialTranscription {
-                    // Type-ahead preview: show raw STT text while LLM cleanup runs
-                    Text(preview)
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(Color.ypWarm)
+            } else if appState.isRecording {
+                if let liveText = appState.partialTranscription {
+                    // Streaming STT: show live transcription text
+                    Text(liveText)
                         .font(.system(size: 10, weight: .regular))
                         .foregroundColor(.ypText2.opacity(0.7))
                         .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: 200)
+                        .truncationMode(.head)
+                        .frame(maxWidth: 180)
                         .transition(.opacity)
 
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(Color.ypWarm)
-                } else if appState.isRecording {
-                    if let liveText = appState.partialTranscription {
-                        // Streaming STT: show live transcription text
-                        Text(liveText)
-                            .font(.system(size: 10, weight: .regular))
-                            .foregroundColor(.ypText2.opacity(0.7))
-                            .lineLimit(1)
-                            .truncationMode(.head)
-                            .frame(maxWidth: 180)
-                            .transition(.opacity)
-
-                        // Small waveform indicator alongside
-                        WaveformView(rms: appState.currentRMS)
-                            .frame(width: 20, height: 12)
-                    } else {
-                        // Non-streaming: show full waveform + timer
-                        WaveformView(rms: appState.currentRMS)
-                            .frame(width: 36, height: 14)
-                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
-
-                        Text(formatTime(recordingSeconds))
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundColor(.ypText2)
-                            .transition(.opacity)
-                    }
-
-                    // Pulsing recording dot — always visible during recording
-                    Circle()
-                        .fill(Color.ypWarm)
-                        .frame(width: 5, height: 5)
-                        .opacity(dotPulse ? 1.0 : 0.25)
-                        .transition(.opacity)
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(red: 36/255, green: 33/255, blue: 46/255).opacity(0.8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(Color.ypWarm.opacity(0.12), lineWidth: 1)
-                    )
-            )
-            .fixedSize()
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
-            }
-            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isRecording)
-            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
-            .animation(.easeInOut(duration: 0.3), value: appState.isLoadingModels)
-            .animation(.easeInOut(duration: 0.2), value: appState.partialTranscription != nil)
-            .onChange(of: appState.isRecording) { _, isRecording in
-                if isRecording {
-                    startTimer()
+                    // Small waveform indicator alongside
+                    WaveformView(rms: appState.currentRMS)
+                        .frame(width: 20, height: 12)
                 } else {
-                    stopTimer()
+                    // Non-streaming: show full waveform + timer
+                    WaveformView(rms: appState.currentRMS)
+                        .frame(width: 36, height: 14)
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+
+                    Text(formatTime(recordingSeconds))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.ypText2)
+                        .transition(.opacity)
                 }
+
+                // Pulsing recording dot — always visible during recording
+                Circle()
+                    .fill(Color.ypWarm)
+                    .frame(width: 5, height: 5)
+                    .opacity(dotPulse ? 1.0 : 0.25)
+                    .transition(.opacity)
             }
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(red: 36/255, green: 33/255, blue: 46/255).opacity(0.8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.ypWarm.opacity(0.12), lineWidth: 1)
+                )
+        )
         .fixedSize()
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
+        }
+        .overlay(alignment: .top) {
+            // Labels float above the pill via overlay + offset, so the pill's
+            // own size never changes and the hosting view constraints stay stable.
+            VStack(spacing: 4) {
+                if isHovered && !appState.isRecording && !appState.isLoadingModels && !appState.isProcessing {
+                    hoverTooltip
+                }
+                if appState.showClipboardPasteHint {
+                    pasteHintBanner
+                }
+            }
+            .fixedSize()
+            .offset(y: -36)  // float above the pill (pill height ~38px, plus gap)
+        }
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isRecording)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
+        .animation(.easeInOut(duration: 0.3), value: appState.isLoadingModels)
+        .animation(.easeInOut(duration: 0.2), value: appState.partialTranscription != nil)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .animation(.easeInOut(duration: 0.3), value: appState.showClipboardPasteHint)
+        .onChange(of: appState.isRecording) { _, isRecording in
+            if isRecording {
+                startTimer()
+            } else {
+                stopTimer()
+            }
+        }
     }
 
     private var hoverTooltip: some View {
@@ -212,6 +212,7 @@ struct FloatingBarView: View {
 /// the compositing is correct.
 class TransparentHostingView<Content: View>: NSView {
     let hostingView: NSHostingView<Content>
+    private var trackingArea: NSTrackingArea?
 
     init(rootView: Content) {
         hostingView = NSHostingView(rootView: rootView)
@@ -234,6 +235,39 @@ class TransparentHostingView<Content: View>: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea {
+            removeTrackingArea(existing)
+        }
+        let options: NSTrackingArea.Options = [
+            .mouseEnteredAndExited,
+            .mouseMoved,
+            .activeAlways,
+            .inVisibleRect
+        ]
+        let area = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        hostingView.mouseEntered(with: event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        hostingView.mouseMoved(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        hostingView.mouseExited(with: event)
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
