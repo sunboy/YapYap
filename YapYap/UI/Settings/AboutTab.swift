@@ -2,7 +2,9 @@ import SwiftUI
 import Sparkle
 
 struct AboutTab: View {
-    private let updater = (NSApp.delegate as? AppDelegate)?.updaterController.updater
+    private var updater: SPUUpdater? {
+        (NSApp.delegate as? AppDelegate)?.updaterController.updater
+    }
 
     var body: some View {
         VStack(spacing: 0) {
