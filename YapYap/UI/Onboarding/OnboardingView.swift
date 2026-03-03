@@ -15,8 +15,12 @@ struct OnboardingView: View {
     @State private var selectedLLMModel = MachineProfile.current.recommendedMLXModelId
     @State private var loadingFailed = false
     @State private var accessibilityPollTask: Task<Void, Never>? = nil
+    @State private var selectedFramework: LLMInferenceFramework = .mlx
+    @State private var selectedGGUFModel: String = MachineProfile.current.recommendedGGUFModelId
+    @State private var onboardingOllamaModelName: String = MachineProfile.current.recommendedOllamaModelName
+    @State private var onboardingOllamaEndpoint: String = OllamaEngine.defaultEndpoint
 
-    private let totalSteps = 6
+    private let totalSteps = 7
 
     var body: some View {
         ZStack {
@@ -37,9 +41,10 @@ struct OnboardingView: View {
                     case 0: welcomeStep
                     case 1: microphoneStep
                     case 2: accessibilityStep
-                    case 3: modelSelectionStep
-                    case 4: loadingStep
-                    case 5: doneStep
+                    case 3: backendPickerStep
+                    case 4: modelSelectionStep
+                    case 5: loadingStep
+                    case 6: doneStep
                     default: EmptyView()
                     }
                 }
@@ -66,7 +71,7 @@ struct OnboardingView: View {
             case 2:
                 Permissions.requestAccessibilityPermission()
                 startAccessibilityPolling()
-            case 4:
+            case 5:
                 startModelLoading()
             default:
                 break
@@ -82,8 +87,9 @@ struct OnboardingView: View {
         case 1: return AmbientGlowBackground.onboardingMic
         case 2: return AmbientGlowBackground.onboardingAccess
         case 3: return AmbientGlowBackground.onboardingModels
-        case 4: return AmbientGlowBackground.onboardingLoading
-        case 5: return AmbientGlowBackground.onboardingDone
+        case 4: return AmbientGlowBackground.onboardingModels
+        case 5: return AmbientGlowBackground.onboardingLoading
+        case 6: return AmbientGlowBackground.onboardingDone
         default: return AmbientGlowBackground.onboardingWelcome
         }
     }
@@ -127,9 +133,16 @@ struct OnboardingView: View {
                 }
             }
         case 4:
+            HStack {
+                Spacer()
+                GlassPillButton(label: "Continue") {
+                    withAnimation { currentStep = 5 }
+                }
+            }
+        case 5:
             // No button — auto-advances; retry shown inline on failure
             EmptyView()
-        case 5:
+        case 6:
             HStack {
                 Spacer()
                 GlassPillButton(label: "Start Yapping") {
@@ -267,6 +280,98 @@ struct OnboardingView: View {
         }
     }
 
+    private var backendPickerStep: some View {
+        VStack(spacing: 16) {
+            Text("Choose Your AI Engine")
+                .font(.ypHeadingRounded)
+                .foregroundColor(.ypText1)
+
+            Text("Pick how YapYap runs its language model")
+                .font(.system(size: 12))
+                .foregroundColor(.ypText3)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 8) {
+                ForEach(LLMInferenceFramework.allCases, id: \.rawValue) { fw in
+                    onboardingFrameworkPill(fw)
+                }
+            }
+            .padding(.horizontal, 32)
+
+            frameworkNoteCard
+                .padding(.horizontal, 32)
+
+            if selectedFramework == .ollama {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Ollama Server URL")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.ypText2)
+                    TextField("http://localhost:11434", text: $onboardingOllamaEndpoint)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                }
+                .padding(.horizontal, 32)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            let profile = MachineProfile.current
+            HStack(spacing: 4) {
+                Image(systemName: "memorychip").font(.system(size: 10)).foregroundColor(.ypText4)
+                Text("Your Mac: \(profile.tierDescription), \(profile.cpuCoreCount) cores — MLX recommended for Apple Silicon")
+                    .font(.system(size: 10))
+                    .foregroundColor(.ypText4)
+            }
+            .padding(.horizontal, 32)
+        }
+        .animation(.easeInOut(duration: 0.2), value: selectedFramework)
+    }
+
+    private func onboardingFrameworkPill(_ framework: LLMInferenceFramework) -> some View {
+        let isSelected = selectedFramework == framework
+        return HStack(spacing: 4) {
+            Image(systemName: framework.iconName).font(.system(size: 10))
+            Text(framework.displayName)
+                .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+        }
+        .foregroundColor(isSelected ? .ypLavender : .ypText3)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(isSelected ? Color.ypLavender.opacity(0.15) : Color.white.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 8)
+            .stroke(isSelected ? Color.ypLavender : Color.white.opacity(0.1), lineWidth: 1))
+        .cornerRadius(8)
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { selectedFramework = framework } }
+    }
+
+    @ViewBuilder
+    private var frameworkNoteCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            switch selectedFramework {
+            case .mlx:
+                Text("Best for Apple Silicon Macs. Runs entirely in-process using Apple's ML framework. Recommended for most users.")
+                    .font(.system(size: 12)).foregroundColor(.ypText2)
+                Text("Requires downloading a model (~500MB–3GB)")
+                    .font(.system(size: 11)).foregroundColor(.ypText3)
+            case .llamacpp:
+                Text("Embedded GGUF inference. Works on any Mac including Intel. Slightly slower than MLX on Apple Silicon.")
+                    .font(.system(size: 12)).foregroundColor(.ypText2)
+                Text("Requires downloading a model (~500MB–3GB)")
+                    .font(.system(size: 11)).foregroundColor(.ypText3)
+            case .ollama:
+                Text("Run models via a local Ollama server. Install Ollama separately, then pull a model. Great for experimenting.")
+                    .font(.system(size: 12)).foregroundColor(.ypText2)
+                Text("Requires Ollama to be running at localhost:11434")
+                    .font(.system(size: 11)).foregroundColor(.ypText3)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.05))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        .cornerRadius(10)
+    }
+
     private var modelSelectionStep: some View {
         VStack(spacing: 12) {
             Text("Choose Your Models")
@@ -313,23 +418,53 @@ struct OnboardingView: View {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 12))
                                 .foregroundColor(.ypWarm)
-                            Text("Text Cleanup")
+                            Text("Text Cleanup (\(selectedFramework.displayName))")
                                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                                 .foregroundColor(.ypText1)
                         }
 
                         VStack(spacing: 6) {
-                            ForEach(LLMModelRegistry.allModels, id: \.id) { model in
-                                onboardingModelCard(
-                                    name: model.name,
-                                    size: model.sizeDescription,
-                                    description: model.description,
-                                    isRecommended: model.isRecommended,
-                                    isSelected: selectedLLMModel == model.id,
-                                    tint: .ypWarm
-                                ) {
-                                    selectedLLMModel = model.id
+                            switch selectedFramework {
+                            case .mlx:
+                                ForEach(LLMModelRegistry.allModels, id: \.id) { model in
+                                    onboardingModelCard(
+                                        name: model.name,
+                                        size: model.sizeDescription,
+                                        description: model.description,
+                                        isRecommended: model.isRecommended,
+                                        isSelected: selectedLLMModel == model.id,
+                                        tint: .ypWarm
+                                    ) {
+                                        selectedLLMModel = model.id
+                                    }
                                 }
+                            case .llamacpp:
+                                ForEach(GGUFModelRegistry.allModels, id: \.id) { model in
+                                    onboardingModelCard(
+                                        name: model.name,
+                                        size: model.sizeDescription,
+                                        description: model.description,
+                                        isRecommended: model.isRecommended,
+                                        isSelected: selectedGGUFModel == model.id,
+                                        tint: .ypWarm
+                                    ) {
+                                        selectedGGUFModel = model.id
+                                    }
+                                }
+                            case .ollama:
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Model name (from `ollama list`)")
+                                        .font(.system(size: 11, weight: .medium)).foregroundColor(.ypText2)
+                                    TextField("e.g. qwen2.5:1.5b", text: $onboardingOllamaModelName)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.system(size: 12, design: .monospaced))
+                                    Text("Must match an installed Ollama model tag.")
+                                        .font(.system(size: 10)).foregroundColor(.ypText4)
+                                }
+                                .padding(12)
+                                .background(Color.white.opacity(0.05))
+                                .cornerRadius(8)
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08), lineWidth: 1))
                             }
                         }
                     }
@@ -449,7 +584,7 @@ struct OnboardingView: View {
         }
         .onChange(of: appState.modelsReady) { _, ready in
             if ready {
-                withAnimation { currentStep = 5 }
+                withAnimation { currentStep = 6 }
             }
         }
         .onChange(of: appState.isLoadingModels) { _, loading in
@@ -570,14 +705,27 @@ struct OnboardingView: View {
     private func startModelLoading() {
         let settings = DataManager.shared.fetchSettings()
         let profile = MachineProfile.current
+
+        settings.llmInferenceFramework = selectedFramework.rawValue
         settings.sttModelId = selectedSTTModel
-        settings.llmModelId = selectedLLMModel
-        // Set the equivalent model for all other backends at the same tier,
-        // so switching inference framework in Settings gives a sensible default.
-        settings.llamacppModelId = profile.recommendedGGUFModelId
-        settings.ollamaModelName = profile.recommendedOllamaModelName
+
+        switch selectedFramework {
+        case .mlx:
+            settings.llmModelId = selectedLLMModel
+            settings.llamacppModelId = profile.recommendedGGUFModelId
+            settings.ollamaModelName = profile.recommendedOllamaModelName
+        case .llamacpp:
+            settings.llamacppModelId = selectedGGUFModel
+            settings.llmModelId = profile.recommendedMLXModelId
+            settings.ollamaModelName = profile.recommendedOllamaModelName
+        case .ollama:
+            settings.ollamaModelName = onboardingOllamaModelName
+            settings.ollamaEndpoint = onboardingOllamaEndpoint
+            settings.llmModelId = profile.recommendedMLXModelId
+            settings.llamacppModelId = profile.recommendedGGUFModelId
+        }
+
         try? DataManager.shared.container.mainContext.save()
-        print("[OnboardingView] Saved STT: \(selectedSTTModel), LLM (MLX): \(selectedLLMModel), LLM (GGUF): \(settings.llamacppModelId), LLM (Ollama): \(settings.ollamaModelName)")
 
         Task {
             do {
