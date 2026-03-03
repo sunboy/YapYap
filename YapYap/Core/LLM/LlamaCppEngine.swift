@@ -53,7 +53,7 @@ class LlamaCppEngine: LLMEngine {
         // Create inference context
         var ctxParams = llama_context_default_params()
         ctxParams.n_ctx = 2048       // Context window sufficient for cleanup
-        ctxParams.n_batch = 512      // Batch size for prompt processing
+        ctxParams.n_batch = 2048     // Must match n_ctx so full prompts can decode in one call
         ctxParams.n_threads = Int32(max(1, ProcessInfo.processInfo.processorCount - 2))
 
         guard let ctx = llama_init_from_model(loadedModel, ctxParams) else {
@@ -88,7 +88,10 @@ class LlamaCppEngine: LLMEngine {
         guard !tokens.isEmpty else { return }
 
         let batch = llama_batch_get_one(UnsafeMutablePointer(mutating: tokens), Int32(tokens.count))
-        llama_decode(context, batch)
+        let result = llama_decode(context, batch)
+        if result != 0 {
+            NSLog("[LlamaCppEngine] Warmup decode failed with code \(result)")
+        }
         llama_memory_clear(llama_get_memory(context), true)
 
         let elapsed = Date().timeIntervalSince(startTime) * 1000
@@ -115,13 +118,22 @@ class LlamaCppEngine: LLMEngine {
 
         // Apply chat template via llama.cpp's built-in template support
         let prompt = applyChatTemplate(system: messages.system, user: messages.user)
-        let tokens = tokenize(prompt, addSpecial: false)
+        var tokens = tokenize(prompt, addSpecial: false)
 
         guard !tokens.isEmpty else {
             throw LlamaCppError.tokenizationFailed
         }
 
-        NSLog("[LlamaCppEngine] Prompt: \(tokens.count) tokens")
+        // Guard against prompts that would overflow the context window.
+        // Reserve at least 256 tokens for generation output.
+        let contextSize = Int(llama_n_ctx(context))
+        let maxPromptTokens = contextSize - 256
+        if tokens.count > maxPromptTokens {
+            NSLog("[LlamaCppEngine] Prompt too long (%d tokens), truncating to %d to leave room for generation", tokens.count, maxPromptTokens)
+            tokens = Array(tokens.prefix(maxPromptTokens))
+        }
+
+        NSLog("[LlamaCppEngine] Prompt: \(tokens.count) tokens (context: \(contextSize))")
 
         // Clear KV cache for fresh inference
         llama_memory_clear(llama_get_memory(context), true)
@@ -148,12 +160,13 @@ class LlamaCppEngine: LLMEngine {
         // Temperature 0 = greedy decoding (best for text cleanup)
         llama_sampler_chain_add(sampler, llama_sampler_init_greedy())
 
-        // Generate tokens
+        // Generate tokens (cap at remaining context to avoid decode crash)
         let eosToken = llama_vocab_eos(llama_model_get_vocab(model))
+        let maxGenTokens = contextSize - tokens.count
         var outputTokens: [llama_token] = []
         var outputText = ""
 
-        while true {
+        while outputTokens.count < maxGenTokens {
             let newToken = llama_sampler_sample(sampler, context, -1)
 
             // Stop on EOS
