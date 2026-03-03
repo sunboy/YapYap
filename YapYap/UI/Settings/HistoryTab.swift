@@ -5,6 +5,8 @@ struct HistoryTab: View {
     @State private var transcriptions: [Transcription] = []
     @State private var selectedApp: String? = nil
     @State private var availableApps: [String] = []
+    @State private var selectedItem: Transcription? = nil
+    @State private var hoveredItem: UUID? = nil
 
     private let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -142,6 +144,9 @@ struct HistoryTab: View {
                 }
             }
         }
+        .sheet(item: $selectedItem) { item in
+            TranscriptionDetailSheet(item: item)
+        }
     }
 
     private func transcriptionRow(_ item: Transcription) -> some View {
@@ -184,6 +189,10 @@ struct HistoryTab: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .background(hoveredItem == item.id ? Color.ypCard2 : Color.clear)
+        .contentShape(Rectangle())
+        .onHover { isHovered in hoveredItem = isHovered ? item.id : nil }
+        .onTapGesture { selectedItem = item }
     }
 
     // MARK: - Helpers
@@ -261,5 +270,125 @@ struct HistoryTab: View {
             let apps = Set(transcriptions.compactMap { $0.sourceApp })
             availableApps = apps.sorted()
         }
+    }
+}
+
+private struct TranscriptionDetailSheet: View {
+    let item: Transcription
+    @Environment(\.dismiss) private var dismiss
+    @State private var copied = false
+
+    private let timestampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f
+    }()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(alignment: .center, spacing: 8) {
+                Text(appEmoji(for: item.sourceApp))
+                    .font(.system(size: 18))
+                Text(item.sourceApp ?? "Unknown")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.ypText1)
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.ypText3)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+
+            // Metadata
+            HStack(spacing: 10) {
+                Text(timestampFormatter.string(from: item.timestamp))
+                    .font(.system(size: 11))
+                    .foregroundColor(.ypText3)
+                if item.wordCount > 0 {
+                    Text("·").foregroundColor(.ypText4)
+                    Text("\(item.wordCount) words")
+                        .font(.system(size: 11))
+                        .foregroundColor(.ypText3)
+                }
+                if item.durationSeconds > 0 {
+                    Text("·").foregroundColor(.ypText4)
+                    Text(formatDuration(item.durationSeconds))
+                        .font(.system(size: 11))
+                        .foregroundColor(.ypText3)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
+
+            Divider().background(Color.ypBorderLight)
+
+            // Text + copy button overlay
+            ZStack(alignment: .topTrailing) {
+                ScrollView(.vertical, showsIndicators: true) {
+                    Text(item.cleanedText)
+                        .font(.system(size: 13))
+                        .foregroundColor(.ypText1)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(24)
+                }
+
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(item.cleanedText, forType: .string)
+                    withAnimation(.easeInOut(duration: 0.2)) { copied = true }
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        await MainActor.run {
+                            withAnimation(.easeInOut(duration: 0.2)) { copied = false }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 10))
+                        Text(copied ? "Copied" : "Copy")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(copied ? .ypMint : .ypLavender)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(RoundedRectangle(cornerRadius: 6)
+                        .fill(copied ? Color.ypMint.opacity(0.12) : Color.ypLavender.opacity(0.15)))
+                    .overlay(RoundedRectangle(cornerRadius: 6)
+                        .stroke(copied ? Color.ypMint.opacity(0.3) : Color.ypLavender.opacity(0.3), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 10)
+                .padding(.trailing, 14)
+            }
+        }
+        .frame(width: 560, height: 420)
+        .background(Color(hex: "262140"))
+    }
+
+    private func appEmoji(for appName: String?) -> String {
+        guard let name = appName?.lowercased() else { return "⚙️" }
+        if name.contains("message") || name.contains("whatsapp") || name.contains("telegram") || name.contains("signal") { return "💬" }
+        if name.contains("slack") || name.contains("teams") || name.contains("discord") { return "💼" }
+        if name.contains("mail") || name.contains("gmail") || name.contains("outlook") { return "✉️" }
+        if name.contains("xcode") || name.contains("code") || name.contains("cursor") || name.contains("windsurf") || name.contains("vim") { return "🖥️" }
+        if name.contains("safari") || name.contains("chrome") || name.contains("firefox") || name.contains("arc") { return "🌐" }
+        if name.contains("notion") || name.contains("obsidian") || name.contains("notes") || name.contains("pages") { return "📄" }
+        if name.contains("chatgpt") || name.contains("claude") || name.contains("perplexity") { return "🤖" }
+        return "⚙️"
+    }
+
+    private func formatDuration(_ seconds: Double) -> String {
+        let s = Int(seconds)
+        return s >= 60 ? "\(s / 60)m \(s % 60)s" : "\(s)s"
     }
 }
