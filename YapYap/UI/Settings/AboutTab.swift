@@ -2,9 +2,8 @@ import SwiftUI
 import Sparkle
 
 struct AboutTab: View {
-    private var updater: SPUUpdater? {
-        (NSApp.delegate as? AppDelegate)?.updaterController.updater
-    }
+    private let updaterController: SPUStandardUpdaterController? =
+        (NSApp.delegate as? AppDelegate)?.updaterController
 
     var body: some View {
         VStack(spacing: 0) {
@@ -54,7 +53,9 @@ struct AboutTab: View {
             }
             .padding(.bottom, 12)
 
-            Button(action: { updater?.checkForUpdates() }) {
+            Button(action: {
+                updaterController?.checkForUpdates(nil)
+            }) {
                 Text("Check for Updates")
                     .font(.system(size: 12, design: .rounded))
                     .foregroundColor(.ypText2)
@@ -64,7 +65,7 @@ struct AboutTab: View {
                     .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
             }
             .buttonStyle(.plain)
-            .disabled(updater?.canCheckForUpdates == false)
+            .disabled(updaterController?.updater.canCheckForUpdates == false)
             .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity)
