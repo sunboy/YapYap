@@ -1,6 +1,24 @@
 import SwiftUI
 import SwiftData
 
+// Shared helpers used by both HistoryTab and TranscriptionDetailSheet
+private func historyAppEmoji(for appName: String?) -> String {
+    guard let name = appName?.lowercased() else { return "⚙️" }
+    if name.contains("message") || name.contains("imessage") || name.contains("whatsapp") || name.contains("telegram") || name.contains("signal") { return "💬" }
+    if name.contains("slack") || name.contains("teams") || name.contains("discord") { return "💼" }
+    if name.contains("mail") || name.contains("gmail") || name.contains("outlook") { return "✉️" }
+    if name.contains("xcode") || name.contains("code") || name.contains("cursor") || name.contains("windsurf") || name.contains("vim") { return "🖥️" }
+    if name.contains("safari") || name.contains("chrome") || name.contains("firefox") || name.contains("arc") { return "🌐" }
+    if name.contains("notion") || name.contains("obsidian") || name.contains("notes") || name.contains("pages") { return "📄" }
+    if name.contains("chatgpt") || name.contains("claude") || name.contains("perplexity") { return "🤖" }
+    return "⚙️"
+}
+
+private func historyFormatDuration(_ seconds: Double) -> String {
+    let s = Int(seconds)
+    return s >= 60 ? "\(s / 60)m \(s % 60)s" : "\(s)s"
+}
+
 struct HistoryTab: View {
     @State private var transcriptions: [Transcription] = []
     @State private var selectedApp: String? = nil
@@ -214,34 +232,8 @@ struct HistoryTab: View {
         }
     }
 
-    private func appEmoji(for appName: String?) -> String {
-        guard let name = appName?.lowercased() else { return "⚙️" }
-        // Map common app names to emojis
-        if name.contains("message") || name.contains("imessage") || name.contains("whatsapp") || name.contains("telegram") || name.contains("signal") {
-            return "💬"
-        } else if name.contains("slack") || name.contains("teams") || name.contains("discord") {
-            return "💼"
-        } else if name.contains("mail") || name.contains("gmail") || name.contains("outlook") {
-            return "✉️"
-        } else if name.contains("xcode") || name.contains("code") || name.contains("cursor") || name.contains("windsurf") || name.contains("vim") {
-            return "🖥️"
-        } else if name.contains("safari") || name.contains("chrome") || name.contains("firefox") || name.contains("arc") {
-            return "🌐"
-        } else if name.contains("notion") || name.contains("obsidian") || name.contains("notes") || name.contains("pages") {
-            return "📄"
-        } else if name.contains("chatgpt") || name.contains("claude") || name.contains("perplexity") {
-            return "🤖"
-        }
-        return "⚙️"
-    }
-
-    private func formatDuration(_ seconds: Double) -> String {
-        let s = Int(seconds)
-        if s >= 60 {
-            return "\(s / 60)m \(s % 60)s"
-        }
-        return "\(s)s"
-    }
+    private func appEmoji(for appName: String?) -> String { historyAppEmoji(for: appName) }
+    private func formatDuration(_ seconds: Double) -> String { historyFormatDuration(seconds) }
 
     private func loadTranscriptions() {
         // Defer to next run loop so settings window renders immediately
@@ -379,20 +371,6 @@ private struct TranscriptionDetailSheet: View {
         .background(Color(hex: "262140"))
     }
 
-    private func appEmoji(for appName: String?) -> String {
-        guard let name = appName?.lowercased() else { return "⚙️" }
-        if name.contains("message") || name.contains("whatsapp") || name.contains("telegram") || name.contains("signal") { return "💬" }
-        if name.contains("slack") || name.contains("teams") || name.contains("discord") { return "💼" }
-        if name.contains("mail") || name.contains("gmail") || name.contains("outlook") { return "✉️" }
-        if name.contains("xcode") || name.contains("code") || name.contains("cursor") || name.contains("windsurf") || name.contains("vim") { return "🖥️" }
-        if name.contains("safari") || name.contains("chrome") || name.contains("firefox") || name.contains("arc") { return "🌐" }
-        if name.contains("notion") || name.contains("obsidian") || name.contains("notes") || name.contains("pages") { return "📄" }
-        if name.contains("chatgpt") || name.contains("claude") || name.contains("perplexity") { return "🤖" }
-        return "⚙️"
-    }
-
-    private func formatDuration(_ seconds: Double) -> String {
-        let s = Int(seconds)
-        return s >= 60 ? "\(s / 60)m \(s % 60)s" : "\(s)s"
-    }
+    private func appEmoji(for appName: String?) -> String { historyAppEmoji(for: appName) }
+    private func formatDuration(_ seconds: Double) -> String { historyFormatDuration(seconds) }
 }

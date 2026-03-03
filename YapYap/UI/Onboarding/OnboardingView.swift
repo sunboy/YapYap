@@ -269,8 +269,8 @@ struct OnboardingView: View {
             if !accessibilityGranted {
                 Button("Open System Settings") {
                     // Temporarily lower onboarding window level so System Settings opens in front
-                    if let window = NSApp.windows.first(where: { $0.title == "Welcome to YapYap" }) {
-                        window.level = .normal
+                    if let delegate = NSApp.delegate as? AppDelegate {
+                        delegate.onboardingWindow?.level = .normal
                     }
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                 }
