@@ -754,8 +754,12 @@ struct ModelsTab: View {
     private func checkOllamaConnection() {
         ollamaStatus = .checking
         Task {
-            let url = URL(string: "\(ollamaEndpoint)/api/tags")!
-            let request = URLRequest(url: url)
+            guard let url = URL(string: "\(ollamaEndpoint)/api/tags") else {
+                await MainActor.run { ollamaStatus = .error("Invalid endpoint URL") }
+                return
+            }
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 5
             do {
                 let (_, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {

@@ -330,17 +330,21 @@ private struct TranscriptionDetailSheet: View {
 
             Divider().background(Color.ypBorderLight)
 
-            // Text + copy button overlay
-            ZStack(alignment: .topTrailing) {
-                ScrollView(.vertical, showsIndicators: true) {
-                    Text(item.cleanedText)
-                        .font(.system(size: 13))
-                        .foregroundColor(.ypText1)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(24)
-                }
+            // Text content
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(item.cleanedText)
+                    .font(.system(size: 13))
+                    .foregroundColor(.ypText1)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(24)
+            }
 
+            Divider().background(Color.ypBorderLight)
+
+            // Copy button in fixed footer
+            HStack {
+                Spacer()
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(item.cleanedText, forType: .string)
@@ -367,9 +371,9 @@ private struct TranscriptionDetailSheet: View {
                         .stroke(copied ? Color.ypMint.opacity(0.3) : Color.ypLavender.opacity(0.3), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
-                .padding(.top, 10)
-                .padding(.trailing, 14)
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 10)
         }
         .frame(width: 560, height: 420)
         .background(Color(hex: "262140"))

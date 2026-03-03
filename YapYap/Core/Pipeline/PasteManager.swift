@@ -60,6 +60,7 @@ class PasteManager {
         let app = AXUIElementCreateApplication(pid)
         var focusedElement: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success else {
+            NSLog("[PasteManager] AX: could not get focused element from pid \(pid)")
             return false
         }
 
@@ -69,6 +70,16 @@ class PasteManager {
         var settable: DarwinBoolean = false
         guard AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success,
               settable.boolValue else {
+            NSLog("[PasteManager] AX: focused element is not settable")
+            return false
+        }
+
+        // Check element role — only trust text-input roles
+        var role: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role) == .success,
+           let roleStr = role as? String,
+           roleStr != "AXTextArea" && roleStr != "AXTextField" {
+            NSLog("[PasteManager] AX: element role is '\(roleStr)', not a text field — skipping AX paste")
             return false
         }
 
@@ -78,22 +89,8 @@ class PasteManager {
             // Insert at selection point using selected text attribute
             let setResult = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFTypeRef)
             if setResult == .success {
-                // Verify the text actually landed — some apps (terminals, Electron)
-                // return .success but silently ignore the write
-                var readBack: CFTypeRef?
-                if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &readBack) == .success,
-                   let readStr = readBack as? String, readStr.isEmpty {
-                    // Text was consumed (selection collapsed) — likely worked
-                    return true
-                }
-                // Can't verify, but AX said success — trust it for non-terminal apps
-                // Terminal emulators lie about AX writes, so check the role
-                var role: CFTypeRef?
-                if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role) == .success,
-                   let roleStr = role as? String, roleStr == "AXTextArea" || roleStr == "AXTextField" {
-                    return true
-                }
-                NSLog("[PasteManager] AX set returned success but element role is suspicious, falling through")
+                // Role was already validated above — trust AX success for text fields
+                return true
             }
         }
 
@@ -158,21 +155,20 @@ class PasteManager {
                 NSLog("[PasteManager] ⚠️ No target app found")
             }
 
-            // Allow 50ms after activation for the app to become ready to receive input.
-            // Previous 15ms was too short on fresh installs or under heavy load.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            // Allow 100ms after activation for the app to become ready to receive input.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
                 self.simulatePaste()
 
                 // Retry: send a second Cmd+V after a short delay if the first one was
                 // silently dropped (common on fresh installs where accessibility permission
                 // cache is stale). The clipboard still holds our text so this is safe.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) {
                     // Check if the target app is now frontmost — if not, the first paste
                     // likely failed so retry
                     if let app = appToActivate, !app.isActive {
                         NSLog("[PasteManager] ⚠️ Target app not active after first paste, retrying activation + Cmd+V")
                         app.activate()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
                             self.simulatePaste()
                         }
                     }
@@ -180,7 +176,7 @@ class PasteManager {
 
                 // Restore previous clipboard content after paste has been processed
                 if let previous = previousContent {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                         pasteboard.clearContents()
                         pasteboard.setString(previous, forType: .string)
                         NSLog("[PasteManager] Clipboard restored")
@@ -199,17 +195,23 @@ class PasteManager {
             NSLog("[PasteManager] ⚠️ AXIsProcessTrusted returned FALSE — CGEvent paste will fail. Reset accessibility: tccutil reset Accessibility dev.yapyap.app")
         }
 
-        let source = CGEventSource(stateID: .hidSystemState)
-        guard source != nil else {
-            NSLog("[PasteManager] ❌ Failed to create CGEventSource — accessibility permission may be stale despite AXIsProcessTrusted=\(trusted)")
-            return
+        // Try creating a named event source; fall back to nil source if it fails
+        // (nil source uses the default HID system state and may work even when
+        // the named source fails due to stale accessibility permission cache)
+        var source = CGEventSource(stateID: .hidSystemState)
+        if source == nil {
+            NSLog("[PasteManager] ⚠️ Named CGEventSource failed, trying with combinedSessionState")
+            source = CGEventSource(stateID: .combinedSessionState)
+        }
+        if source == nil {
+            NSLog("[PasteManager] ⚠️ All CGEventSource creation failed — attempting paste with nil source")
         }
 
         // Key code for 'V' is 0x09
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: UInt16(kVK_ANSI_V), keyDown: true)
         keyDown?.flags = .maskCommand
         guard keyDown != nil else {
-            NSLog("[PasteManager] ❌ Failed to create CGEvent keyDown")
+            NSLog("[PasteManager] ❌ Failed to create CGEvent keyDown — accessibility permission likely stale. Reset with: tccutil reset Accessibility dev.yapyap.app")
             return
         }
         keyDown?.post(tap: .cghidEventTap)

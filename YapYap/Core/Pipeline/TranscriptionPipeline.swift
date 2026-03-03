@@ -471,6 +471,8 @@ class TranscriptionPipeline {
             // Paste and/or copy
             if settings.autoPaste {
                 pasteManager.paste(cleanedText, targetApp: self.targetApp)
+            } else {
+                NSLog("[Pipeline] autoPaste is OFF — skipping paste")
             }
             if settings.copyToClipboard {
                 NSPasteboard.general.clearContents()
