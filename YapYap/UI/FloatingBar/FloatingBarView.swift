@@ -10,7 +10,6 @@ struct FloatingBarView: View {
     @State private var recordingSeconds: Int = 0
     @State private var timerCancellable: AnyCancellable?
     @State private var dotPulse: Bool = false
-    @State private var isHovered: Bool = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -95,14 +94,11 @@ struct FloatingBarView: View {
                 )
         )
         .fixedSize()
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
-        }
         .overlay(alignment: .top) {
             // Labels float above the pill via overlay + offset, so the pill's
             // own size never changes and the hosting view constraints stay stable.
             VStack(spacing: 4) {
-                if isHovered && !appState.isRecording && !appState.isLoadingModels && !appState.isProcessing {
+                if appState.isFloatingBarHovered && !appState.isRecording && !appState.isLoadingModels && !appState.isProcessing {
                     hoverTooltip
                 }
                 if appState.showClipboardPasteHint {
@@ -116,7 +112,7 @@ struct FloatingBarView: View {
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
         .animation(.easeInOut(duration: 0.3), value: appState.isLoadingModels)
         .animation(.easeInOut(duration: 0.2), value: appState.partialTranscription != nil)
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
+        .animation(.easeInOut(duration: 0.2), value: appState.isFloatingBarHovered)
         .animation(.easeInOut(duration: 0.3), value: appState.showClipboardPasteHint)
         .onChange(of: appState.isRecording) { _, isRecording in
             if isRecording {
@@ -214,6 +210,10 @@ class TransparentHostingView<Content: View>: NSView {
     let hostingView: NSHostingView<Content>
     private var trackingArea: NSTrackingArea?
 
+    /// Called with `true` on mouseEntered, `false` on mouseExited.
+    /// Set by the owner (AppDelegate) to drive hover state without touching NSHostingView.
+    var hoverHandler: ((Bool) -> Void)?
+
     init(rootView: Content) {
         hostingView = NSHostingView(rootView: rootView)
         super.init(frame: .zero)
@@ -245,7 +245,6 @@ class TransparentHostingView<Content: View>: NSView {
         }
         let options: NSTrackingArea.Options = [
             .mouseEnteredAndExited,
-            .mouseMoved,
             .activeAlways,
             .inVisibleRect
         ]
@@ -256,17 +255,12 @@ class TransparentHostingView<Content: View>: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        hostingView.mouseEntered(with: event)
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        super.mouseMoved(with: event)
-        hostingView.mouseMoved(with: event)
+        hoverHandler?(true)
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        hostingView.mouseExited(with: event)
+        hoverHandler?(false)
     }
 
     override func viewDidMoveToWindow() {
