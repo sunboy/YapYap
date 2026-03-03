@@ -1,11 +1,6 @@
 import SwiftUI
-import Sparkle
 
 struct AboutTab: View {
-    private var updaterController: SPUStandardUpdaterController? {
-        (NSApp.delegate as? AppDelegate)?.updaterController
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             Spacer().frame(height: 16)
@@ -50,23 +45,7 @@ struct AboutTab: View {
             HStack(spacing: 10) {
                 linkButton("GitHub")
                 linkButton("Website")
-                linkButton("License")
             }
-            .padding(.bottom, 12)
-
-            Button(action: {
-                updaterController?.checkForUpdates(nil)
-            }) {
-                Text("Check for Updates")
-                    .font(.system(size: 12, design: .rounded))
-                    .foregroundColor(.ypText2)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 7)
-                    .background(Capsule().fill(.white.opacity(0.06)))
-                    .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .disabled(updaterController?.updater.canCheckForUpdates == false)
             .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity)
@@ -77,7 +56,6 @@ struct AboutTab: View {
         switch title {
         case "GitHub":  urlString = "https://github.com/sunboy/yapyap"
         case "Website": urlString = "https://yapyap.tech"
-        case "License": urlString = "https://github.com/sunboy/yapyap/blob/main/LICENSE"
         default:        urlString = ""
         }
         return Button(action: {
