@@ -56,7 +56,7 @@ struct Permissions {
     static func showAccessibilityPermissionAlert() {
         showPermissionAlert(
             title: "Accessibility Access Required",
-            message: "YapYap needs accessibility access to paste transcribed text into your apps and detect the active application.\n\nPlease enable YapYap in System Settings → Privacy & Security → Accessibility.",
+            message: "YapYap needs accessibility access to paste transcribed text into your apps.\n\nIf YapYap is already listed in System Settings → Privacy & Security → Accessibility, toggle it OFF then back ON to refresh the permission.",
             settingsPath: "Privacy_Accessibility"
         )
     }
