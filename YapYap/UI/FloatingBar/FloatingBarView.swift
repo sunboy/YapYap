@@ -2,6 +2,7 @@
 // YapYap — Compact floating pill with creature states
 import SwiftUI
 import Combine
+import KeyboardShortcuts
 
 struct FloatingBarView: View {
     @Bindable var appState: AppState
@@ -9,99 +10,165 @@ struct FloatingBarView: View {
     @State private var recordingSeconds: Int = 0
     @State private var timerCancellable: AnyCancellable?
     @State private var dotPulse: Bool = false
+    @State private var isHovered: Bool = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            // Creature - always visible, shows state through animation
-            CreatureView(state: appState.creatureState, size: 28)
+        VStack(spacing: 6) {
+            // Hover tooltip — only when idle (not recording/loading/processing)
+            if isHovered && !appState.isRecording && !appState.isLoadingModels && !appState.isProcessing {
+                hoverTooltip
+            }
 
-            // Contextual indicator next to creature
-            if appState.isLoadingModels {
-                // Use indeterminate spinner when progress is 0 (WhisperKit
-                // doesn't report incremental progress during download/ANE compile).
-                // Switch to determinate bar once real progress is reported.
-                if appState.modelLoadingProgress > 0 && appState.modelLoadingProgress < 1.0 {
-                    ProgressView(value: appState.modelLoadingProgress)
-                        .progressViewStyle(.linear)
-                        .frame(width: 48)
-                        .tint(Color.ypWarm)
-                } else {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(Color.ypWarm)
-                }
-                Text(appState.modelLoadingStatus.isEmpty ? "Loading…" : appState.modelLoadingStatus)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.ypText2)
-                    .lineLimit(1)
-                    .transition(.opacity)
-            } else if appState.isProcessing, let preview = appState.partialTranscription {
-                // Type-ahead preview: show raw STT text while LLM cleanup runs
-                Text(preview)
-                    .font(.system(size: 10, weight: .regular))
-                    .foregroundColor(.ypText2.opacity(0.7))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 200)
-                    .transition(.opacity)
+            // Clipboard paste hint
+            if appState.showClipboardPasteHint {
+                pasteHintBanner
+            }
 
-                ProgressView()
-                    .controlSize(.mini)
-                    .tint(Color.ypWarm)
-            } else if appState.isRecording {
-                if let liveText = appState.partialTranscription {
-                    // Streaming STT: show live transcription text
-                    Text(liveText)
+            // The pill
+            HStack(spacing: 6) {
+                // Creature - always visible, shows state through animation
+                CreatureView(state: appState.creatureState, size: 28)
+
+                // Contextual indicator next to creature
+                if appState.isLoadingModels {
+                    // Use indeterminate spinner when progress is 0 (WhisperKit
+                    // doesn't report incremental progress during download/ANE compile).
+                    // Switch to determinate bar once real progress is reported.
+                    if appState.modelLoadingProgress > 0 && appState.modelLoadingProgress < 1.0 {
+                        ProgressView(value: appState.modelLoadingProgress)
+                            .progressViewStyle(.linear)
+                            .frame(width: 48)
+                            .tint(Color.ypWarm)
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Color.ypWarm)
+                    }
+                    Text(appState.modelLoadingStatus.isEmpty ? "Loading…" : appState.modelLoadingStatus)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.ypText2)
+                        .lineLimit(1)
+                        .transition(.opacity)
+                } else if appState.isProcessing, let preview = appState.partialTranscription {
+                    // Type-ahead preview: show raw STT text while LLM cleanup runs
+                    Text(preview)
                         .font(.system(size: 10, weight: .regular))
                         .foregroundColor(.ypText2.opacity(0.7))
                         .lineLimit(1)
-                        .truncationMode(.head)
-                        .frame(maxWidth: 180)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: 200)
                         .transition(.opacity)
 
-                    // Small waveform indicator alongside
-                    WaveformView(rms: appState.currentRMS)
-                        .frame(width: 20, height: 12)
-                } else {
-                    // Non-streaming: show full waveform + timer
-                    WaveformView(rms: appState.currentRMS)
-                        .frame(width: 36, height: 14)
-                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(Color.ypWarm)
+                } else if appState.isRecording {
+                    if let liveText = appState.partialTranscription {
+                        // Streaming STT: show live transcription text
+                        Text(liveText)
+                            .font(.system(size: 10, weight: .regular))
+                            .foregroundColor(.ypText2.opacity(0.7))
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                            .frame(maxWidth: 180)
+                            .transition(.opacity)
 
-                    Text(formatTime(recordingSeconds))
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundColor(.ypText2)
+                        // Small waveform indicator alongside
+                        WaveformView(rms: appState.currentRMS)
+                            .frame(width: 20, height: 12)
+                    } else {
+                        // Non-streaming: show full waveform + timer
+                        WaveformView(rms: appState.currentRMS)
+                            .frame(width: 36, height: 14)
+                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+
+                        Text(formatTime(recordingSeconds))
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundColor(.ypText2)
+                            .transition(.opacity)
+                    }
+
+                    // Pulsing recording dot — always visible during recording
+                    Circle()
+                        .fill(Color.ypWarm)
+                        .frame(width: 5, height: 5)
+                        .opacity(dotPulse ? 1.0 : 0.25)
                         .transition(.opacity)
                 }
-
-                // Pulsing recording dot — always visible during recording
-                Circle()
-                    .fill(Color.ypWarm)
-                    .frame(width: 5, height: 5)
-                    .opacity(dotPulse ? 1.0 : 0.25)
-                    .transition(.opacity)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(red: 36/255, green: 33/255, blue: 46/255).opacity(0.8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(Color.ypWarm.opacity(0.12), lineWidth: 1)
+                    )
+            )
+            .fixedSize()
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
+            }
+            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isRecording)
+            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
+            .animation(.easeInOut(duration: 0.3), value: appState.isLoadingModels)
+            .animation(.easeInOut(duration: 0.2), value: appState.partialTranscription != nil)
+            .onChange(of: appState.isRecording) { _, isRecording in
+                if isRecording {
+                    startTimer()
+                } else {
+                    stopTimer()
+                }
             }
         }
-        .padding(.horizontal, 6)
+        .fixedSize()
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
+        .animation(.easeInOut(duration: 0.3), value: appState.showClipboardPasteHint)
+    }
+
+    private var hoverTooltip: some View {
+        let hotkey = KeyboardShortcuts.getShortcut(for: .pushToTalk)?.description ?? "⌥Space"
+        return Text("Hold \(hotkey) to dictate")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(.ypText2)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(red: 36/255, green: 33/255, blue: 46/255).opacity(0.92))
+                    .overlay(RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
+    }
+
+    private var pasteHintBanner: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "doc.on.clipboard")
+                .font(.system(size: 10))
+                .foregroundColor(.ypMint)
+            Text("Press ⌘V to paste")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.ypMint)
+        }
+        .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(red: 36/255, green: 33/255, blue: 46/255).opacity(0.8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.ypWarm.opacity(0.12), lineWidth: 1)
-                )
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.ypMint.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.ypMint.opacity(0.25), lineWidth: 1))
         )
-        .fixedSize()
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isRecording)
-        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
-        .animation(.easeInOut(duration: 0.3), value: appState.isLoadingModels)
-        .animation(.easeInOut(duration: 0.2), value: appState.partialTranscription != nil)
-        .onChange(of: appState.isRecording) { _, isRecording in
-            if isRecording {
-                startTimer()
-            } else {
-                stopTimer()
+        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
+        .onAppear {
+            Task {
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        appState.showClipboardPasteHint = false
+                    }
+                }
             }
         }
     }

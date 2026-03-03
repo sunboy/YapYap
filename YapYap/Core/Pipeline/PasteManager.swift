@@ -22,7 +22,9 @@ class PasteManager {
     /// - Parameters:
     ///   - text: The text to paste
     ///   - targetApp: The app to paste into (captured at recording start). Falls back to frontmost app.
-    func paste(_ text: String, targetApp: NSRunningApplication? = nil) {
+    /// - Returns: true if clipboard fallback was used (no writable text field was found), false if AX succeeded or paste was skipped.
+    @discardableResult
+    func paste(_ text: String, targetApp: NSRunningApplication? = nil) -> Bool {
         let resolvedApp = targetApp ?? NSWorkspace.shared.frontmostApplication
         let appName = resolvedApp?.localizedName ?? "unknown"
         NSLog("[PasteManager] Paste requested: \(text.count) chars → \(appName) (pid: \(resolvedApp?.processIdentifier ?? -1))")
@@ -30,7 +32,7 @@ class PasteManager {
         guard AXIsProcessTrusted() else {
             NSLog("[PasteManager] ❌ Accessibility not granted — paste skipped. Showing permission alert.")
             DispatchQueue.main.async { Permissions.showAccessibilityPermissionAlert() }
-            return
+            return false
         }
 
         // Strategy 1: Accessibility API setValue (no clipboard pollution)
@@ -39,7 +41,7 @@ class PasteManager {
         let isTerminal = terminalBundleIds.contains(bundleId)
         if !isTerminal, tryAccessibilitySetValue(text, targetApp: resolvedApp) {
             NSLog("[PasteManager] Pasted via Accessibility API")
-            return
+            return false  // AX succeeded — no clipboard fallback
         }
         if isTerminal {
             NSLog("[PasteManager] Terminal app detected (\(bundleId)), skipping AX paste")
@@ -48,6 +50,7 @@ class PasteManager {
         // Strategy 2: Clipboard + synthetic Cmd+V (most compatible)
         NSLog("[PasteManager] Accessibility API failed, falling back to clipboard paste")
         pasteViaClipboard(text, targetApp: resolvedApp)
+        return true  // clipboard fallback used
     }
 
     // MARK: - Strategy 1: Accessibility API
