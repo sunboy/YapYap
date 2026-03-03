@@ -24,7 +24,7 @@ class SettingsWindowController: NSWindowController {
         window.appearance = NSAppearance(named: .darkAqua)
         window.backgroundColor = NSColor(red: 0x26/255.0, green: 0x21/255.0, blue: 0x40/255.0, alpha: 1)
         window.center()
-        window.contentView = NSHostingView(rootView: SettingsView(appState: nil))
+        window.contentView = NSHostingView(rootView: Color.clear)
         super.init(window: window)
     }
 
