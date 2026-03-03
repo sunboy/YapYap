@@ -6,6 +6,11 @@ import LlamaSwift
 class LlamaCppEngine: LLMEngine {
     private var model: OpaquePointer?   // llama_model *
     private var context: OpaquePointer? // llama_context *
+    /// Serializes all llama_decode / llama_memory_clear calls.
+    /// The keep-alive timer can fire warmup() concurrently with cleanup(),
+    /// and llama.cpp contexts are not thread-safe — concurrent decode calls
+    /// corrupt the KV cache and trigger ggml_abort.
+    private let inferenceLock = NSLock()
     private(set) var modelId: String?
 
     /// MLX model registry ID used for prompt selection. Maps the GGUF model
@@ -87,6 +92,13 @@ class LlamaCppEngine: LLMEngine {
         let tokens = tokenize("Hello", addSpecial: true)
         guard !tokens.isEmpty else { return }
 
+        // Skip warmup if cleanup is already running — warmup is best-effort
+        guard inferenceLock.try() else {
+            NSLog("[LlamaCppEngine] Warmup skipped — inference in progress")
+            return
+        }
+        defer { inferenceLock.unlock() }
+
         let batch = llama_batch_get_one(UnsafeMutablePointer(mutating: tokens), Int32(tokens.count))
         let result = llama_decode(context, batch)
         if result != 0 {
@@ -134,6 +146,12 @@ class LlamaCppEngine: LLMEngine {
         }
 
         NSLog("[LlamaCppEngine] Prompt: \(tokens.count) tokens (context: \(contextSize))")
+
+        // Lock the context for the entire inference pass (prefill + generation).
+        // The keep-alive timer can fire warmup() concurrently, and llama.cpp
+        // contexts are not thread-safe.
+        inferenceLock.lock()
+        defer { inferenceLock.unlock() }
 
         // Clear KV cache for fresh inference
         llama_memory_clear(llama_get_memory(context), true)
