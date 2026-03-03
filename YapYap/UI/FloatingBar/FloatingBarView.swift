@@ -2,7 +2,6 @@
 // YapYap — Compact floating pill with creature states
 import SwiftUI
 import Combine
-import KeyboardShortcuts
 
 struct FloatingBarView: View {
     @Bindable var appState: AppState
@@ -94,77 +93,15 @@ struct FloatingBarView: View {
                 )
         )
         .fixedSize()
-        .overlay(alignment: .top) {
-            // Labels float above the pill via overlay + offset, so the pill's
-            // own size never changes and the hosting view constraints stay stable.
-            VStack(spacing: 4) {
-                if appState.isFloatingBarHovered && !appState.isRecording && !appState.isLoadingModels && !appState.isProcessing {
-                    hoverTooltip
-                }
-                if appState.showClipboardPasteHint {
-                    pasteHintBanner
-                }
-            }
-            .fixedSize()
-            .offset(y: -36)  // float above the pill (pill height ~38px, plus gap)
-        }
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isRecording)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
         .animation(.easeInOut(duration: 0.3), value: appState.isLoadingModels)
         .animation(.easeInOut(duration: 0.2), value: appState.partialTranscription != nil)
-        .animation(.easeInOut(duration: 0.2), value: appState.isFloatingBarHovered)
-        .animation(.easeInOut(duration: 0.3), value: appState.showClipboardPasteHint)
         .onChange(of: appState.isRecording) { _, isRecording in
             if isRecording {
                 startTimer()
             } else {
                 stopTimer()
-            }
-        }
-    }
-
-    private var hoverTooltip: some View {
-        let hotkey = KeyboardShortcuts.getShortcut(for: .pushToTalk)?.description ?? "⌥Space"
-        return Text("Hold \(hotkey) to dictate")
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(.ypText2)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(red: 36/255, green: 33/255, blue: 46/255).opacity(0.92))
-                    .overlay(RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
-            )
-            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
-    }
-
-    private var pasteHintBanner: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "doc.on.clipboard")
-                .font(.system(size: 10))
-                .foregroundColor(.ypMint)
-            Text("Press ⌘V to paste")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.ypMint)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.ypMint.opacity(0.12))
-                .overlay(RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(Color.ypMint.opacity(0.25), lineWidth: 1))
-        )
-        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
-        .onAppear {
-            Task {
-                try? await Task.sleep(nanoseconds: 4_000_000_000)
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.4)) {
-                        appState.showClipboardPasteHint = false
-                    }
-                }
             }
         }
     }
@@ -208,11 +145,6 @@ struct FloatingBarView: View {
 /// the compositing is correct.
 class TransparentHostingView<Content: View>: NSView {
     let hostingView: NSHostingView<Content>
-    private var trackingArea: NSTrackingArea?
-
-    /// Called with `true` on mouseEntered, `false` on mouseExited.
-    /// Set by the owner (AppDelegate) to drive hover state without touching NSHostingView.
-    var hoverHandler: ((Bool) -> Void)?
 
     init(rootView: Content) {
         hostingView = NSHostingView(rootView: rootView)
@@ -235,33 +167,6 @@ class TransparentHostingView<Content: View>: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
-
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let existing = trackingArea {
-            removeTrackingArea(existing)
-        }
-        let options: NSTrackingArea.Options = [
-            .mouseEnteredAndExited,
-            .activeAlways,
-            .inVisibleRect
-        ]
-        let area = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
-        addTrackingArea(area)
-        trackingArea = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        super.mouseEntered(with: event)
-        hoverHandler?(true)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        super.mouseExited(with: event)
-        hoverHandler?(false)
-    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()

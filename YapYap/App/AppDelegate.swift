@@ -167,13 +167,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let floatingView = FloatingBarView(appState: appState)
         let hostingView = TransparentHostingView(rootView: floatingView)
-        hostingView.hoverHandler = { [weak appState] hovering in
-            Task { @MainActor in
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    appState?.isFloatingBarHovered = hovering
-                }
-            }
-        }
         floatingBarPanel?.contentView = hostingView
 
         // Show the bar if setting is enabled (will show resting character)

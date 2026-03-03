@@ -15,11 +15,6 @@ final class AppState {
     var isCommandMode: Bool = false
     /// Raw STT output shown as preview while LLM processes
     var partialTranscription: String?
-    /// Set to true when paste fell back to clipboard. FloatingBarView shows "Press ⌘V" hint.
-    var showClipboardPasteHint: Bool = false
-    /// True while the mouse is over the floating bar pill. Driven by TransparentHostingView
-    /// tracking area (not SwiftUI .onHover, which doesn't work on non-key NSPanels).
-    var isFloatingBarHovered: Bool = false
 
     // Model loading state
     var isLoadingModels: Bool = false

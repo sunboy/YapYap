@@ -470,10 +470,7 @@ class TranscriptionPipeline {
 
             // Paste and/or copy
             if settings.autoPaste {
-                let usedClipboard = pasteManager.paste(cleanedText, targetApp: self.targetApp)
-                if usedClipboard {
-                    await MainActor.run { appState.showClipboardPasteHint = true }
-                }
+                pasteManager.paste(cleanedText, targetApp: self.targetApp)
             }
             if settings.copyToClipboard {
                 NSPasteboard.general.clearContents()
