@@ -280,6 +280,198 @@ final class PromptOverridesTests: XCTestCase {
                        "IDE chat panel should use its own rules, not category override")
     }
 
+    // MARK: - System Prompt Overrides
+
+    func testDefaultSystemPromptsAreNotEmpty() {
+        for variant in PromptOverrides.SystemPromptVariant.allCases {
+            let prompt = PromptOverrides.defaultSystemPrompt(for: variant)
+            XCTAssertFalse(prompt.isEmpty, "Default system prompt should exist for \(variant.rawValue)")
+        }
+    }
+
+    func testEffectiveSystemPromptReturnsNilByDefault() {
+        let overrides = PromptOverrides()
+        for variant in PromptOverrides.SystemPromptVariant.allCases {
+            XCTAssertNil(overrides.effectiveSystemPrompt(variant: variant))
+        }
+    }
+
+    func testEffectiveSystemPromptReturnsCustomWhenEnabled() {
+        var overrides = PromptOverrides()
+        overrides.setSystemPrompt("Custom small light prompt", for: .smallLight, isEnabled: true)
+        XCTAssertEqual(overrides.effectiveSystemPrompt(variant: .smallLight), "Custom small light prompt")
+    }
+
+    func testEffectiveSystemPromptReturnsNilWhenDisabled() {
+        var overrides = PromptOverrides()
+        overrides.setSystemPrompt("Custom prompt", for: .unified, isEnabled: false)
+        XCTAssertNil(overrides.effectiveSystemPrompt(variant: .unified))
+    }
+
+    func testResetSystemPromptClearsOverride() {
+        var overrides = PromptOverrides()
+        overrides.setSystemPrompt("Custom", for: .smallMedium)
+        XCTAssertNotNil(overrides.systemPromptOverride(for: .smallMedium))
+        overrides.resetSystemPrompt(for: .smallMedium)
+        XCTAssertNil(overrides.systemPromptOverride(for: .smallMedium))
+    }
+
+    func testSystemPromptOverrideAppliedInSmallModelBuilder() {
+        var overrides = PromptOverrides()
+        overrides.setSystemPrompt("You are a pirate. Clean the text.", for: .smallMedium)
+        overrides.saveToUserDefaults()
+
+        let context = makeContext(cleanupLevel: .medium)
+        let messages = CleanupPromptBuilder.buildMessages(
+            rawText: "test", context: context, modelId: "qwen-2.5-1.5b"
+        )
+
+        XCTAssertTrue(messages.system.contains("You are a pirate"),
+                       "Custom system prompt should be used for small model")
+        XCTAssertFalse(messages.system.contains("text refinement tool"),
+                        "Default prompt should be replaced")
+    }
+
+    func testSystemPromptOverrideAppliedInUnifiedBuilder() {
+        var overrides = PromptOverrides()
+        overrides.setSystemPrompt("You are a custom cleanup engine. Fix grammar only.", for: .unified)
+        overrides.saveToUserDefaults()
+
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(
+            rawText: "test", context: context, modelId: "qwen-2.5-3b"
+        )
+
+        XCTAssertTrue(messages.system.contains("custom cleanup engine"),
+                       "Custom unified prompt should be used")
+    }
+
+    // MARK: - Few-Shot Example Overrides
+
+    func testDefaultFewShotExamplesMatchBenchmark() {
+        let defaults = PromptOverrides.defaultFewShotExamples()
+        XCTAssertEqual(defaults.count, PromptTemplates.Examples.benchmark.count)
+        XCTAssertEqual(defaults.first?.input, PromptTemplates.Examples.benchmark.first?.input)
+    }
+
+    func testEffectiveExamplesReturnsNilByDefault() {
+        let overrides = PromptOverrides()
+        XCTAssertNil(overrides.effectiveExamples())
+    }
+
+    func testEffectiveExamplesReturnsCustomWhenEnabled() {
+        var overrides = PromptOverrides()
+        overrides.fewShotOverride = .init(
+            isEnabled: true,
+            examples: [.init(input: "hello", output: "Hello.")]
+        )
+        let examples = overrides.effectiveExamples()
+        XCTAssertNotNil(examples)
+        XCTAssertEqual(examples?.count, 1)
+        XCTAssertEqual(examples?.first?.input, "hello")
+    }
+
+    func testEffectiveExamplesReturnsNilWhenDisabled() {
+        var overrides = PromptOverrides()
+        overrides.fewShotOverride = .init(
+            isEnabled: false,
+            examples: [.init(input: "hello", output: "Hello.")]
+        )
+        XCTAssertNil(overrides.effectiveExamples())
+    }
+
+    func testEffectiveExamplesReturnsNilWhenEmpty() {
+        var overrides = PromptOverrides()
+        overrides.fewShotOverride = .init(isEnabled: true, examples: [])
+        XCTAssertNil(overrides.effectiveExamples())
+    }
+
+    func testCustomExamplesUsedInMediumModelUserMessage() {
+        var overrides = PromptOverrides()
+        overrides.fewShotOverride = .init(
+            isEnabled: true,
+            examples: [
+                .init(input: "custom input one", output: "Custom output one."),
+                .init(input: "custom input two", output: "Custom output two."),
+            ]
+        )
+        overrides.saveToUserDefaults()
+
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(
+            rawText: "test text", context: context, modelId: "qwen-2.5-3b"
+        )
+
+        XCTAssertTrue(messages.user.contains("custom input one"),
+                       "Custom examples should appear in user message")
+        XCTAssertTrue(messages.user.contains("Custom output two."),
+                       "Custom examples should appear in user message")
+    }
+
+    func testCustomExamplesLimitedTo3ForSmallModels() {
+        var overrides = PromptOverrides()
+        overrides.fewShotOverride = .init(
+            isEnabled: true,
+            examples: [
+                .init(input: "one", output: "One."),
+                .init(input: "two", output: "Two."),
+                .init(input: "three", output: "Three."),
+                .init(input: "four", output: "Four."),
+                .init(input: "five", output: "Five."),
+            ]
+        )
+        overrides.saveToUserDefaults()
+
+        let context = makeContext()
+        let messages = CleanupPromptBuilder.buildMessages(
+            rawText: "test", context: context, modelId: "qwen-2.5-1.5b"
+        )
+
+        XCTAssertTrue(messages.user.contains("one"), "First 3 examples should be included")
+        XCTAssertTrue(messages.user.contains("three"), "First 3 examples should be included")
+        XCTAssertFalse(messages.user.contains("<input>four</input>"),
+                        "4th+ examples should be excluded for small models")
+    }
+
+    // MARK: - Persistence Round-Trip (full model)
+
+    func testFullOverridesRoundTrip() throws {
+        var overrides = PromptOverrides()
+        overrides.setSystemPrompt("Custom system", for: .unified)
+        overrides.fewShotOverride = .init(
+            isEnabled: true,
+            examples: [.init(input: "in", output: "out")]
+        )
+        overrides.categories["email"] = .init(rules: "- Email rule", isEnabled: true)
+        overrides.saveToUserDefaults()
+
+        let loaded = PromptOverrides.loadFromUserDefaults()
+        XCTAssertEqual(loaded.systemPromptOverride(for: .unified)?.text, "Custom system")
+        XCTAssertEqual(loaded.fewShotOverride?.examples.count, 1)
+        XCTAssertEqual(loaded.categories["email"]?.rules, "- Email rule")
+    }
+
+    func testBackwardCompatibility_OldDataDecodesWithNilNewFields() throws {
+        // Simulate old data that only has categories
+        let oldOverrides = ["categories": ["email": ["rules": "- Old rule", "isEnabled": true]]]
+        let data = try JSONEncoder().encode(oldOverrides)
+        UserDefaults.standard.set(data, forKey: PromptOverrides.userDefaultsKey)
+
+        let loaded = PromptOverrides.loadFromUserDefaults()
+        // New fields should be nil (not crash)
+        XCTAssertNil(loaded.systemSmallLight)
+        XCTAssertNil(loaded.systemUnified)
+        XCTAssertNil(loaded.fewShotOverride)
+    }
+
+    func testHasAnyOverrides() {
+        var overrides = PromptOverrides()
+        XCTAssertFalse(overrides.hasAnyOverrides)
+
+        overrides.setSystemPrompt("test", for: .smallLight)
+        XCTAssertTrue(overrides.hasAnyOverrides)
+    }
+
     // MARK: - CategoryOverride Codable
 
     func testCategoryOverrideCodable() throws {
