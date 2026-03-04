@@ -943,7 +943,7 @@ struct PromptsTab: View {
                     )
                     .cornerRadius(6)
 
-                    Text("{app_context} and cleanup level are injected automatically into the prompt.")
+                    Text("CONTEXT and cleanup level are injected automatically into the prompt.")
                         .font(.system(size: 10))
                         .foregroundColor(.ypText4)
                         .lineSpacing(2)

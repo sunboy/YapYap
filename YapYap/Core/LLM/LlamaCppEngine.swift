@@ -192,6 +192,10 @@ class LlamaCppEngine: LLMEngine {
         var outputTokens: [llama_token] = []
         var outputText = ""
 
+        // Hoist stop sequences outside the loop to avoid per-token allocation
+        let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>"]
+        let maxStopLen = stopSequences.map(\.count).max() ?? 0
+
         while outputTokens.count < maxGenTokens {
             let newToken = llama_sampler_sample(sampler, context, -1)
 
@@ -202,12 +206,15 @@ class LlamaCppEngine: LLMEngine {
             let piece = tokenToPiece(newToken)
             outputText += piece
 
-            // Check for stop sequences in the tail
-            let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>"]
+            // Only scan the tail of outputText for stop sequences (O(1) per token)
+            let tailStart = outputText.index(outputText.endIndex, offsetBy: -(maxStopLen + piece.count), limitedBy: outputText.startIndex) ?? outputText.startIndex
+            let tail = String(outputText[tailStart...])
             var stopped = false
             for stop in stopSequences {
-                if let range = outputText.range(of: stop) {
-                    outputText = String(outputText[..<range.lowerBound])
+                if let range = tail.range(of: stop) {
+                    let offset = outputText.distance(from: outputText.startIndex, to: tailStart)
+                    let fullStart = outputText.index(outputText.startIndex, offsetBy: offset + tail.distance(from: tail.startIndex, to: range.lowerBound))
+                    outputText = String(outputText[..<fullStart])
                     stopped = true
                     break
                 }

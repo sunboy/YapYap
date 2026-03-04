@@ -17,84 +17,29 @@ import Foundation
 enum AppContextMapper {
 
     /// Derives the prompt keyword from the app context.
-    /// Priority order ensures the most specific match wins.
+    /// Relies on the category already computed by AppContextDetector, with
+    /// browser/social refinement via window title for sub-category keywords.
     static func keyword(from context: AppContext?) -> String {
         guard let ctx = context else { return "General" }
 
-        // 1. IDE (highest priority)
+        // IDE (highest priority — includes IDE chat panels)
         if ctx.isIDEChatPanel || ctx.category == .codeEditor {
             return "IDE"
         }
 
-        // 2. Terminal
-        if ctx.category == .terminal || isTerminalApp(ctx.appName) {
-            return "Terminal"
+        switch ctx.category {
+        case .terminal:          return "Terminal"
+        case .email:             return "Email"
+        case .workMessaging:     return "Slack"
+        case .browser:           return browserKeyword(from: ctx.windowTitle)
+        case .social:            return socialKeyword(from: ctx.windowTitle, appName: ctx.appName)
+        case .notes:             return "Notes"
+        case .personalMessaging: return "Slack"
+        case .aiChat:            return "IDE"
+        case .documents:         return "Email"
+        case .codeEditor:        return "IDE"  // already handled above, but exhaustive
+        case .other:             return "General"
         }
-
-        // 3. Email
-        if ctx.category == .email || isEmailApp(ctx.appName) {
-            return "Email"
-        }
-
-        // 4. Work Messaging → "Slack" (triggers professional-casual tone)
-        if ctx.category == .workMessaging || isWorkMessagingApp(ctx.appName) {
-            return "Slack"
-        }
-
-        // 5. Browser / Social (dynamic — check window title)
-        if ctx.category == .browser {
-            return browserKeyword(from: ctx.windowTitle)
-        }
-
-        // 6. Social media
-        if ctx.category == .social {
-            return socialKeyword(from: ctx.windowTitle, appName: ctx.appName)
-        }
-
-        // 7. Notes
-        if ctx.category == .notes || isNotesApp(ctx.appName) {
-            return "Notes"
-        }
-
-        // 8. Personal messaging → "Slack" (close enough for tone)
-        if ctx.category == .personalMessaging {
-            return "Slack"
-        }
-
-        // 9. AI Chat
-        if ctx.category == .aiChat {
-            return "IDE"  // AI chat benefits from code formatting rules
-        }
-
-        // 10. Documents
-        if ctx.category == .documents {
-            return "Email"  // Documents use similar paragraph structure
-        }
-
-        // Default
-        return "General"
-    }
-
-    // MARK: - Private Helpers
-
-    private static func isTerminalApp(_ name: String) -> Bool {
-        let terminals = ["iTerm2", "Terminal", "Hyper", "Warp", "Alacritty", "kitty"]
-        return terminals.contains(where: { name.localizedCaseInsensitiveContains($0) })
-    }
-
-    private static func isEmailApp(_ name: String) -> Bool {
-        let emailApps = ["Mail", "Outlook", "Spark", "Superhuman", "Airmail"]
-        return emailApps.contains(where: { name.localizedCaseInsensitiveContains($0) })
-    }
-
-    private static func isWorkMessagingApp(_ name: String) -> Bool {
-        let chatApps = ["Slack", "Teams", "Discord"]
-        return chatApps.contains(where: { name.localizedCaseInsensitiveContains($0) })
-    }
-
-    private static func isNotesApp(_ name: String) -> Bool {
-        let notesApps = ["Notion", "Obsidian", "Notes", "Bear", "Craft"]
-        return notesApps.contains(where: { name.localizedCaseInsensitiveContains($0) })
     }
 
     /// Derives keyword from browser window title.
@@ -117,7 +62,7 @@ enum AppContextMapper {
         let name = appName.lowercased()
 
         if title.contains("linkedin") || name.contains("linkedin") { return "LinkedIn" }
-        if title.contains("twitter") || name.contains("twitter") || name.contains("x") { return "Twitter" }
+        if title.contains("twitter") || name.contains("twitter") || name == "x" { return "Twitter" }
 
         // Default social → General (no special formatting needed)
         return "General"

@@ -201,7 +201,7 @@ final class AppContextMapperTests: XCTestCase {
     }
 
     func testObsidianReturnsNotes() {
-        let ctx = makeContext(appName: "Obsidian", category: .other)
+        let ctx = makeContext(appName: "Obsidian", category: .notes)
         XCTAssertEqual(AppContextMapper.keyword(from: ctx), "Notes")
     }
 

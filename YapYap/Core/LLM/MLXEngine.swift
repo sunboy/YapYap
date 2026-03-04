@@ -190,7 +190,7 @@ class MLXEngine: LLMEngine {
 
         NSLog("[MLXEngine] Joint encode: %d tokens (prefix: %d, suffix: %d) — prompt %.0f chars",
               jointTokens.count, splitPoint, jointTokens.count - splitPoint,
-              Double((templatePrefix + templateSuffix).count))
+              Double(templatePrefix.count + templateSuffix.count))
 
         let cache: [any KVCache]
         let inputTokens: [Int]
