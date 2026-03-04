@@ -452,9 +452,9 @@ final class PromptOverridesTests: XCTestCase {
     }
 
     func testBackwardCompatibility_OldDataDecodesWithNilNewFields() throws {
-        // Simulate old data that only has categories
-        let oldOverrides = ["categories": ["email": ["rules": "- Old rule", "isEnabled": true]]]
-        let data = try JSONEncoder().encode(oldOverrides)
+        // Simulate old data that only has categories (mixed types require JSONSerialization)
+        let oldOverrides: [String: Any] = ["categories": ["email": ["rules": "- Old rule", "isEnabled": true]]]
+        let data = try JSONSerialization.data(withJSONObject: oldOverrides)
         UserDefaults.standard.set(data, forKey: PromptOverrides.userDefaultsKey)
 
         let loaded = PromptOverrides.loadFromUserDefaults()

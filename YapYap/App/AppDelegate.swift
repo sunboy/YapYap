@@ -226,6 +226,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        // Free llama.cpp context and model before exit() so the Metal static destructor
+        // finds empty resource sets and doesn't GGML_ASSERT.
+        pipeline?.executor.unloadAll()
+    }
+
     private func showOnboarding() {
         print("[AppDelegate] showOnboarding() called")
 

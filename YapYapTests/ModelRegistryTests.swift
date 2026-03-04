@@ -57,7 +57,7 @@ final class ModelRegistryTests: XCTestCase {
     func testSTTRecommendedModel() {
         let recommended = STTModelRegistry.recommendedModel
         XCTAssertTrue(recommended.isRecommended)
-        XCTAssertEqual(recommended.id, "whisper-small")
+        XCTAssertEqual(recommended.id, "parakeet-tdt-v3")
     }
 
     func testSTTModelUniqueIds() {

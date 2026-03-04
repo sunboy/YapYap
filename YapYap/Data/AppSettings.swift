@@ -76,7 +76,7 @@ final class AppSettings {
         ollamaModelName: String = "qwen2.5:1.5b",
         llamacppModelId: String = GGUFModelRegistry.recommendedModel.id,
         llmSkipWordThreshold: Int = 20,
-        sttMode: String? = nil,
+        sttMode: String? = "streaming",
         useV2Prompts: Bool = true
     ) {
         self.sttModelId = sttModelId

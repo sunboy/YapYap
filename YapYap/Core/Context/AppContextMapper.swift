@@ -38,8 +38,22 @@ enum AppContextMapper {
         case .aiChat:            return "IDE"
         case .documents:         return "Email"
         case .codeEditor:        return "IDE"  // already handled above, but exhaustive
-        case .other:             return "General"
+        case .other:             return appNameFallback(ctx.appName)
         }
+    }
+
+    /// Last-resort fallback: infer keyword from app name when category is .other.
+    private static func appNameFallback(_ name: String) -> String {
+        let terminals = ["iTerm", "Terminal", "Hyper", "Warp", "Alacritty", "kitty"]
+        if terminals.contains(where: { name.localizedCaseInsensitiveContains($0) }) { return "Terminal" }
+
+        let emailApps = ["Outlook", "Spark", "Superhuman", "Airmail"]
+        if emailApps.contains(where: { name.localizedCaseInsensitiveContains($0) }) { return "Email" }
+
+        let chatApps = ["Discord", "Teams"]
+        if chatApps.contains(where: { name.localizedCaseInsensitiveContains($0) }) { return "Slack" }
+
+        return "General"
     }
 
     /// Derives keyword from browser window title.
