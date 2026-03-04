@@ -115,21 +115,29 @@ class LlamaCppEngine: LLMEngine {
             throw YapYapError.modelNotLoaded
         }
 
-        // Build prompts using the same CleanupPromptBuilder as other engines.
-        // Use promptModelId to select the correct family/size tier prompts.
         let userContext = UserPromptContextManager.shared.context(
             for: cleanupContext.appContext?.appName,
             transcript: rawText
         )
-        let messages = CleanupPromptBuilder.buildMessages(
-            rawText: rawText, context: cleanupContext,
-            modelId: promptModelId, userContext: userContext
-        )
 
-        NSLog("[LlamaCppEngine] System prompt (\(messages.system.count) chars), user prompt (\(messages.user.count) chars)")
+        let prompt: String
 
-        // Apply chat template via llama.cpp's built-in template support
-        let prompt = applyChatTemplate(system: messages.system, user: messages.user)
+        if cleanupContext.useV2Prompts {
+            // V2: multi-turn chat-style messages
+            let v2Messages = CleanupPromptBuilderV2.buildMessages(
+                rawText: rawText, context: cleanupContext, userContext: userContext
+            )
+            prompt = applyChatTemplateMultiTurn(v2Messages)
+            NSLog("[LlamaCppEngine] V2 prompt: %d messages", v2Messages.count)
+        } else {
+            // V1: classic system + user message
+            let messages = CleanupPromptBuilder.buildMessages(
+                rawText: rawText, context: cleanupContext,
+                modelId: promptModelId, userContext: userContext
+            )
+            NSLog("[LlamaCppEngine] V1 system prompt (\(messages.system.count) chars), user prompt (\(messages.user.count) chars)")
+            prompt = applyChatTemplate(system: messages.system, user: messages.user)
+        }
         var tokens = tokenize(prompt, addSpecial: false)
 
         guard !tokens.isEmpty else {
@@ -302,6 +310,55 @@ class LlamaCppEngine: LLMEngine {
         NSLog("[LlamaCppEngine] Built-in template failed, using ChatML fallback")
         let systemBlock = system.isEmpty ? "" : "<|im_start|>system\n\(system)<|im_end|>\n"
         return "\(systemBlock)<|im_start|>user\n\(user)<|im_end|>\n<|im_start|>assistant\n"
+    }
+
+    /// Apply the model's built-in chat template with multi-turn ChatMessages (V2).
+    private func applyChatTemplateMultiTurn(_ messages: [ChatMessage]) -> String {
+        guard let model = model else {
+            return messages.last?.content ?? ""
+        }
+
+        var chatMessages: [llama_chat_message] = []
+        var allocations: [(UnsafeMutablePointer<CChar>, UnsafeMutablePointer<CChar>)] = []
+
+        for msg in messages {
+            let roleCStr = strdup(msg.role.rawValue)!
+            let contentCStr = strdup(msg.content)!
+            chatMessages.append(llama_chat_message(role: roleCStr, content: contentCStr))
+            allocations.append((roleCStr, contentCStr))
+        }
+
+        defer {
+            for (role, content) in allocations {
+                free(role)
+                free(content)
+            }
+        }
+
+        var buf = [CChar](repeating: 0, count: 16384)
+        let result = chatMessages.withUnsafeBufferPointer { messagesPtr in
+            llama_chat_apply_template(
+                llama_model_chat_template(model, nil),
+                messagesPtr.baseAddress,
+                messagesPtr.count,
+                true,
+                &buf,
+                Int32(buf.count)
+            )
+        }
+
+        if result > 0 && Int(result) < buf.count {
+            return String(cString: buf.prefix(Int(result)) + [0])
+        }
+
+        // Fallback: ChatML format with multi-turn
+        NSLog("[LlamaCppEngine] Built-in template failed for multi-turn, using ChatML fallback")
+        var prompt = ""
+        for msg in messages {
+            prompt += "<|im_start|>\(msg.role.rawValue)\n\(msg.content)<|im_end|>\n"
+        }
+        prompt += "<|im_start|>assistant\n"
+        return prompt
     }
 
     // MARK: - GGUF Download

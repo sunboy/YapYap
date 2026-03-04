@@ -132,34 +132,45 @@ class MLXEngine: LLMEngine {
             throw YapYapError.modelNotLoaded
         }
 
-        // Build prompt in parts: (system, userPrefix, userSuffix)
-        // userPrefix = examples + instructions (static), userSuffix = rawText (dynamic)
         let userContext = UserPromptContextManager.shared.context(
             for: context.appContext?.appName,
             transcript: rawText
         )
-        let parts = CleanupPromptBuilder.buildMessageParts(
-            rawText: rawText, context: context,
-            modelId: modelId, userContext: userContext
-        )
-
-        // Debug: log prompt content for echo bug diagnosis
-        NSLog("[MLXEngine] System prompt (\(parts.system.count) chars): \"\(String(parts.system.prefix(200)))\"")
-        NSLog("[MLXEngine] User prefix (\(parts.userPrefix.count) chars), suffix (\(parts.userSuffix.count) chars)")
 
         // Use model-family-specific inference parameters
         let modelInfo = modelId.flatMap { LLMModelRegistry.model(for: $0) }
         let family = modelInfo?.family ?? .qwen
 
-        // Format prefix and suffix using model-specific chat template.
-        // We use manual templates (same as the existing fallback path) because
-        // applyChatTemplate returns a flat token array that can't be split for caching.
-        let (templatePrefix, templateSuffix) = formatForTemplate(
-            system: parts.system,
-            userPrefix: parts.userPrefix,
-            userSuffix: parts.userSuffix,
-            family: family
-        )
+        let templatePrefix: String
+        let templateSuffix: String
+
+        if context.useV2Prompts {
+            // V2: multi-turn chat-style messages
+            let parts = CleanupPromptBuilderV2.buildMessageParts(
+                rawText: rawText, context: context, userContext: userContext
+            )
+            (templatePrefix, templateSuffix) = formatMultiTurnTemplate(
+                prefixMessages: parts.prefix,
+                suffixMessage: parts.suffix,
+                family: family
+            )
+            NSLog("[MLXEngine] V2 prompt: %d prefix messages, suffix: \"%@\"",
+                  parts.prefix.count, String(parts.suffix.content.prefix(80)))
+        } else {
+            // V1: classic system + user message
+            let parts = CleanupPromptBuilder.buildMessageParts(
+                rawText: rawText, context: context,
+                modelId: modelId, userContext: userContext
+            )
+            (templatePrefix, templateSuffix) = formatForTemplate(
+                system: parts.system,
+                userPrefix: parts.userPrefix,
+                userSuffix: parts.userSuffix,
+                family: family
+            )
+            NSLog("[MLXEngine] V1 prompt: system (%d chars), user prefix (%d chars), suffix (%d chars)",
+                  parts.system.count, parts.userPrefix.count, parts.userSuffix.count)
+        }
 
         // Encode prefix alone (cached) to know the split point, then tokenize
         // prefix+suffix JOINTLY so BPE merges at the boundary are always captured.
@@ -319,6 +330,81 @@ class MLXEngine: LLMEngine {
             let suffix = "\(userSuffix)<|im_end|>\n<|im_start|>assistant\n"
             return (prefix, suffix)
         }
+    }
+
+    // MARK: - V2 Multi-Turn Template Formatting
+
+    /// Formats multi-turn ChatMessages into model-specific template strings.
+    /// Returns (prefix, suffix) where prefix contains all cacheable messages
+    /// and suffix contains only the final user message + assistant response header.
+    private func formatMultiTurnTemplate(
+        prefixMessages: [ChatMessage],
+        suffixMessage: ChatMessage,
+        family: LLMModelFamily
+    ) -> (prefix: String, suffix: String) {
+        switch family {
+        case .llama:
+            return formatLlamaMultiTurn(prefixMessages: prefixMessages, suffixMessage: suffixMessage)
+        case .qwen:
+            return formatQwenMultiTurn(prefixMessages: prefixMessages, suffixMessage: suffixMessage)
+        case .gemma:
+            return formatGemmaMultiTurn(prefixMessages: prefixMessages, suffixMessage: suffixMessage)
+        }
+    }
+
+    private func formatLlamaMultiTurn(prefixMessages: [ChatMessage], suffixMessage: ChatMessage) -> (prefix: String, suffix: String) {
+        var prefix = "<|begin_of_text|>"
+        for msg in prefixMessages {
+            prefix += "<|start_header_id|>\(msg.role.rawValue)<|end_header_id|>\n\n\(msg.content)<|eot_id|>"
+        }
+        let suffix = "<|start_header_id|>user<|end_header_id|>\n\n\(suffixMessage.content)<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        return (prefix, suffix)
+    }
+
+    private func formatQwenMultiTurn(prefixMessages: [ChatMessage], suffixMessage: ChatMessage) -> (prefix: String, suffix: String) {
+        var prefix = ""
+        for msg in prefixMessages {
+            prefix += "<|im_start|>\(msg.role.rawValue)\n\(msg.content)<|im_end|>\n"
+        }
+        let suffix = "<|im_start|>user\n\(suffixMessage.content)<|im_end|>\n<|im_start|>assistant\n"
+        return (prefix, suffix)
+    }
+
+    private func formatGemmaMultiTurn(prefixMessages: [ChatMessage], suffixMessage: ChatMessage) -> (prefix: String, suffix: String) {
+        // Gemma doesn't support system role — merge system content into the first user turn.
+        var prefix = ""
+        var systemContent = ""
+        var isFirstUser = true
+
+        for msg in prefixMessages {
+            switch msg.role {
+            case .system:
+                if systemContent.isEmpty {
+                    systemContent = msg.content
+                } else {
+                    systemContent += "\n\n" + msg.content
+                }
+            case .user:
+                if isFirstUser && !systemContent.isEmpty {
+                    prefix += "<start_of_turn>user\n\(systemContent)\n\n\(msg.content)<end_of_turn>\n"
+                    isFirstUser = false
+                } else {
+                    prefix += "<start_of_turn>user\n\(msg.content)<end_of_turn>\n"
+                }
+            case .assistant:
+                prefix += "<start_of_turn>model\n\(msg.content)<end_of_turn>\n"
+            }
+        }
+
+        // Suffix: final user message + model response header
+        let userContent: String
+        if isFirstUser && !systemContent.isEmpty {
+            userContent = systemContent + "\n\n" + suffixMessage.content
+        } else {
+            userContent = suffixMessage.content
+        }
+        let suffix = "<start_of_turn>user\n\(userContent)<end_of_turn>\n<start_of_turn>model\n"
+        return (prefix, suffix)
     }
 
 }

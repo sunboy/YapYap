@@ -434,7 +434,8 @@ class TranscriptionPipeline {
                     appContext: appContext,
                     cleanupLevel: CleanupContext.CleanupLevel(rawValue: settings.cleanupLevel) ?? .medium,
                     removeFillers: true,
-                    experimentalPrompts: settings.experimentalPrompts
+                    experimentalPrompts: settings.experimentalPrompts,
+                    useV2Prompts: settings.useV2Prompts
                 )
 
                 let isLLMLoaded = await executor.isLLMLoaded
@@ -606,7 +607,8 @@ class TranscriptionPipeline {
             appContext: nil,
             cleanupLevel: .medium,
             removeFillers: false,
-            experimentalPrompts: settings.experimentalPrompts
+            experimentalPrompts: settings.experimentalPrompts,
+            useV2Prompts: settings.useV2Prompts
         ))
 
         pasteManager.paste(result, targetApp: self.targetApp)

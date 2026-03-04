@@ -10,6 +10,8 @@ struct CleanupContext {
     let cleanupLevel: CleanupLevel
     let removeFillers: Bool
     let experimentalPrompts: Bool
+    /// When true, use V2 prompt engine (chat-style multi-turn). When false, use V1 (classic).
+    var useV2Prompts: Bool = true
 
     enum Formality: String, Codable {
         case casual, neutral, formal

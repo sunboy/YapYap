@@ -6,6 +6,7 @@ struct PromptsTab: View {
     @State private var overrides = PromptOverrides()
     @State private var didLoad = false
     @State private var saveTask: Task<Void, Never>?
+    @State private var isV2Mode = true
 
     // Section expand state
     @State private var expandedSystemVariant: PromptOverrides.SystemPromptVariant?
@@ -19,27 +20,52 @@ struct PromptsTab: View {
                 .foregroundColor(.ypText3)
                 .padding(.bottom, 4)
 
-            Text("Each section has built-in defaults you can restore at any time.")
-                .font(.system(size: 12))
-                .foregroundColor(.ypText3)
-                .padding(.bottom, 20)
+            HStack {
+                Text("Each section has built-in defaults you can restore at any time.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.ypText3)
 
-            // ── Section 1: System Prompts ──
-            systemPromptsSection
+                Spacer()
 
-            SettingsSectionDivider()
+                Text(isV2Mode ? "V2 Engine" : "Classic (V1)")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(isV2Mode ? .ypMint : .ypText3)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(isV2Mode ? Color.ypMint.opacity(0.12) : Color.white.opacity(0.04))
+                    .cornerRadius(4)
+            }
+            .padding(.bottom, 20)
 
-            // ── Section 2: Few-Shot Examples ──
-            fewShotExamplesSection
+            if isV2Mode {
+                // V2: unified system prompt + chat-style examples
+                v2SystemPromptSection
 
-            SettingsSectionDivider()
+                SettingsSectionDivider()
 
-            // ── Section 3: App-Specific Rules ──
-            appSpecificRulesSection
+                v2FewShotSection
+
+                SettingsSectionDivider()
+
+                // V2 auto-derives app context — show info instead of editable rules
+                v2AppContextInfo
+            } else {
+                // V1 (classic): 4 system prompt variants + benchmark examples + app rules
+                systemPromptsSection
+
+                SettingsSectionDivider()
+
+                fewShotExamplesSection
+
+                SettingsSectionDivider()
+
+                appSpecificRulesSection
+            }
         }
         .onAppear {
             guard !didLoad else { return }
             overrides = PromptOverrides.loadFromUserDefaults()
+            isV2Mode = DataManager.shared.fetchSettings().useV2Prompts
             didLoad = true
         }
     }
@@ -756,6 +782,362 @@ struct PromptsTab: View {
                         .lineSpacing(2)
                 }
             }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // MARK: - V2 Sections
+    // ═══════════════════════════════════════════════════════════════════
+
+    private var v2SystemPromptSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader(
+                label: "SYSTEM PROMPT",
+                icon: "gearshape",
+                description: "Unified prompt for all models. App context and cleanup level are injected automatically."
+            )
+
+            let override = overrides.systemPromptOverride(for: .unified)
+            let hasOverride = override != nil
+            let isEnabled = override?.isEnabled ?? false
+            let isExpanded = expandedSystemVariant == .unified
+
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "cpu.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(hasOverride && isEnabled ? .ypLavender : .ypText3)
+                        .frame(width: 16)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("V2 Unified Prompt")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.ypText1)
+                        Text("Chat-style prompt with 14 hard rules")
+                            .font(.system(size: 10))
+                            .foregroundColor(.ypText3)
+                    }
+
+                    Spacer()
+
+                    overrideBadge(hasOverride: hasOverride, isEnabled: isEnabled)
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(.ypText3)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        expandedSystemVariant = isExpanded ? nil : .unified
+                    }
+                }
+
+                if isExpanded {
+                    v2SystemPromptEditor
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isExpanded ? Color.white.opacity(0.04) : Color.clear)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var v2SystemPromptEditor: some View {
+        let override = overrides.systemPromptOverride(for: .unified)
+        let isCustom = override != nil
+
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("DEFAULT")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.ypText4)
+                        .tracking(0.8)
+                    Spacer()
+                    if isCustom {
+                        Button("Reset to Default") {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                overrides.resetSystemPrompt(for: .unified)
+                                saveImmediately()
+                            }
+                        }
+                        .font(.system(size: 10))
+                        .foregroundColor(.ypText3)
+                    }
+                }
+
+                Text(PromptOverrides.defaultV2SystemPrompt())
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(isCustom ? .ypText4 : .ypText2)
+                    .lineSpacing(2)
+                    .textSelection(.enabled)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white.opacity(0.04))
+                    .cornerRadius(6)
+                    .opacity(isCustom ? 0.6 : 1.0)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("CUSTOM")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.ypText4)
+                        .tracking(0.8)
+                    Spacer()
+                    if !isCustom {
+                        Button("Customize") {
+                            overrides.setSystemPrompt(
+                                PromptOverrides.defaultV2SystemPrompt(),
+                                for: .unified,
+                                isEnabled: true
+                            )
+                            saveImmediately()
+                        }
+                        .font(.system(size: 10))
+                        .foregroundColor(.ypLavender)
+                    }
+                }
+
+                if isCustom {
+                    HStack(spacing: 6) {
+                        Toggle("", isOn: Binding(
+                            get: { overrides.systemPromptOverride(for: .unified)?.isEnabled ?? false },
+                            set: { newVal in
+                                overrides.setSystemPromptEnabled(newVal, for: .unified)
+                                saveImmediately()
+                            }
+                        ))
+                        .toggleStyle(YPToggleStyle())
+
+                        Text("Use custom V2 system prompt")
+                            .font(.system(size: 11))
+                            .foregroundColor(.ypText3)
+                    }
+                    .padding(.bottom, 4)
+
+                    TextEditor(text: Binding(
+                        get: { overrides.systemPromptOverride(for: .unified)?.text ?? "" },
+                        set: { newVal in
+                            overrides.setSystemPromptText(newVal, for: .unified)
+                            debounceSave()
+                        }
+                    ))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.ypText1)
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+                    .frame(minHeight: 120)
+                    .background(Color.white.opacity(0.07))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(Color.ypBorder, lineWidth: 1)
+                    )
+                    .cornerRadius(6)
+
+                    Text("{app_context} and cleanup level are injected automatically into the prompt.")
+                        .font(.system(size: 10))
+                        .foregroundColor(.ypText4)
+                        .lineSpacing(2)
+                }
+            }
+        }
+    }
+
+    private var v2FewShotSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader(
+                label: "FEW-SHOT EXAMPLES",
+                icon: "list.bullet.rectangle",
+                description: "Chat-style user/assistant pairs that teach the AI by example."
+            )
+
+            let hasOverride = overrides.fewShotOverride != nil
+            let isEnabled = overrides.fewShotOverride?.isEnabled ?? false
+            let exampleCount = overrides.fewShotOverride?.examples.count ?? PromptTemplatesV2.fewShotExamples.count
+
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "text.quote")
+                        .font(.system(size: 12))
+                        .foregroundColor(hasOverride && isEnabled ? .ypLavender : .ypText3)
+                        .frame(width: 16)
+
+                    Text("Examples (\(exampleCount))")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.ypText1)
+
+                    Spacer()
+
+                    overrideBadge(hasOverride: hasOverride, isEnabled: isEnabled)
+
+                    Image(systemName: fewShotExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(.ypText3)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        fewShotExpanded.toggle()
+                    }
+                }
+
+                if fewShotExpanded {
+                    v2FewShotEditor
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(fewShotExpanded ? Color.white.opacity(0.04) : Color.clear)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var v2FewShotEditor: some View {
+        let isCustom = overrides.fewShotOverride != nil
+
+        VStack(alignment: .leading, spacing: 10) {
+            if !isCustom {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("DEFAULT EXAMPLES")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.ypText4)
+                        .tracking(0.8)
+                }
+
+                ForEach(Array(PromptTemplatesV2.fewShotExamples.enumerated()), id: \.offset) { index, example in
+                    readOnlyExampleCard(index: index + 1, input: example.user, output: example.assistant)
+                }
+
+                HStack {
+                    Spacer()
+                    Button("Customize") {
+                        overrides.fewShotOverride = .init(
+                            isEnabled: true,
+                            examples: PromptOverrides.defaultV2FewShotExamples()
+                        )
+                        saveImmediately()
+                    }
+                    .font(.system(size: 10))
+                    .foregroundColor(.ypLavender)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Toggle("", isOn: Binding(
+                        get: { overrides.fewShotOverride?.isEnabled ?? false },
+                        set: { newVal in
+                            overrides.fewShotOverride?.isEnabled = newVal
+                            saveImmediately()
+                        }
+                    ))
+                    .toggleStyle(YPToggleStyle())
+
+                    Text("Use custom examples")
+                        .font(.system(size: 11))
+                        .foregroundColor(.ypText3)
+
+                    Spacer()
+
+                    Button("Reset to Defaults") {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            overrides.fewShotOverride = nil
+                            saveImmediately()
+                        }
+                    }
+                    .font(.system(size: 10))
+                    .foregroundColor(.ypText3)
+                }
+                .padding(.bottom, 4)
+
+                let examples = overrides.fewShotOverride?.examples ?? []
+                ForEach(Array(examples.enumerated()), id: \.element.id) { index, _ in
+                    editableExampleCard(index: index)
+                }
+
+                HStack {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            overrides.fewShotOverride?.examples.append(
+                                .init(input: "", output: "")
+                            )
+                            saveImmediately()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 10))
+                            Text("Add Example")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(.ypLavender)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.ypLavender.opacity(0.08))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
+
+                Text("Examples use chat-style format: input is prefixed with \"Reformat:\" automatically.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.ypText4)
+                    .lineSpacing(2)
+            }
+        }
+    }
+
+    private var v2AppContextInfo: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader(
+                label: "APP CONTEXT",
+                icon: "app.badge",
+                description: "V2 automatically detects the active app and injects the appropriate context keyword."
+            )
+
+            VStack(alignment: .leading, spacing: 8) {
+                let keywords = [
+                    ("IDE", "Code editors, AI chat panels, GitHub/GitLab"),
+                    ("Terminal", "Terminal, iTerm2, Warp, Alacritty"),
+                    ("Email", "Mail, Outlook, Gmail in browser"),
+                    ("Slack", "Slack, Teams, Discord, messaging apps"),
+                    ("LinkedIn", "LinkedIn in browser or app"),
+                    ("Twitter", "Twitter/X in browser or app"),
+                    ("Notes", "Notion, Obsidian, Notes, Bear"),
+                    ("General", "Default — no special formatting"),
+                ]
+
+                ForEach(keywords, id: \.0) { keyword, description in
+                    HStack(spacing: 10) {
+                        Text(keyword)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.ypLavender)
+                            .frame(width: 60, alignment: .trailing)
+
+                        Text(description)
+                            .font(.system(size: 11))
+                            .foregroundColor(.ypText3)
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color.white.opacity(0.03))
+            .cornerRadius(8)
         }
     }
 

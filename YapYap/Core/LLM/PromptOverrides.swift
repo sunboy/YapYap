@@ -165,11 +165,23 @@ struct PromptOverrides: Codable {
         }
     }
 
-    /// Returns the default (built-in) few-shot examples.
+    /// Returns the default (built-in) few-shot examples for V1.
     static func defaultFewShotExamples() -> [FewShotExample] {
         PromptTemplates.Examples.benchmark.map {
             FewShotExample(input: $0.input, output: $0.output)
         }
+    }
+
+    /// Returns the default (built-in) few-shot examples for V2.
+    static func defaultV2FewShotExamples() -> [FewShotExample] {
+        PromptTemplatesV2.fewShotExamples.map {
+            FewShotExample(input: $0.user, output: $0.assistant)
+        }
+    }
+
+    /// Returns the default V2 unified system prompt.
+    static func defaultV2SystemPrompt() -> String {
+        PromptTemplatesV2.systemPrompt(appContext: "General", cleanupLevel: .medium)
     }
 
     /// Returns the default (built-in) rules text for a category.
