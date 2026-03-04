@@ -231,7 +231,7 @@ struct OnboardingView: View {
                 .font(.ypHeadingRounded)
                 .foregroundColor(.ypText1)
 
-            Text("Used to paste transcribed text and detect which app is active.\nClick **Open System Settings**, then toggle YapYap on.")
+            Text("Used to paste transcribed text and detect which app is active.\nClick **Open System Settings** — if YapYap isn't listed, click **+** to add it, then toggle it **ON**.")
                 .font(.system(size: 13))
                 .foregroundColor(.ypText2)
                 .multilineTextAlignment(.center)
@@ -246,7 +246,7 @@ struct OnboardingView: View {
                     Text("Accessibility")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundColor(.ypText1)
-                    Text(accessibilityGranted ? "Access granted" : "Waiting — toggle YapYap ON in System Settings")
+                    Text(accessibilityGranted ? "Access granted" : "Waiting — add YapYap via + if not listed, then toggle ON")
                         .font(.system(size: 12))
                         .foregroundColor(accessibilityGranted ? .ypMint : .ypText3)
                 }
@@ -268,6 +268,10 @@ struct OnboardingView: View {
 
             if !accessibilityGranted {
                 Button("Open System Settings") {
+                    // Temporarily lower onboarding window level so System Settings opens in front
+                    if let delegate = NSApp.delegate as? AppDelegate {
+                        delegate.onboardingWindow?.level = .normal
+                    }
                     NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
                 }
                 .buttonStyle(.bordered)
@@ -624,6 +628,25 @@ struct OnboardingView: View {
                 .padding(.top, 8)
             }
             .padding(.horizontal, 40)
+
+            if STTModelRegistry.model(for: selectedSTTModel)?.backend == .fluidAudio {
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.ypWarm)
+                    Text("First use: Parakeet optimizes itself for your Neural Engine (~1 min, once only).")
+                        .font(.system(size: 11))
+                        .foregroundColor(.ypText3)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.ypWarm.opacity(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.ypWarm.opacity(0.2), lineWidth: 1))
+                .cornerRadius(8)
+                .padding(.horizontal, 40)
+                .padding(.top, 4)
+            }
         }
     }
 

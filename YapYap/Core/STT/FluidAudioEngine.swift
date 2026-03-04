@@ -25,12 +25,15 @@ class FluidAudioEngine: STTEngine, StreamingSTTEngine {
     }
 
     func loadModel(progressHandler: @escaping (Double) -> Void) async throws {
-        let modelPath = ModelStorage.shared.path(for: modelInfo.id, type: .stt)
+        // AsrModels.load(from:) expects the full path to the versioned repo folder.
+        // FluidAudio's DownloadUtils stores files at {parentDir}/parakeet-tdt-0.6b-v3-coreml/.
+        let repoDir = ModelDownloadService.fluidAudioParentDir
+            .appendingPathComponent(ModelDownloadService.parakeetRepoFolderName)
 
-        print("[FluidAudioEngine] Loading model '\(modelInfo.id)' from path: \(modelPath.path)")
+        print("[FluidAudioEngine] Loading model '\(modelInfo.id)' from path: \(repoDir.path)")
 
-        // Load the models from the model directory
-        let models = try await AsrModels.load(from: modelPath)
+        // Load the models from the versioned repo directory
+        let models = try await AsrModels.load(from: repoDir)
 
         // Initialize AsrManager with default config
         let manager = AsrManager(config: .default)

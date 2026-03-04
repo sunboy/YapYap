@@ -83,26 +83,36 @@ class OllamaEngine: LLMEngine {
             throw YapYapError.modelNotLoaded
         }
 
-        // Build prompts using the same CleanupPromptBuilder as MLXEngine.
-        // Use promptModelId (the MLX registry ID) so the prompt builder selects
-        // the same family/size tier, producing identical prompts across frameworks.
         let userContext = UserPromptContextManager.shared.context(
             for: context.appContext?.appName,
             transcript: rawText
         )
-        let messages = CleanupPromptBuilder.buildMessages(
-            rawText: rawText, context: context,
-            modelId: promptModelId, userContext: userContext
-        )
-
-        NSLog("[OllamaEngine] System prompt (\(messages.system.count) chars): \"\(String(messages.system.prefix(200)))\"")
-        NSLog("[OllamaEngine] User prompt (\(messages.user.count) chars): \"\(String(messages.user.prefix(200)))\"")
 
         var chatMessages: [[String: String]] = []
-        if !messages.system.isEmpty {
-            chatMessages.append(["role": "system", "content": messages.system])
+
+        if context.useV2Prompts {
+            // V2: multi-turn chat-style messages — Ollama natively supports message arrays
+            let v2Messages = CleanupPromptBuilderV2.buildMessages(
+                rawText: rawText, context: context, userContext: userContext
+            )
+            for msg in v2Messages {
+                chatMessages.append(["role": msg.role.rawValue, "content": msg.content])
+            }
+            NSLog("[OllamaEngine] V2 prompt: %d messages", v2Messages.count)
+        } else {
+            // V1: classic system + user message
+            let messages = CleanupPromptBuilder.buildMessages(
+                rawText: rawText, context: context,
+                modelId: promptModelId, userContext: userContext
+            )
+            NSLog("[OllamaEngine] V1 system prompt (\(messages.system.count) chars)")
+            NSLog("[OllamaEngine] V1 user prompt (\(messages.user.count) chars)")
+
+            if !messages.system.isEmpty {
+                chatMessages.append(["role": "system", "content": messages.system])
+            }
+            chatMessages.append(["role": "user", "content": messages.user])
         }
-        chatMessages.append(["role": "user", "content": messages.user])
 
         let startTime = Date()
         let result = try await chatCompletion(
@@ -126,7 +136,9 @@ class OllamaEngine: LLMEngine {
     /// Check if a model is available locally in Ollama.
     /// Also verifies the server is reachable (single /api/tags call).
     private func isModelAvailable(_ model: String) async throws -> Bool {
-        let url = URL(string: "\(endpoint)/api/tags")!
+        guard let url = URL(string: "\(endpoint)/api/tags") else {
+            throw OllamaError.invalidEndpoint(endpoint)
+        }
         let request = URLRequest(url: url)
         let data: Data
         do {
@@ -156,7 +168,9 @@ class OllamaEngine: LLMEngine {
 
     /// Pull a model from the Ollama registry
     private func pullModel(_ model: String, progressHandler: @escaping (Double) -> Void) async throws {
-        let url = URL(string: "\(endpoint)/api/pull")!
+        guard let url = URL(string: "\(endpoint)/api/pull") else {
+            throw OllamaError.invalidEndpoint(endpoint)
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -201,7 +215,9 @@ class OllamaEngine: LLMEngine {
         maxTokens: Int,
         temperature: Float = 0.0
     ) async throws -> String {
-        let url = URL(string: "\(endpoint)/api/chat")!
+        guard let url = URL(string: "\(endpoint)/api/chat") else {
+            throw OllamaError.invalidEndpoint(endpoint)
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -241,7 +257,9 @@ class OllamaEngine: LLMEngine {
     /// Low-level generate request (used for preload and unload)
     @discardableResult
     private func sendGenerateRequest(model: String, prompt: String, keepAlive: Int?) async throws -> String {
-        let url = URL(string: "\(endpoint)/api/generate")!
+        guard let url = URL(string: "\(endpoint)/api/generate") else {
+            throw OllamaError.invalidEndpoint(endpoint)
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -275,6 +293,7 @@ enum OllamaError: LocalizedError {
     case invalidResponse
     case httpError(Int, String)
     case modelNotFound(String)
+    case invalidEndpoint(String)
 
     var errorDescription: String? {
         switch self {
@@ -290,6 +309,8 @@ enum OllamaError: LocalizedError {
             return "Ollama HTTP error \(code): \(body)"
         case .modelNotFound(let model):
             return "Model '\(model)' not found in Ollama. Run: ollama pull \(model)"
+        case .invalidEndpoint(let endpoint):
+            return "Invalid Ollama endpoint URL: '\(endpoint)'. Please check your Ollama server URL in Settings."
         }
     }
 }

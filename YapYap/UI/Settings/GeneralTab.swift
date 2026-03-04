@@ -12,6 +12,7 @@ struct GeneralTab: View {
     @State private var copyToClipboard = true
     @State private var notifyOnComplete = false
     @State private var experimentalPrompts = false
+    @State private var useV2Prompts = true
     @State private var selectedMic = "Default"
     @State private var floatingBarPosition = "Bottom center"
     @State private var historyLimit = "Last 100"
@@ -50,6 +51,10 @@ struct GeneralTab: View {
                 .padding(.bottom, 8)
 
             toggleRow(label: "Detailed prompts for small models", subtitle: "Use 3B+ model prompts on ≤1B models (may reduce accuracy)", isOn: $experimentalPrompts)
+            toggleRow(label: "Classic prompt engine (V1)", subtitle: "Use the original single-turn prompts instead of the new chat-style engine", isOn: Binding(
+                get: { !useV2Prompts },
+                set: { useV2Prompts = !$0 }
+            ))
 
             divider
 
@@ -96,6 +101,10 @@ struct GeneralTab: View {
         .onChange(of: experimentalPrompts) { _, newValue in
             guard didLoadSettings else { return }
             saveSettings { $0.experimentalPrompts = newValue }
+        }
+        .onChange(of: useV2Prompts) { _, newValue in
+            guard didLoadSettings else { return }
+            saveSettings { $0.useV2Prompts = newValue }
         }
         .onChange(of: crashReportingEnabled) { _, newValue in
             CrashReporter.isEnabled = newValue
@@ -144,6 +153,7 @@ struct GeneralTab: View {
         copyToClipboard = settings.copyToClipboard
         notifyOnComplete = settings.notifyOnComplete
         experimentalPrompts = settings.experimentalPrompts
+        useV2Prompts = settings.useV2Prompts
         floatingBarPosition = settings.floatingBarPosition
         historyLimit = intToHistoryLimit(settings.historyLimit)
         sttMode = settings.sttMode ?? "batch"

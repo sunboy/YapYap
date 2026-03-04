@@ -32,7 +32,7 @@ struct STTModelRegistry {
             sizeDescription: "~244MB",
             languages: ["en", "es", "fr", "de"],
             description: "Fast and light. Good for 8GB machines. Auto-downloads on first use.",
-            isRecommended: true
+            isRecommended: false
         ),
         STTModelInfo(
             id: "parakeet-tdt-v3",
@@ -41,8 +41,8 @@ struct STTModelRegistry {
             sizeBytes: 629_145_600,
             sizeDescription: "~600MB",
             languages: ["en", "es", "fr", "de", "it", "pt"],
-            description: "Fastest. Runs on Neural Engine. Must download manually in Settings.",
-            isRecommended: false
+            description: "Fastest. Runs on Neural Engine. Downloads automatically on first use.",
+            isRecommended: true
         ),
         STTModelInfo(
             id: "voxtral-mini-3b",

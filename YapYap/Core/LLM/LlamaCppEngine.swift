@@ -6,6 +6,11 @@ import LlamaSwift
 class LlamaCppEngine: LLMEngine {
     private var model: OpaquePointer?   // llama_model *
     private var context: OpaquePointer? // llama_context *
+    /// Serializes all llama_decode / llama_memory_clear calls.
+    /// The keep-alive timer can fire warmup() concurrently with cleanup(),
+    /// and llama.cpp contexts are not thread-safe — concurrent decode calls
+    /// corrupt the KV cache and trigger ggml_abort.
+    private let inferenceLock = NSLock()
     private(set) var modelId: String?
 
     /// MLX model registry ID used for prompt selection. Maps the GGUF model
@@ -53,7 +58,7 @@ class LlamaCppEngine: LLMEngine {
         // Create inference context
         var ctxParams = llama_context_default_params()
         ctxParams.n_ctx = 2048       // Context window sufficient for cleanup
-        ctxParams.n_batch = 512      // Batch size for prompt processing
+        ctxParams.n_batch = 2048     // Must match n_ctx so full prompts can decode in one call
         ctxParams.n_threads = Int32(max(1, ProcessInfo.processInfo.processorCount - 2))
 
         guard let ctx = llama_init_from_model(loadedModel, ctxParams) else {
@@ -87,8 +92,18 @@ class LlamaCppEngine: LLMEngine {
         let tokens = tokenize("Hello", addSpecial: true)
         guard !tokens.isEmpty else { return }
 
+        // Skip warmup if cleanup is already running — warmup is best-effort
+        guard inferenceLock.try() else {
+            NSLog("[LlamaCppEngine] Warmup skipped — inference in progress")
+            return
+        }
+        defer { inferenceLock.unlock() }
+
         let batch = llama_batch_get_one(UnsafeMutablePointer(mutating: tokens), Int32(tokens.count))
-        llama_decode(context, batch)
+        let result = llama_decode(context, batch)
+        if result != 0 {
+            NSLog("[LlamaCppEngine] Warmup decode failed with code \(result)")
+        }
         llama_memory_clear(llama_get_memory(context), true)
 
         let elapsed = Date().timeIntervalSince(startTime) * 1000
@@ -100,28 +115,51 @@ class LlamaCppEngine: LLMEngine {
             throw YapYapError.modelNotLoaded
         }
 
-        // Build prompts using the same CleanupPromptBuilder as other engines.
-        // Use promptModelId to select the correct family/size tier prompts.
         let userContext = UserPromptContextManager.shared.context(
             for: cleanupContext.appContext?.appName,
             transcript: rawText
         )
-        let messages = CleanupPromptBuilder.buildMessages(
-            rawText: rawText, context: cleanupContext,
-            modelId: promptModelId, userContext: userContext
-        )
 
-        NSLog("[LlamaCppEngine] System prompt (\(messages.system.count) chars), user prompt (\(messages.user.count) chars)")
+        let prompt: String
 
-        // Apply chat template via llama.cpp's built-in template support
-        let prompt = applyChatTemplate(system: messages.system, user: messages.user)
-        let tokens = tokenize(prompt, addSpecial: false)
+        if cleanupContext.useV2Prompts {
+            // V2: multi-turn chat-style messages
+            let v2Messages = CleanupPromptBuilderV2.buildMessages(
+                rawText: rawText, context: cleanupContext, userContext: userContext
+            )
+            prompt = applyChatTemplateMultiTurn(v2Messages)
+            NSLog("[LlamaCppEngine] V2 prompt: %d messages", v2Messages.count)
+        } else {
+            // V1: classic system + user message
+            let messages = CleanupPromptBuilder.buildMessages(
+                rawText: rawText, context: cleanupContext,
+                modelId: promptModelId, userContext: userContext
+            )
+            NSLog("[LlamaCppEngine] V1 system prompt (\(messages.system.count) chars), user prompt (\(messages.user.count) chars)")
+            prompt = applyChatTemplate(system: messages.system, user: messages.user)
+        }
+        var tokens = tokenize(prompt, addSpecial: false)
 
         guard !tokens.isEmpty else {
             throw LlamaCppError.tokenizationFailed
         }
 
-        NSLog("[LlamaCppEngine] Prompt: \(tokens.count) tokens")
+        // Guard against prompts that would overflow the context window.
+        // Reserve at least 256 tokens for generation output.
+        let contextSize = Int(llama_n_ctx(context))
+        let maxPromptTokens = contextSize - 256
+        if tokens.count > maxPromptTokens {
+            NSLog("[LlamaCppEngine] Prompt too long (%d tokens), truncating to %d to leave room for generation", tokens.count, maxPromptTokens)
+            tokens = Array(tokens.prefix(maxPromptTokens))
+        }
+
+        NSLog("[LlamaCppEngine] Prompt: \(tokens.count) tokens (context: \(contextSize))")
+
+        // Lock the context for the entire inference pass (prefill + generation).
+        // The keep-alive timer can fire warmup() concurrently, and llama.cpp
+        // contexts are not thread-safe.
+        inferenceLock.lock()
+        defer { inferenceLock.unlock() }
 
         // Clear KV cache for fresh inference
         llama_memory_clear(llama_get_memory(context), true)
@@ -148,12 +186,17 @@ class LlamaCppEngine: LLMEngine {
         // Temperature 0 = greedy decoding (best for text cleanup)
         llama_sampler_chain_add(sampler, llama_sampler_init_greedy())
 
-        // Generate tokens
+        // Generate tokens (cap at remaining context to avoid decode crash)
         let eosToken = llama_vocab_eos(llama_model_get_vocab(model))
+        let maxGenTokens = contextSize - tokens.count
         var outputTokens: [llama_token] = []
         var outputText = ""
 
-        while true {
+        // Hoist stop sequences outside the loop to avoid per-token allocation
+        let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>"]
+        let maxStopLen = stopSequences.map(\.count).max() ?? 0
+
+        while outputTokens.count < maxGenTokens {
             let newToken = llama_sampler_sample(sampler, context, -1)
 
             // Stop on EOS
@@ -163,12 +206,15 @@ class LlamaCppEngine: LLMEngine {
             let piece = tokenToPiece(newToken)
             outputText += piece
 
-            // Check for stop sequences in the tail
-            let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>"]
+            // Only scan the tail of outputText for stop sequences (O(1) per token)
+            let tailStart = outputText.index(outputText.endIndex, offsetBy: -(maxStopLen + piece.count), limitedBy: outputText.startIndex) ?? outputText.startIndex
+            let tail = String(outputText[tailStart...])
             var stopped = false
             for stop in stopSequences {
-                if let range = outputText.range(of: stop) {
-                    outputText = String(outputText[..<range.lowerBound])
+                if let range = tail.range(of: stop) {
+                    let offset = outputText.distance(from: outputText.startIndex, to: tailStart)
+                    let fullStart = outputText.index(outputText.startIndex, offsetBy: offset + tail.distance(from: tail.startIndex, to: range.lowerBound))
+                    outputText = String(outputText[..<fullStart])
                     stopped = true
                     break
                 }
@@ -271,6 +317,55 @@ class LlamaCppEngine: LLMEngine {
         NSLog("[LlamaCppEngine] Built-in template failed, using ChatML fallback")
         let systemBlock = system.isEmpty ? "" : "<|im_start|>system\n\(system)<|im_end|>\n"
         return "\(systemBlock)<|im_start|>user\n\(user)<|im_end|>\n<|im_start|>assistant\n"
+    }
+
+    /// Apply the model's built-in chat template with multi-turn ChatMessages (V2).
+    private func applyChatTemplateMultiTurn(_ messages: [ChatMessage]) -> String {
+        guard let model = model else {
+            return messages.last?.content ?? ""
+        }
+
+        var chatMessages: [llama_chat_message] = []
+        var allocations: [(UnsafeMutablePointer<CChar>, UnsafeMutablePointer<CChar>)] = []
+
+        for msg in messages {
+            let roleCStr = strdup(msg.role.rawValue)!
+            let contentCStr = strdup(msg.content)!
+            chatMessages.append(llama_chat_message(role: roleCStr, content: contentCStr))
+            allocations.append((roleCStr, contentCStr))
+        }
+
+        defer {
+            for (role, content) in allocations {
+                free(role)
+                free(content)
+            }
+        }
+
+        var buf = [CChar](repeating: 0, count: 16384)
+        let result = chatMessages.withUnsafeBufferPointer { messagesPtr in
+            llama_chat_apply_template(
+                llama_model_chat_template(model, nil),
+                messagesPtr.baseAddress,
+                messagesPtr.count,
+                true,
+                &buf,
+                Int32(buf.count)
+            )
+        }
+
+        if result > 0 && Int(result) < buf.count {
+            return String(cString: buf.prefix(Int(result)) + [0])
+        }
+
+        // Fallback: ChatML format with multi-turn
+        NSLog("[LlamaCppEngine] Built-in template failed for multi-turn, using ChatML fallback")
+        var prompt = ""
+        for msg in messages {
+            prompt += "<|im_start|>\(msg.role.rawValue)\n\(msg.content)<|im_end|>\n"
+        }
+        prompt += "<|im_start|>assistant\n"
+        return prompt
     }
 
     // MARK: - GGUF Download

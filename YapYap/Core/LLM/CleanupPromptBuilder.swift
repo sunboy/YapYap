@@ -65,11 +65,14 @@ struct CleanupPromptBuilder {
         var prompt: String
         switch context.cleanupLevel {
         case .light:
-            prompt = PromptTemplates.System.smallLight
+            prompt = overrides.effectiveSystemPrompt(variant: .smallLight)
+                ?? PromptTemplates.System.smallLight
         case .medium:
-            prompt = PromptTemplates.System.smallMedium
+            prompt = overrides.effectiveSystemPrompt(variant: .smallMedium)
+                ?? PromptTemplates.System.smallMedium
         case .heavy:
-            prompt = PromptTemplates.System.smallHeavy
+            prompt = overrides.effectiveSystemPrompt(variant: .smallHeavy)
+                ?? PromptTemplates.System.smallHeavy
         }
 
         // Add concise formality hint
@@ -103,23 +106,34 @@ struct CleanupPromptBuilder {
 
     /// Unified benchmark-proven system prompt for medium+ models (all families).
     private static func buildUnifiedSystemPrompt(context: CleanupContext, overrides: PromptOverrides) -> String {
-        let contextLine = buildContextLine(for: context.appContext)
-        let richRules = buildRichAppRules(for: context.appContext, overrides: overrides)
-        let levelKey: String
-        switch context.cleanupLevel {
-        case .light: levelKey = "light"
-        case .medium: levelKey = "medium"
-        case .heavy: levelKey = "heavy"
-        }
-        // Number conversion only for medium and heavy
-        let numberRule = context.cleanupLevel != .light
+        var system: String
 
-        var system = PromptTemplates.System.unified(
-            cleanupLevel: levelKey,
-            contextLine: contextLine,
-            richRules: richRules,
-            numberRule: numberRule
-        )
+        if let customPrompt = overrides.effectiveSystemPrompt(variant: .unified) {
+            // User's custom system prompt replaces the dynamic generator.
+            // App-specific rules are still appended below.
+            system = customPrompt
+            let appRules = buildRichAppRules(for: context.appContext, overrides: overrides)
+            if !appRules.isEmpty {
+                system += "\n\n" + appRules
+            }
+        } else {
+            let contextLine = buildContextLine(for: context.appContext)
+            let richRules = buildRichAppRules(for: context.appContext, overrides: overrides)
+            let levelKey: String
+            switch context.cleanupLevel {
+            case .light: levelKey = "light"
+            case .medium: levelKey = "medium"
+            case .heavy: levelKey = "heavy"
+            }
+            let numberRule = context.cleanupLevel != .light
+
+            system = PromptTemplates.System.unified(
+                cleanupLevel: levelKey,
+                contextLine: contextLine,
+                richRules: richRules,
+                numberRule: numberRule
+            )
+        }
 
         // Append formality modifier
         switch context.formality {
@@ -228,7 +242,16 @@ struct CleanupPromptBuilder {
     /// Small model user message split into (prefix, suffix).
     /// Prefix: examples + instruction. Suffix: <input>{rawText}</input>\n<output>
     private static func buildSmallModelUserMessageParts(rawText: String, context: CleanupContext, userContext: UserPromptContext? = nil) -> (prefix: String, suffix: String) {
-        let examples = PromptTemplates.Examples.small
+        let overrides = PromptOverrides.loadFromUserDefaults()
+        let examples: [PromptTemplates.Example]
+        if let customExamples = overrides.effectiveExamples() {
+            // Custom examples: use first 3 for small models (to prevent echo contamination)
+            examples = Array(customExamples.prefix(3)).map {
+                PromptTemplates.Example(input: $0.input, output: $0.output)
+            }
+        } else {
+            examples = PromptTemplates.Examples.small
+        }
         let examplesText = examples.map { "<input>\($0.input)</input>\n<output>\($0.output)</output>" }
             .joined(separator: "\n\n")
 
@@ -255,24 +278,36 @@ struct CleanupPromptBuilder {
     private static func buildUnifiedUserMessageParts(rawText: String, context: CleanupContext, userContext: UserPromptContext? = nil, modelSize: LLMModelSize = .medium) -> (prefix: String, suffix: String) {
         var prefixParts: [String] = []
 
-        var examples = PromptTemplates.Examples.benchmark
-        if let appContext = context.appContext {
-            if appContext.isIDEChatPanel || appContext.category == .codeEditor {
-                var codeExamples = PromptTemplates.Examples.benchmark
-                codeExamples.insert(contentsOf: PromptTemplates.Examples.mediumCodeEditor, at: 1)
-                examples = codeExamples
-            } else if appContext.category == .social {
-                var socialExamples = PromptTemplates.Examples.benchmark
-                socialExamples.insert(contentsOf: PromptTemplates.Examples.mediumSocial, at: 1)
-                examples = socialExamples
-            } else if appContext.category == .email {
-                var emailExamples = PromptTemplates.Examples.benchmark
-                emailExamples.insert(contentsOf: PromptTemplates.Examples.mediumEmail, at: 1)
-                examples = emailExamples
+        let overrides = PromptOverrides.loadFromUserDefaults()
+        let resolvedExamples: [PromptTemplates.Example]
+
+        if let customExamples = overrides.effectiveExamples() {
+            // Custom examples: use all of them, skip category-specific injection
+            resolvedExamples = customExamples.map {
+                PromptTemplates.Example(input: $0.input, output: $0.output)
             }
+        } else {
+            // Default: benchmark + category-specific extras
+            var examples = PromptTemplates.Examples.benchmark
+            if let appContext = context.appContext {
+                if appContext.isIDEChatPanel || appContext.category == .codeEditor {
+                    var codeExamples = PromptTemplates.Examples.benchmark
+                    codeExamples.insert(contentsOf: PromptTemplates.Examples.mediumCodeEditor, at: 1)
+                    examples = codeExamples
+                } else if appContext.category == .social {
+                    var socialExamples = PromptTemplates.Examples.benchmark
+                    socialExamples.insert(contentsOf: PromptTemplates.Examples.mediumSocial, at: 1)
+                    examples = socialExamples
+                } else if appContext.category == .email {
+                    var emailExamples = PromptTemplates.Examples.benchmark
+                    emailExamples.insert(contentsOf: PromptTemplates.Examples.mediumEmail, at: 1)
+                    examples = emailExamples
+                }
+            }
+            resolvedExamples = examples
         }
 
-        prefixParts.append(PromptTemplates.Examples.formatMedium(examples))
+        prefixParts.append(PromptTemplates.Examples.formatMedium(resolvedExamples))
 
         if let ctx = userContext {
             let dict = ctx.dictionaryBlock(modelSize: modelSize)

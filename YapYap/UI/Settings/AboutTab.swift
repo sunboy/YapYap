@@ -43,7 +43,6 @@ struct AboutTab: View {
 
             // Buttons
             HStack(spacing: 10) {
-                linkButton("GitHub")
                 linkButton("Website")
             }
             .padding(.bottom, 20)
@@ -54,7 +53,6 @@ struct AboutTab: View {
     private func linkButton(_ title: String) -> some View {
         let urlString: String
         switch title {
-        case "GitHub":  urlString = "https://github.com/sunboy/yapyap"
         case "Website": urlString = "https://yapyap.tech"
         default:        urlString = ""
         }

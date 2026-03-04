@@ -42,6 +42,9 @@ final class AppSettings {
     /// STT pipeline mode: "streaming" (live preview) or "batch" (fastest, no preview).
     /// Optional for SwiftData migration — nil treated as "batch".
     var sttMode: String?
+    /// Prompt engine version: true = V2 (new unified prompt), false = V1 (classic multi-tier).
+    /// Defaults to true. Power users can switch to V1 for compatibility.
+    var useV2Prompts: Bool
 
     init(
         sttModelId: String = "whisper-small",
@@ -73,7 +76,8 @@ final class AppSettings {
         ollamaModelName: String = "qwen2.5:1.5b",
         llamacppModelId: String = GGUFModelRegistry.recommendedModel.id,
         llmSkipWordThreshold: Int = 20,
-        sttMode: String? = nil
+        sttMode: String? = "streaming",
+        useV2Prompts: Bool = true
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -105,6 +109,7 @@ final class AppSettings {
         self.llamacppModelId = llamacppModelId
         self.llmSkipWordThreshold = llmSkipWordThreshold
         self.sttMode = sttMode
+        self.useV2Prompts = useV2Prompts
     }
 
     static func defaults() -> AppSettings {

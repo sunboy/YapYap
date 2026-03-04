@@ -82,11 +82,9 @@ final class DataModelTests: XCTestCase {
 
     // MARK: - sttMode
 
-    func testSTTModeDefaultIsNil() {
+    func testSTTModeDefaultIsStreaming() {
         let s = AppSettings()
-        XCTAssertNil(s.sttMode)
-        // nil defaults to "batch" — batch is the default transcription mode
-        XCTAssertEqual(s.sttMode ?? "batch", "batch")
+        XCTAssertEqual(s.sttMode, "streaming")
     }
 
     func testSTTModeBatchRoundTrip() {

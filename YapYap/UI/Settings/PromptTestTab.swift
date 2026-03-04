@@ -143,17 +143,28 @@ struct PromptTestTab: View {
             appContext: appContext,
             cleanupLevel: CleanupContext.CleanupLevel(rawValue: selectedLevel) ?? .medium,
             removeFillers: true,
-            experimentalPrompts: settings.experimentalPrompts
+            experimentalPrompts: settings.experimentalPrompts,
+            useV2Prompts: settings.useV2Prompts
         )
 
-        let messages = CleanupPromptBuilder.buildMessages(
-            rawText: inputText,
-            context: context,
-            modelId: settings.llmModelId
-        )
-
-        systemPrompt = messages.system
-        userPrompt = messages.user
+        if settings.useV2Prompts {
+            let v2Messages = CleanupPromptBuilderV2.buildMessages(
+                rawText: inputText, context: context
+            )
+            systemPrompt = v2Messages.first(where: { $0.role == .system })?.content ?? ""
+            userPrompt = v2Messages
+                .filter { $0.role != .system }
+                .map { "[\($0.role.rawValue)]\n\($0.content)" }
+                .joined(separator: "\n\n")
+        } else {
+            let messages = CleanupPromptBuilder.buildMessages(
+                rawText: inputText,
+                context: context,
+                modelId: settings.llmModelId
+            )
+            systemPrompt = messages.system
+            userPrompt = messages.user
+        }
     }
 
     private func fetchSettings() -> AppSettings {

@@ -3,6 +3,7 @@ import SwiftData
 import MLXLLM
 import MLXLMCommon
 import Hub
+import FluidAudio
 
 struct ModelsTab: View {
     let appState: AppState?
@@ -218,8 +219,7 @@ struct ModelsTab: View {
                         }
                         .buttonStyle(.plain)
                     } else {
-                        // STT models auto-download on first use via WhisperKit
-                        Button(action: { selectSTTModel(model.id) }) {
+                        Button(action: { downloadAndSelectSTTModel(model) }) {
                             HStack(spacing: 3) {
                                 Image(systemName: "arrow.down.circle")
                                     .font(.system(size: 9))
@@ -233,6 +233,7 @@ struct ModelsTab: View {
                             .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
+                        .disabled(downloadingModel != nil)
                     }
 
                     Spacer()
@@ -754,8 +755,12 @@ struct ModelsTab: View {
     private func checkOllamaConnection() {
         ollamaStatus = .checking
         Task {
-            let url = URL(string: "\(ollamaEndpoint)/api/tags")!
-            let request = URLRequest(url: url)
+            guard let url = URL(string: "\(ollamaEndpoint)/api/tags") else {
+                await MainActor.run { ollamaStatus = .error("Invalid endpoint URL") }
+                return
+            }
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 5
             do {
                 let (_, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, http.statusCode == 200 {
@@ -801,6 +806,14 @@ struct ModelsTab: View {
                     with: "~"
                 )
             )
+
+            storagePathRow(
+                label: "Parakeet models",
+                path: Self.appSupportModelsDir.appendingPathComponent("STT/parakeet-tdt-0.6b-v3-coreml").path.replacingOccurrences(
+                    of: FileManager.default.homeDirectoryForCurrentUser.path,
+                    with: "~"
+                )
+            )
         }
     }
 
@@ -835,7 +848,7 @@ struct ModelsTab: View {
     private func selectSTTModel(_ id: String) {
         selectedSTT = id
         saveSettings { $0.sttModelId = id }
-        NotificationCenter.default.post(name: .yapSettingsChanged, object: nil)
+        NotificationCenter.default.post(name: .yapModelSelected, object: nil)
     }
 
     private func selectLLMModel(_ id: String) {
@@ -893,6 +906,55 @@ struct ModelsTab: View {
                 }
             } catch {
                 NSLog("[ModelsTab] GGUF download failed for \(model.id): \(error)")
+                await MainActor.run {
+                    downloadingModel = nil
+                    downloadProgress = 0
+                    downloadError = "Failed to download \(model.name): \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func downloadAndSelectSTTModel(_ model: STTModelInfo) {
+        guard downloadingModel == nil else { return }
+        downloadingModel = model.id
+        downloadProgress = 0
+
+        Task {
+            do {
+                try await ModelDownloadService.shared.download(modelId: model.id) { p in
+                    Task { @MainActor in downloadProgress = p }
+                }
+
+                await MainActor.run {
+                    downloadedModels.insert(model.id)
+                    downloadingModel = nil
+                    downloadProgress = 0
+                    selectSTTModel(model.id)
+                }
+
+                // Compute size off-main after download completes
+                let modelId = model.id
+                DispatchQueue.global(qos: .utility).async {
+                    let dir: URL
+                    if model.backend == .fluidAudio {
+                        dir = ModelDownloadService.fluidAudioParentDir
+                            .appendingPathComponent(ModelDownloadService.parakeetRepoFolderName)
+                    } else {
+                        let whiskerKitModel = model.id.replacingOccurrences(of: "whisper-", with: "")
+                        let hubSubdir = ModelDownloadService.whisperDir
+                            .appendingPathComponent("models/argmaxinc/whisperkit-coreml")
+                        dir = (try? FileManager.default.contentsOfDirectory(at: hubSubdir, includingPropertiesForKeys: nil))?
+                            .first { $0.lastPathComponent.lowercased().hasPrefix("openai_whisper-\(whiskerKitModel)") }
+                            ?? ModelDownloadService.whisperDir
+                    }
+                    if let size = Self.directorySize(at: dir) {
+                        let formatted = Self.formatBytes(size)
+                        DispatchQueue.main.async { self.modelSizes[modelId] = formatted }
+                    }
+                }
+            } catch {
+                NSLog("[ModelsTab] STT download failed for \(model.id): \(error)")
                 await MainActor.run {
                     downloadingModel = nil
                     downloadProgress = 0
@@ -1003,6 +1065,21 @@ struct ModelsTab: View {
                         } catch {
                             NSLog("[ModelsTab] Failed to delete STT model \(id): \(error)")
                         }
+                    }
+                }
+            }
+
+            // Try FluidAudio (Parakeet) model deletion.
+            // FluidAudio stores files in {fluidAudioParentDir}/parakeet-tdt-0.6b-v3-coreml/.
+            if let sttModel = STTModelRegistry.model(for: id), sttModel.backend == .fluidAudio {
+                let sttParentDir = ModelDownloadService.fluidAudioParentDir
+                let repoDir = sttParentDir.appendingPathComponent(ModelDownloadService.parakeetRepoFolderName)
+                if FileManager.default.fileExists(atPath: repoDir.path) {
+                    do {
+                        try FileManager.default.removeItem(at: repoDir)
+                        NSLog("[ModelsTab] Deleted FluidAudio dir: \(ModelDownloadService.parakeetRepoFolderName)")
+                    } catch {
+                        NSLog("[ModelsTab] Failed to delete FluidAudio dir: \(error)")
                     }
                 }
             }
@@ -1125,6 +1202,20 @@ struct ModelsTab: View {
                     if let s = smallSize { downloaded.insert("whisper-small"); sizes["whisper-small"] = s }
                     if let m = mediumSize { downloaded.insert("whisper-medium"); sizes["whisper-medium"] = m }
                     if let l = largeSize { downloaded.insert("whisper-large-v3-turbo"); sizes["whisper-large-v3-turbo"] = l }
+                }
+            }
+
+            // Check FluidAudio (Parakeet) models.
+            // FluidAudio's DownloadUtils stores files at {fluidAudioParentDir}/parakeet-tdt-0.6b-v3-coreml/.
+            // Use AsrModels.modelsExist(at:) passing the full repo dir path.
+            let fluidAudioRepoDir = Self.appSupportModelsDir
+                .appendingPathComponent("STT/\(ModelDownloadService.parakeetRepoFolderName)")
+            for model in STTModelRegistry.allModels where model.backend == .fluidAudio {
+                if AsrModels.modelsExist(at: fluidAudioRepoDir) {
+                    downloaded.insert(model.id)
+                    if let size = Self.directorySize(at: fluidAudioRepoDir) {
+                        sizes[model.id] = Self.formatBytes(size)
+                    }
                 }
             }
 
