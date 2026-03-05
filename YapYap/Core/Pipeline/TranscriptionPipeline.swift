@@ -498,13 +498,13 @@ class TranscriptionPipeline {
 
             // Paste and/or copy
             if settings.autoPaste {
-                pasteManager.paste(cleanedText, targetApp: self.targetApp)
+                pasteManager.paste(cleanedText, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
             } else {
                 NSLog("[TranscriptionPipeline] autoPaste is OFF — skipping paste")
-            }
-            if settings.copyToClipboard {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(cleanedText, forType: .string)
+                if settings.copyToClipboard {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(cleanedText, forType: .string)
+                }
             }
 
             // Update state immediately — text is already pasted
@@ -638,7 +638,7 @@ class TranscriptionPipeline {
             useV2Prompts: settings.useV2Prompts
         ))
 
-        pasteManager.paste(result, targetApp: self.targetApp)
+        pasteManager.paste(result, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
         appState.creatureState = .sleeping
         appState.isProcessing = false
         appState.partialTranscription = nil
@@ -650,9 +650,8 @@ class TranscriptionPipeline {
 
     private func handleSnippet(snippet: VoiceSnippet, settings: AppSettings) async throws -> String {
         if settings.autoPaste {
-            pasteManager.paste(snippet.expansion, targetApp: self.targetApp)
-        }
-        if settings.copyToClipboard {
+            pasteManager.paste(snippet.expansion, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
+        } else if settings.copyToClipboard {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(snippet.expansion, forType: .string)
         }
