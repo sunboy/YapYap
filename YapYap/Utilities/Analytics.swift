@@ -31,6 +31,19 @@ struct Analytics {
 
         // Identify this install with a random UUID (generated once, stored locally)
         PostHogSDK.shared.identify(installId)
+
+        // Register device context as super-properties — attached to every event
+        // so we can segment by hardware without sending PII.
+        let profile = MachineProfile.current
+        let ramGB = Double(profile.totalRAMBytes) / (1024 * 1024 * 1024)
+        PostHogSDK.shared.register([
+            "$set_once": [
+                "device_ram_gb": Int(ramGB),
+                "device_cores": profile.cpuCoreCount,
+                "device_tier": profile.tier.rawValue,
+                "os_version": ProcessInfo.processInfo.operatingSystemVersionString
+            ]
+        ])
     }
 
     // MARK: - App lifecycle
@@ -41,17 +54,22 @@ struct Analytics {
             "stt_model": sttModel,
             "llm_model": llmModel,
             "os_version": ProcessInfo.processInfo.operatingSystemVersionString,
-            "app_version": appVersion
+            "app_version": appVersion,
+            "device_ram_gb": deviceRAMGB,
+            "device_cores": deviceCores,
+            "device_tier": deviceTier
         ])
     }
 
     static func trackAppLaunched() {
         capture("app_launched", properties: [
-            "app_version": appVersion
+            "app_version": appVersion,
+            "device_ram_gb": deviceRAMGB,
+            "device_tier": deviceTier
         ])
     }
 
-    // MARK: - Transcription
+    // MARK: - Transcription (enriched with performance data)
 
     static func trackTranscription(
         sttModel: String,
@@ -59,7 +77,15 @@ struct Analytics {
         durationSeconds: Double,
         wordCount: Int,
         appCategory: String,
-        hadLLMCleanup: Bool
+        hadLLMCleanup: Bool,
+        sttMs: Double = 0,
+        llmMs: Double = 0,
+        totalPipelineMs: Double = 0,
+        vadReductionPct: Double = 0,
+        llmTokensPerSec: Double = 0,
+        promptCacheHit: Bool = false,
+        llmSkipped: Bool = false,
+        usedStreaming: Bool = false
     ) {
         capture("transcription_completed", properties: [
             "stt_model": sttModel,
@@ -67,7 +93,16 @@ struct Analytics {
             "duration_seconds": durationSeconds,
             "word_count": wordCount,
             "app_category": appCategory,
-            "had_llm_cleanup": hadLLMCleanup
+            "had_llm_cleanup": hadLLMCleanup,
+            // Performance metrics
+            "stt_ms": Int(sttMs),
+            "llm_ms": Int(llmMs),
+            "total_pipeline_ms": Int(totalPipelineMs),
+            "vad_reduction_pct": Int(vadReductionPct),
+            "llm_tokens_per_sec": Int(llmTokensPerSec),
+            "prompt_cache_hit": promptCacheHit,
+            "llm_skipped": llmSkipped,
+            "used_streaming": usedStreaming
         ])
     }
 
@@ -151,4 +186,13 @@ struct Analytics {
     private static var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
     }
+
+    // MARK: - Device helpers (cached)
+
+    private static let deviceRAMGB: Int = {
+        Int(Double(MachineProfile.current.totalRAMBytes) / (1024 * 1024 * 1024))
+    }()
+
+    private static let deviceCores: Int = MachineProfile.current.cpuCoreCount
+    private static let deviceTier: String = MachineProfile.current.tier.rawValue
 }
