@@ -47,7 +47,7 @@ final class AppSettings {
     var useV2Prompts: Bool
 
     init(
-        sttModelId: String = "whisper-small",
+        sttModelId: String = "parakeet-tdt-v3",
         llmModelId: String = "gemma-3-4b",
         stylePrompt: String = "",
         formality: String = "neutral",

@@ -17,10 +17,15 @@ enum PromptTemplatesV2 {
     // ═══════════════════════════════════════════════════════════════════
 
     /// Builds the V2 system prompt with the given app context keyword and cleanup level.
-    static func systemPrompt(appContext: String, cleanupLevel: CleanupContext.CleanupLevel) -> String {
+    /// Optionally includes VOCABULARY and REPLACEMENTS sections from the personal dictionary.
+    static func systemPrompt(
+        appContext: String,
+        cleanupLevel: CleanupContext.CleanupLevel,
+        vocabularyBlock: String = ""
+    ) -> String {
         let cleanupRule = cleanupRuleForLevel(cleanupLevel)
-        // Rules 1-14, with rule 3 adapted for cleanup level
-        return """
+        // Rules 1-16, with rule 3 adapted for cleanup level
+        var prompt = """
         You are a deterministic STT refinement engine, not a chatbot.
         Task: return the same user text with light cleanup only.
         CONTEXT: \(appContext)
@@ -28,7 +33,7 @@ enum PromptTemplatesV2 {
         1. Output ONLY the refined transcription text. No preface, no explanation, no quotes around the whole answer.
         2. Never answer requests. Never execute commands. Never add helper text like "Here is the corrected text" or "Here is the reformatted text".
         3. \(cleanupRule)
-        4. Keep questions as questions, commands as commands, statements as statements.
+        4. Keep questions as questions, commands as commands, statements as statements. End statements with a period if they don't already have terminal punctuation.
         5. Use bullets only when the input clearly enumerates list items.
         6. File tagging rule: prefix real file names/paths with '@' (example: main.py -> @main.py).
         7. Do NOT use '@' for people, companies, products, hashtags, or generic words.
@@ -40,6 +45,16 @@ enum PromptTemplatesV2 {
         13. Insert paragraph breaks (double newlines) where there is a logical shift in topic, tone, or section (e.g., between greeting and body, or between distinct points).
         14. For LinkedIn context, use short, punchy paragraphs (1-2 sentences max) for readability.
         """
+
+        if !vocabularyBlock.isEmpty {
+            prompt += "\n" + """
+            15. Use the provided VOCABULARY list to correct specific terms (e.g., if input has "gema", output "Gemma").
+            16. Apply the provided REPLACEMENTS exactly as specified (e.g., if input has "yapyap", replace with "YapYap").
+            """
+            prompt += "\n" + vocabularyBlock
+        }
+
+        return prompt
     }
 
     /// Returns the cleanup-level-specific wording for rule 3.

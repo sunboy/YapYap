@@ -7,7 +7,7 @@ import FluidAudio
 
 struct ModelsTab: View {
     let appState: AppState?
-    @State private var selectedSTT = "whisper-small"
+    @State private var selectedSTT = "parakeet-tdt-v3"
     @State private var selectedLLM = "gemma-3-4b"
     @State private var autoDownload = true
     @State private var gpuAcceleration = true
@@ -846,21 +846,27 @@ struct ModelsTab: View {
     // MARK: - Actions
 
     private func selectSTTModel(_ id: String) {
+        let oldId = selectedSTT
         selectedSTT = id
         saveSettings { $0.sttModelId = id }
         NotificationCenter.default.post(name: .yapModelSelected, object: nil)
+        if oldId != id { Analytics.trackModelChanged(modelType: "stt", fromModel: oldId, toModel: id) }
     }
 
     private func selectLLMModel(_ id: String) {
+        let oldId = selectedLLM
         selectedLLM = id
         saveSettings { $0.llmModelId = id }
         NotificationCenter.default.post(name: .yapModelSelected, object: nil)
+        if oldId != id { Analytics.trackModelChanged(modelType: "llm", fromModel: oldId, toModel: id) }
     }
 
     private func selectGGUFModel(_ id: String) {
+        let oldId = selectedGGUF
         selectedGGUF = id
         saveSettings { $0.llamacppModelId = id }
         NotificationCenter.default.post(name: .yapModelSelected, object: nil)
+        if oldId != id { Analytics.trackModelChanged(modelType: "llm_gguf", fromModel: oldId, toModel: id) }
     }
 
     private func downloadAndSelectGGUFModel(_ model: GGUFModelInfo) {
@@ -891,6 +897,7 @@ struct ModelsTab: View {
                     downloadProgress = 0
                     selectGGUFModel(model.id)
                 }
+                Analytics.trackModelDownloaded(modelId: model.id, modelType: "llm_gguf")
 
                 // Compute file size
                 let modelId = model.id
@@ -932,6 +939,7 @@ struct ModelsTab: View {
                     downloadProgress = 0
                     selectSTTModel(model.id)
                 }
+                Analytics.trackModelDownloaded(modelId: model.id, modelType: "stt")
 
                 // Compute size off-main after download completes
                 let modelId = model.id
@@ -996,6 +1004,7 @@ struct ModelsTab: View {
                         selectLLMModel(model.id)
                     }
                 }
+                Analytics.trackModelDownloaded(modelId: model.id, modelType: "llm")
 
                 // Compute size of the newly downloaded model off-main
                 // HubApi stores at {llmCacheDir}/models/{huggingFaceId}

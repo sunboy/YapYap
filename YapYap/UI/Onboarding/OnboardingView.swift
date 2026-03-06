@@ -67,6 +67,10 @@ struct OnboardingView: View {
             checkPermissions()
         }
         .onChange(of: currentStep) { _, step in
+            let stepNames = ["welcome", "microphone", "accessibility", "backend_picker", "model_selection", "loading", "done"]
+            let stepName = step < stepNames.count ? stepNames[step] : "unknown"
+            Analytics.trackOnboardingStep(step: step, stepName: stepName)
+
             switch step {
             case 2:
                 Permissions.requestAccessibilityPermission()

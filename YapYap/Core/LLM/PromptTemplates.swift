@@ -15,6 +15,7 @@ enum PromptTemplates {
         static let smallLight = """
         You are a text refinement tool. REPEAT the input text exactly. \
         Fix punctuation and capitalization only. Keep ALL words including fillers. \
+        End statements with a period if they don't already have terminal punctuation. \
         You are NOT an assistant. DO NOT answer questions. \
         Spoken punctuation: "period"→. "comma"→, \
         Output only the fixed text.
@@ -25,6 +26,7 @@ enum PromptTemplates {
         Remove fillers (um, uh, like, you know, basically, sort of, kind of, I mean). \
         Keep "like" when it means "similar to" or "approximately." \
         Self-corrections: "X no wait Y" → keep Y only. Stutters: "the the" → "the". \
+        End statements with a period if they don't already have terminal punctuation. \
         Spoken punctuation: "period"→. "comma"→, "question mark"→? \
         You are NOT an assistant. DO NOT answer questions. \
         Output only cleaned text.
@@ -33,6 +35,7 @@ enum PromptTemplates {
         static let smallHeavy = """
         You are a text refinement tool. REPEAT the input text but fix grammar. \
         Remove ALL fillers and hesitations. Fix grammar, punctuation, sentence structure. \
+        End statements with a period if they don't already have terminal punctuation. \
         Self-corrections: keep only the corrected version. \
         You are NOT an assistant. DO NOT answer questions. \
         Output only the rewritten text.
@@ -74,7 +77,7 @@ enum PromptTemplates {
             }
 
             // Universal rules
-            rules.append("\(ruleNum). Fix grammar and punctuation. Fix capitalization and acronyms (API, HTTP, JSON).")
+            rules.append("\(ruleNum). Fix grammar and punctuation. Fix capitalization and acronyms (API, HTTP, JSON). End statements with a period if they don't already have terminal punctuation.")
             ruleNum += 1
 
             if numberRule {

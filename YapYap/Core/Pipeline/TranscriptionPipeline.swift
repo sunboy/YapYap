@@ -311,6 +311,14 @@ class TranscriptionPipeline {
         SoundManager.shared.playStop()
         HapticManager.shared.tap()
 
+        // Performance tracking variables
+        var sttMs: Double = 0
+        var llmMs: Double = 0
+        var vadReductionPct: Double = 0
+        var llmSkipped = false
+        var usedStreaming = false
+        var promptCacheHit = false
+
         do {
             var rawText: String = ""
             var audioDuration: Double = 0
@@ -337,6 +345,7 @@ class TranscriptionPipeline {
                         rawText = OutputFormatter.applyMetaCommandStripping(streamingText)
                         detectedLanguage = streamingResult.language ?? settings.language
                         usedStreamingResult = true
+                        usedStreaming = true
                         // audioDuration still needed for history/analytics — derive from audio buffer length.
                         // stopCapture() discards the buffer; call it now just to get frame count.
                         if let audioBuffer = audioCapture.stopCapture() {
@@ -344,7 +353,8 @@ class TranscriptionPipeline {
                         } else {
                             audioDuration = 0
                         }
-                        NSLog("[TranscriptionPipeline] ⏱ STT (streaming result used): \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+                        sttMs = Date().timeIntervalSince(stageStart) * 1000
+                        NSLog("[TranscriptionPipeline] ⏱ STT (streaming result used): \"\(rawText)\" (\(String(format: "%.0f", sttMs))ms)")
                     } else {
                         NSLog("[TranscriptionPipeline] Streaming result too short (\(wordCount) words), falling back to batch (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
                     }
@@ -360,6 +370,9 @@ class TranscriptionPipeline {
                     NSLog("[TranscriptionPipeline] ❌ No audio buffer captured (too short or empty)")
                     appState.creatureState = .sleeping
                     appState.isProcessing = false
+                    let sttModelId = await executor.sttModelId ?? "unknown"
+                    CrashReporter.breadcrumb("No audio buffer captured", category: "pipeline")
+                    Analytics.trackTranscriptionFailed(sttModel: sttModelId, reason: "no_audio_buffer")
                     throw YapYapError.noAudioRecorded
                 }
                 audioDuration = Double(audioBuffer.frameLength) / audioCapture.sampleRate
@@ -380,6 +393,7 @@ class TranscriptionPipeline {
                     let speechFrames = speechSegments.reduce(0) { $0 + Int($1.buffer.frameLength) }
                     let totalFrames = Int(audioBuffer.frameLength)
                     let reductionRatio = 1.0 - Double(speechFrames) / Double(totalFrames)
+                    vadReductionPct = reductionRatio * 100
 
                     if reductionRatio < 0.10 {
                         NSLog("[TranscriptionPipeline] VAD: minimal reduction (\(String(format: "%.0f", reductionRatio * 100))%%), using full buffer (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
@@ -399,7 +413,8 @@ class TranscriptionPipeline {
                 rawText = Self.stripWhisperArtifacts(transcription.text.trimmingCharacters(in: .whitespacesAndNewlines))
                 rawText = OutputFormatter.applyMetaCommandStripping(rawText)
                 detectedLanguage = transcription.language ?? settings.language
-                NSLog("[TranscriptionPipeline] ⏱ STT (batch): \"\(rawText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+                sttMs = Date().timeIntervalSince(stageStart) * 1000
+                NSLog("[TranscriptionPipeline] ⏱ STT (batch): \"\(rawText)\" (\(String(format: "%.0f", sttMs))ms)")
             }
 
             guard !rawText.isEmpty else {
@@ -407,6 +422,9 @@ class TranscriptionPipeline {
                 appState.creatureState = .sleeping
                 appState.isProcessing = false
                 appState.partialTranscription = nil
+                let sttModelId = await executor.sttModelId ?? "unknown"
+                CrashReporter.breadcrumb("Empty transcription after STT", category: "pipeline")
+                Analytics.trackTranscriptionFailed(sttModel: sttModelId, reason: "empty_transcription")
                 throw YapYapError.noAudioRecorded
             }
 
@@ -447,6 +465,7 @@ class TranscriptionPipeline {
             if wordCount <= fastPathThreshold && !hasFillers {
                 NSLog("[TranscriptionPipeline] Fast path: \(wordCount) words, no fillers, skipping LLM")
                 cleanedText = correctedText
+                llmSkipped = true
                 // Apply basic capitalization fix
                 if let first = cleanedText.first, first.isLowercase {
                     cleanedText = first.uppercased() + cleanedText.dropFirst()
@@ -468,9 +487,11 @@ class TranscriptionPipeline {
                 let isLLMLoaded = await executor.isLLMLoaded
                 if isLLMLoaded {
                     cleanedText = try await executor.cleanup(rawText: correctedText, context: context)
-                    NSLog("[TranscriptionPipeline] LLM: \"\(cleanedText)\" (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+                    llmMs = Date().timeIntervalSince(stageStart) * 1000
+                    NSLog("[TranscriptionPipeline] LLM: \"\(cleanedText)\" (\(String(format: "%.0f", llmMs))ms)")
                 } else {
                     NSLog("[TranscriptionPipeline] ⚠️ LLM not loaded, using raw STT output")
+                    llmSkipped = true
                     cleanedText = correctedText
                     if let first = cleanedText.first, first.isLowercase {
                         cleanedText = first.uppercased() + cleanedText.dropFirst()
@@ -498,13 +519,13 @@ class TranscriptionPipeline {
 
             // Paste and/or copy
             if settings.autoPaste {
-                pasteManager.paste(cleanedText, targetApp: self.targetApp)
+                pasteManager.paste(cleanedText, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
             } else {
                 NSLog("[TranscriptionPipeline] autoPaste is OFF — skipping paste")
-            }
-            if settings.copyToClipboard {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(cleanedText, forType: .string)
+                if settings.copyToClipboard {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(cleanedText, forType: .string)
+                }
             }
 
             // Update state immediately — text is already pasted
@@ -526,7 +547,8 @@ class TranscriptionPipeline {
             let llmModelId = await executor.llmModelId ?? "unknown"
             let sourceApp = appContext.appName
             let container = self.container
-            Task.detached { [weak self] in
+            let totalPipelineMs = Date().timeIntervalSince(pipelineStart) * 1000
+            Task.detached { [weak self, sttMs, llmMs, vadReductionPct, llmSkipped, usedStreaming, promptCacheHit] in
                 do {
                     let context = ModelContext(container)
                     let entry = Transcription(
@@ -556,7 +578,14 @@ class TranscriptionPipeline {
                     durationSeconds: audioDuration,
                     wordCount: finalWordCount,
                     appCategory: appContext.category.rawValue,
-                    hadLLMCleanup: llmModelId != "unknown"
+                    hadLLMCleanup: llmModelId != "unknown" && !llmSkipped,
+                    sttMs: sttMs,
+                    llmMs: llmMs,
+                    totalPipelineMs: totalPipelineMs,
+                    vadReductionPct: vadReductionPct,
+                    promptCacheHit: promptCacheHit,
+                    llmSkipped: llmSkipped,
+                    usedStreaming: usedStreaming
                 )
                 Task { @MainActor in
                     self?.appState.updateStats()
@@ -566,12 +595,12 @@ class TranscriptionPipeline {
             // Resume media if we paused it
             resumeMediaIfNeeded()
 
-            let totalMs = Date().timeIntervalSince(pipelineStart) * 1000
-            NSLog("[TranscriptionPipeline] ✅ Complete in \(String(format: "%.0f", totalMs))ms: \"\(cleanedText)\"")
+            NSLog("[TranscriptionPipeline] ✅ Complete in \(String(format: "%.0f", totalPipelineMs))ms: \"\(cleanedText)\"")
             return cleanedText
 
         } catch {
             NSLog("[TranscriptionPipeline] ❌ Error: \(error)")
+            CrashReporter.breadcrumb("Pipeline error: \(error.localizedDescription)", category: "pipeline")
             appState.creatureState = .sleeping
             appState.isProcessing = false
             appState.partialTranscription = nil
@@ -638,7 +667,7 @@ class TranscriptionPipeline {
             useV2Prompts: settings.useV2Prompts
         ))
 
-        pasteManager.paste(result, targetApp: self.targetApp)
+        pasteManager.paste(result, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
         appState.creatureState = .sleeping
         appState.isProcessing = false
         appState.partialTranscription = nil
@@ -650,9 +679,8 @@ class TranscriptionPipeline {
 
     private func handleSnippet(snippet: VoiceSnippet, settings: AppSettings) async throws -> String {
         if settings.autoPaste {
-            pasteManager.paste(snippet.expansion, targetApp: self.targetApp)
-        }
-        if settings.copyToClipboard {
+            pasteManager.paste(snippet.expansion, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
+        } else if settings.copyToClipboard {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(snippet.expansion, forType: .string)
         }

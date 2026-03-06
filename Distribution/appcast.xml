@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
     <channel>
         <title>YapYap Changelog</title>
-        <link>https://github.com/sunboy/yapyap/releases</link>
+        <link>https://yapyap.tech</link>
         <description>Most recent updates to YapYap</description>
         <language>en</language>
 
@@ -10,7 +10,6 @@
 
         <item>
             <title>Version 0.2.1</title>
-            <link>https://github.com/sunboy/YapYap/releases/tag/v0.2.1</link>
             <sparkle:version>0.2.1</sparkle:version>
             <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
             <description><![CDATA[
@@ -33,109 +32,165 @@
         </item>
 
         <item>
-    <title>Version 0.2.2</title>
-    <link>https://github.com/sunboy/YapYap/releases/tag/v0.2.2</link>
-    <sparkle:version>0.2.2</sparkle:version>
-    <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
-    <description><![CDATA[
-        <h2>What's New in 0.2.2</h2>
-        <p>See <a href="https://github.com/sunboy/YapYap/releases/tag/v0.2.2">release notes</a> for details.</p>
-    ]]></description>
-    <pubDate>Sat, 28 Feb 2026 14:44:08 +0000</pubDate>
-    <enclosure
-        url="https://github.com/sunboy/YapYap/releases/download/v0.2.2/YapYap-v0.2.2.dmg"
-        sparkle:version="0.2.2"
-        sparkle:shortVersionString="0.2.2"
-        length="8614069"
-        type="application/octet-stream"
-        sparkle:edSignature="E8FZxWLGBjNCw+g8G8annxnRs5MUWkt2Zo/6FH5BGBQwuVZ42CV6PpxR4sitr4Imk6c2uGahMBL6/62QJg6DAQ=="
-    />
-    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-</item>
+            <title>Version 0.2.2</title>
+            <sparkle:version>0.2.2</sparkle:version>
+            <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>What's New in 0.2.2</h2>
+                <ul>
+                    <li>New: Gemma 3 4B added as an LLM option</li>
+                    <li>New: Auto-classify unknown apps with per-app category overrides in Settings</li>
+                    <li>New: Sparkle auto-updater with Check for Updates in About tab</li>
+                    <li>New: PostHog analytics (opt-out available in Settings)</li>
+                    <li>New: Sentry crash reporting (opt-out available in Settings)</li>
+                    <li>New: Liquid glass UI redesign and updated app icon</li>
+                    <li>Improved: Prompt quality and LLM cleanup pipeline</li>
+                    <li>Fixed: Email formatting structure across all model sizes</li>
+                    <li>Fixed: Echo bug in LLM output</li>
+                </ul>
+            ]]></description>
+            <pubDate>Sat, 28 Feb 2026 14:44:08 +0000</pubDate>
+            <enclosure
+                url="https://github.com/sunboy/YapYap/releases/download/v0.2.2/YapYap-v0.2.2.dmg"
+                sparkle:version="0.2.2"
+                sparkle:shortVersionString="0.2.2"
+                length="8614069"
+                type="application/octet-stream"
+                sparkle:edSignature="E8FZxWLGBjNCw+g8G8annxnRs5MUWkt2Zo/6FH5BGBQwuVZ42CV6PpxR4sitr4Imk6c2uGahMBL6/62QJg6DAQ=="
+            />
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        </item>
 
         <item>
-    <title>Version 0.2.3</title>
-    <link>https://github.com/sunboy/yapyap/releases/tag/v0.2.3</link>
-    <sparkle:version>0.2.3</sparkle:version>
-    <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
-    <description><![CDATA[
-        <h2>What's New in 0.2.3</h2>
-        <p>See <a href="https://github.com/sunboy/yapyap/releases/tag/v0.2.3">release notes</a> for details.</p>
-    ]]></description>
-    <pubDate>Mon, 02 Mar 2026 08:11:06 +0000</pubDate>
-    <enclosure
-        url="https://github.com/sunboy/yapyap/releases/download/v0.2.3/YapYap-v0.2.3.dmg"
-        sparkle:version="0.2.3"
-        sparkle:shortVersionString="0.2.3"
-        length="11894416"
-        type="application/octet-stream"
-        sparkle:edSignature="xoe/EouDBkc0zDQS2tm8ucGEMugmlaSPWwXofImMAR2BoAA4vMLzqNa4kiuEH6c3HQ4KfD10a2kKN63FwCZwCw=="
-    />
-    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-</item>
+            <title>Version 0.2.3</title>
+            <sparkle:version>0.2.3</sparkle:version>
+            <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>What's New in 0.2.3</h2>
+                <ul>
+                    <li>New: Ollama support as an LLM inference backend</li>
+                    <li>New: llama.cpp engine with GGUF model support</li>
+                    <li>New: KV prompt caching to speed up repeated inference</li>
+                    <li>New: Configurable LLM skip-word threshold in Settings</li>
+                    <li>New: Externalized per-category prompt rules with Settings UI</li>
+                    <li>New: Redesigned Settings, popover, and onboarding UI</li>
+                    <li>Improved: STT-to-LLM pipeline performance (emoji short-circuit, BPE cache)</li>
+                    <li>Improved: Audio capture and model loading pipeline</li>
+                    <li>Fixed: LLM output token cap removed; VAD thresholds corrected</li>
+                    <li>Fixed: "Tighten phrasing" rule that caused words to be dropped</li>
+                    <li>Fixed: llama.cpp API compatibility and concurrent decode crash</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 02 Mar 2026 08:11:06 +0000</pubDate>
+            <enclosure
+                url="https://github.com/sunboy/yapyap/releases/download/v0.2.3/YapYap-v0.2.3.dmg"
+                sparkle:version="0.2.3"
+                sparkle:shortVersionString="0.2.3"
+                length="11894416"
+                type="application/octet-stream"
+                sparkle:edSignature="xoe/EouDBkc0zDQS2tm8ucGEMugmlaSPWwXofImMAR2BoAA4vMLzqNa4kiuEH6c3HQ4KfD10a2kKN63FwCZwCw=="
+            />
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        </item>
 
         <item>
-    <title>Version 0.2.4</title>
-    <link>https://github.com/sunboy/yapyap/releases/tag/v0.2.4</link>
-    <sparkle:version>0.2.4</sparkle:version>
-    <sparkle:shortVersionString>0.2.4</sparkle:shortVersionString>
-    <description><![CDATA[
-        <h2>What's New in 0.2.4</h2>
-        <p>See <a href="https://github.com/sunboy/yapyap/releases/tag/v0.2.4">release notes</a> for details.</p>
-    ]]></description>
-    <pubDate>Mon, 02 Mar 2026 17:27:19 +0000</pubDate>
-    <enclosure
-        url="https://github.com/sunboy/yapyap/releases/download/v0.2.4/YapYap-v0.2.4.dmg"
-        sparkle:version="0.2.4"
-        sparkle:shortVersionString="0.2.4"
-        length="12712801"
-        type="application/octet-stream"
-        sparkle:edSignature="Z+zwfYK221vlRpKJNG/RZ0MI+Xrjd7svzqB5tMruqqA4PneCk0Cw9hu05XuwQRsDliJIWdgZ8j3aF4o0e70JBQ=="
-    />
-    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-</item>
+            <title>Version 0.2.4</title>
+            <sparkle:version>0.2.4</sparkle:version>
+            <sparkle:shortVersionString>0.2.4</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>What's New in 0.2.4</h2>
+                <ul>
+                    <li>Fixed: App icon display — incorrect PNG dimensions causing missing icon in builds</li>
+                </ul>
+            ]]></description>
+            <pubDate>Mon, 02 Mar 2026 17:27:19 +0000</pubDate>
+            <enclosure
+                url="https://github.com/sunboy/yapyap/releases/download/v0.2.4/YapYap-v0.2.4.dmg"
+                sparkle:version="0.2.4"
+                sparkle:shortVersionString="0.2.4"
+                length="12712801"
+                type="application/octet-stream"
+                sparkle:edSignature="Z+zwfYK221vlRpKJNG/RZ0MI+Xrjd7svzqB5tMruqqA4PneCk0Cw9hu05XuwQRsDliJIWdgZ8j3aF4o0e70JBQ=="
+            />
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        </item>
 
         <item>
-    <title>Version 0.2.5</title>
-    <link>https://github.com/sunboy/yapyap/releases/tag/v0.2.5</link>
-    <sparkle:version>0.2.5</sparkle:version>
-    <sparkle:shortVersionString>0.2.5</sparkle:shortVersionString>
-    <description><![CDATA[
-        <h2>What's New in 0.2.5</h2>
-        <p>See <a href="https://github.com/sunboy/yapyap/releases/tag/v0.2.5">release notes</a> for details.</p>
-    ]]></description>
-    <pubDate>Tue, 03 Mar 2026 03:40:57 +0000</pubDate>
-    <enclosure
-        url="https://github.com/sunboy/yapyap/releases/download/v0.2.5/YapYap-v0.2.5.dmg"
-        sparkle:version="0.2.5"
-        sparkle:shortVersionString="0.2.5"
-        length="12720056"
-        type="application/octet-stream"
-        sparkle:edSignature="D9PhC3/j/DucqfKY7PS10y2MnsloDvErf0sh60zzFzn1xghQM8taR4SxTsWW4vgRZl7Q1LAwU2300AbIDtaVDg=="
-    />
-    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-</item>
+            <title>Version 0.2.5</title>
+            <sparkle:version>0.2.5</sparkle:version>
+            <sparkle:shortVersionString>0.2.5</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>What's New in 0.2.5</h2>
+                <ul>
+                    <li>Fixed: Check for Updates now works reliably</li>
+                    <li>Fixed: Onboarding scroll, paste reliability, and pipeline timing</li>
+                    <li>Fixed: Default STT mode switched to batch for better accuracy</li>
+                    <li>Fixed: Onboarding now picks the right LLM tier for your machine</li>
+                    <li>Fixed: Accessibility permission alert shown when paste is blocked</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 03 Mar 2026 03:40:57 +0000</pubDate>
+            <enclosure
+                url="https://github.com/sunboy/yapyap/releases/download/v0.2.5/YapYap-v0.2.5.dmg"
+                sparkle:version="0.2.5"
+                sparkle:shortVersionString="0.2.5"
+                length="12720056"
+                type="application/octet-stream"
+                sparkle:edSignature="D9PhC3/j/DucqfKY7PS10y2MnsloDvErf0sh60zzFzn1xghQM8taR4SxTsWW4vgRZl7Q1LAwU2300AbIDtaVDg=="
+            />
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        </item>
 
         <item>
-    <title>Version 0.2.6</title>
-    <link>https://github.com/sunboy/yapyap/releases/tag/v0.2.6</link>
-    <sparkle:version>0.2.6</sparkle:version>
-    <sparkle:shortVersionString>0.2.6</sparkle:shortVersionString>
-    <description><![CDATA[
-        <h2>What's New in 0.2.6</h2>
-        <p>See <a href="https://github.com/sunboy/yapyap/releases/tag/v0.2.6">release notes</a> for details.</p>
-    ]]></description>
-    <pubDate>Tue, 03 Mar 2026 04:03:12 +0000</pubDate>
-    <enclosure
-        url="https://github.com/sunboy/yapyap/releases/download/v0.2.6/YapYap-v0.2.6.dmg"
-        sparkle:version="0.2.6"
-        sparkle:shortVersionString="0.2.6"
-        length="12719558"
-        type="application/octet-stream"
-        sparkle:edSignature="btpN6vCzmOf508z4y2T+HIp+TPMzTqdGxlqCvIB4vwfrshKxEDuEttsYEmSdpBCG6pABXaOtGH0DZ98P0kQNBA=="
-    />
-    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-</item>
+            <title>Version 0.2.6</title>
+            <sparkle:version>0.2.6</sparkle:version>
+            <sparkle:shortVersionString>0.2.6</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>What's New in 0.2.6</h2>
+                <ul>
+                    <li>Fixed: Check for Updates button now opens the Sparkle update window correctly</li>
+                </ul>
+            ]]></description>
+            <pubDate>Tue, 03 Mar 2026 04:03:12 +0000</pubDate>
+            <enclosure
+                url="https://github.com/sunboy/yapyap/releases/download/v0.2.6/YapYap-v0.2.6.dmg"
+                sparkle:version="0.2.6"
+                sparkle:shortVersionString="0.2.6"
+                length="12719558"
+                type="application/octet-stream"
+                sparkle:edSignature="btpN6vCzmOf508z4y2T+HIp+TPMzTqdGxlqCvIB4vwfrshKxEDuEttsYEmSdpBCG6pABXaOtGH0DZ98P0kQNBA=="
+            />
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        </item>
+
+        <item>
+            <title>Version 0.2.8</title>
+            <sparkle:version>0.2.8</sparkle:version>
+            <sparkle:shortVersionString>0.2.8</sparkle:shortVersionString>
+            <description><![CDATA[
+                <h2>What's New in 0.2.8</h2>
+                <ul>
+                    <li>New: Parakeet TDT v3 is now the default STT model (faster, runs on Apple Neural Engine)</li>
+                    <li>New: V2 prompt engine with chat-style multi-turn few-shot examples</li>
+                    <li>New: Customizable system prompts and few-shot examples in Settings</li>
+                    <li>New: Unified model download service</li>
+                    <li>Improved: Paste reliability and onboarding z-order</li>
+                    <li>Fixed: Ollama crash on malformed endpoint URL</li>
+                    <li>Fixed: llama.cpp crash when prompt exceeds batch size</li>
+                    <li>Fixed: llama.cpp concurrent decode crash</li>
+                </ul>
+            ]]></description>
+            <pubDate>Wed, 04 Mar 2026 21:39:13 +0000</pubDate>
+            <enclosure
+                url="https://github.com/sunboy/yapyap/releases/download/v0.2.8/YapYap-v0.2.8.dmg"
+                sparkle:version="0.2.8"
+                sparkle:shortVersionString="0.2.8"
+                length="12847858"
+                type="application/octet-stream"
+                sparkle:edSignature="z8wcdZty8mgys42lzZo0L2m3O/37xMl27/VbZd4lBF3evJp1oz2vhVnJnUBVsYbJ8tcEMt9MpciJPLO6fHvUAw=="
+            />
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        </item>
 
     </channel>
 </rss>

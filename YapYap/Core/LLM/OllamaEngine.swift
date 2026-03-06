@@ -93,7 +93,7 @@ class OllamaEngine: LLMEngine {
         if context.useV2Prompts {
             // V2: multi-turn chat-style messages — Ollama natively supports message arrays
             let v2Messages = CleanupPromptBuilderV2.buildMessages(
-                rawText: rawText, context: context, userContext: userContext
+                rawText: rawText, context: context, modelId: promptModelId, userContext: userContext
             )
             for msg in v2Messages {
                 chatMessages.append(["role": msg.role.rawValue, "content": msg.content])

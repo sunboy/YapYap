@@ -149,7 +149,7 @@ struct PromptTestTab: View {
 
         if settings.useV2Prompts {
             let v2Messages = CleanupPromptBuilderV2.buildMessages(
-                rawText: inputText, context: context
+                rawText: inputText, context: context, modelId: settings.llmModelId
             )
             systemPrompt = v2Messages.first(where: { $0.role == .system })?.content ?? ""
             userPrompt = v2Messages
