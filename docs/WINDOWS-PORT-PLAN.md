@@ -107,7 +107,7 @@ This document outlines the plan to port YapYap from a native macOS (Swift + Swif
 | **Device Enumeration** | CoreAudio kAudioHardwarePropertyDevices | IMMDeviceEnumerator (WASAPI) |
 | **VAD** | Energy-based (CPU) | Same algorithm, Rust port (trivial) |
 | **STT Engine** | WhisperKit (CoreML) / whisper.cpp | whisper.cpp only (via `whisper-rs` crate) |
-| **LLM Engine** | MLX Swift / llama.cpp | llama.cpp (via `llama-cpp-rs`) + Ollama (HTTP API) |
+| **LLM Engine** | MLX Swift / llama.cpp | llama.cpp embedded (via `llama-cpp-rs`) — same engine Ollama uses |
 | **GPU Acceleration** | Metal (Apple Silicon) | CUDA (NVIDIA) / Vulkan (AMD/Intel) / CPU fallback |
 | **Hotkey** | KeyboardShortcuts package | RegisterHotKey Win32 API |
 | **System Tray** | NSStatusItem | Tauri system tray plugin (wraps Shell_NotifyIcon) |
@@ -209,12 +209,12 @@ Unlike macOS (Metal-only), Windows has multiple GPU compute backends:
         +-----------+ +-----------+ +-------------+
 ```
 
-**Build strategy:** Ship pre-built binaries for each backend:
-- `yapyap-cuda.exe` -- For NVIDIA GPU users (best performance)
-- `yapyap-vulkan.exe` -- For AMD/Intel GPU users
-- `yapyap.exe` -- CPU-only fallback (always works)
+**Build strategy:** Single `yapyap.exe` binary that detects GPU at runtime and loads the appropriate backend dynamically. Ship pre-built shared libraries alongside the exe:
+- `whisper-cuda.dll` / `llama-cuda.dll` -- For NVIDIA GPU users
+- `whisper-vulkan.dll` / `llama-vulkan.dll` -- For AMD/Intel GPU users
+- `whisper-cpu.dll` / `llama-cpu.dll` -- CPU-only fallback (always ships)
 
-Or better: single binary that detects GPU at runtime and loads the appropriate backend dynamically (whisper.cpp and llama.cpp both support this via shared library loading).
+At startup, detect available GPU and `LoadLibrary()` the right DLL. This is how both whisper.cpp and llama.cpp are designed to work — they support runtime backend selection via shared library loading.
 
 ### 3.5 Windows-Specific Limitations
 
@@ -279,29 +279,42 @@ GPU acceleration:
 
 Model download: Same HuggingFace Hub URLs. Store in `%APPDATA%\YapYap\models\`.
 
-### 4.4 LLM Engine (llama.cpp + Ollama)
+### 4.4 LLM Engine (llama.cpp embedded — same engine Ollama uses)
 
-**Primary: llama.cpp (embedded)**
+**Core engine: llama.cpp via `llama-cpp-rs`**
 
 Use `llama-cpp-rs` crate (Rust bindings to llama.cpp). Model format: GGUF (quantized, cross-platform). Same Qwen/Llama/Gemma models.
 
-**Secondary: Ollama (external)**
+Important architectural note: Ollama's inference engine IS llama.cpp under the hood. Ollama (written in Go) wraps llama.cpp/ggml and adds model management, GPU auto-detection, and an HTTP API on top. There is no separate `ollama.cpp` library. By embedding llama.cpp directly, we get the same inference capability that Ollama provides, without the overhead of bundling a separate Go binary (~100+ MB) or requiring an external server.
 
-Ollama runs natively on Windows and exposes a local HTTP API at `localhost:11434`. The macOS codebase already has `OllamaEngine.swift` which is pure HTTP/JSON — no platform-specific code at all. The Rust port is trivial: `reqwest` client hitting the same REST endpoints (`/api/generate`, `/api/chat`).
+What we build on top of llama.cpp (replicating the useful parts of Ollama):
+- **Model management**: Download GGUF models from HuggingFace (already planned via `downloader.rs`)
+- **GPU auto-detection**: At startup, probe for CUDA (NVIDIA), Vulkan (AMD/Intel), or fall back to CPU. llama.cpp supports all three backends natively.
+- **Memory management**: Detect available VRAM/RAM and recommend appropriate model sizes
+- **Keep-alive**: Same warm-inference strategy as macOS (periodic dummy inference to prevent OS from evicting models)
 
-Ollama is a great option for Windows users because:
-- It handles GPU detection and backend selection automatically (CUDA, ROCm, CPU)
-- Users who already have Ollama installed get zero-config LLM support
-- Offloads model memory management to a separate process
-- Supports a much wider range of models than we bundle
-- No build-time dependency on CUDA/Vulkan SDKs
+**GPU backend loading strategy:**
+```
+App startup
+  → Detect GPU vendor (NVIDIA / AMD / Intel / none)
+  → Load appropriate llama.cpp backend:
+      NVIDIA → CUDA (cuBLAS) — best performance
+      AMD    → Vulkan or ROCm — good performance
+      Intel  → Vulkan or SYCL — decent performance
+      None   → CPU with AVX2/AVX-512 — always-works fallback
+  → Select default model size based on VRAM/RAM
+```
 
-The app should detect if Ollama is running and offer it as an LLM backend option in settings. When Ollama is selected, we skip the embedded llama.cpp engine entirely.
+Ship pre-built llama.cpp shared libraries for each backend (`llama-cuda.dll`, `llama-vulkan.dll`, `llama-cpu.dll`) and load the right one at runtime via dynamic linking. This keeps the installer size manageable while supporting all hardware.
+
+**Optional: Ollama HTTP fallback**
+
+For users who already have Ollama installed and running, offer it as an alternative backend via HTTP API (`localhost:11434`). The macOS codebase already has `OllamaEngine.swift` for this. This is a convenience option, not the default.
 
 **LLM backend priority:**
-1. Ollama (if installed and running) — easiest, best GPU support
-2. llama.cpp with GPU (CUDA/Vulkan) — embedded, no external dependency
-3. llama.cpp CPU-only — always-works fallback
+1. llama.cpp with GPU (CUDA/Vulkan) — embedded, auto-detected, default
+2. llama.cpp CPU-only — always-works fallback
+3. Ollama HTTP (if user has it installed) — optional convenience
 
 The prompt building logic (`CleanupPromptBuilder`) is entirely platform-agnostic -- it's just string construction based on app context. This can be ported line-for-line from Swift to Rust.
 
