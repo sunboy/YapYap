@@ -147,7 +147,7 @@ class MLXEngine: LLMEngine {
         if context.useV2Prompts {
             // V2: multi-turn chat-style messages
             let parts = CleanupPromptBuilderV2.buildMessageParts(
-                rawText: rawText, context: context, userContext: userContext
+                rawText: rawText, context: context, modelId: modelId, userContext: userContext
             )
             (templatePrefix, templateSuffix) = formatMultiTurnTemplate(
                 prefixMessages: parts.prefix,

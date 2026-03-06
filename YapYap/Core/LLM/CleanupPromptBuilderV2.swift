@@ -18,7 +18,7 @@ struct ChatMessage {
 /// few-shot turns, replacing V1's inline-example approach.
 ///
 /// Output format:
-///   [system] → V2 system prompt with app context keyword + cleanup level
+///   [system] → V2 system prompt with app context keyword + cleanup level + vocabulary
 ///   [user]   → "Reformat: {example1_input}"
 ///   [assistant] → "{example1_output}"
 ///   [user]   → "Reformat: {example2_input}"
@@ -32,16 +32,22 @@ struct CleanupPromptBuilderV2 {
     static func buildMessages(
         rawText: String,
         context: CleanupContext,
+        modelId: String? = nil,
         userContext: UserPromptContext? = nil
     ) -> [ChatMessage] {
         let overrides = PromptOverrides.loadFromUserDefaults()
+        let modelSize = resolveModelSize(modelId: modelId)
 
         var messages: [ChatMessage] = []
 
-        // 1. System message
+        // 1. System message — includes vocabulary/replacements inline (not as a separate message)
         let appKeyword = AppContextMapper.keyword(from: context.appContext)
         let systemText = overrides.effectiveSystemPrompt(variant: .unified)
-            ?? PromptTemplatesV2.systemPrompt(appContext: appKeyword, cleanupLevel: context.cleanupLevel)
+            ?? PromptTemplatesV2.systemPrompt(
+                appContext: appKeyword,
+                cleanupLevel: context.cleanupLevel,
+                vocabularyBlock: buildVocabularyBlock(userContext: userContext, modelSize: modelSize)
+            )
         messages.append(ChatMessage(role: .system, content: systemText))
 
         // 2. Few-shot examples as user/assistant pairs
@@ -60,18 +66,7 @@ struct CleanupPromptBuilderV2 {
             messages.append(ChatMessage(role: .assistant, content: example.assistant))
         }
 
-        // 3. User context (dictionary + edit memory) — append to system if present
-        if let ctx = userContext {
-            let dict = ctx.dictionaryBlock(modelSize: .medium)
-            let style = ctx.editMemoryBlock(modelSize: .medium)
-            let extras = [dict, style].filter { !$0.isEmpty }.joined(separator: "\n\n")
-            if !extras.isEmpty {
-                // Append user context as a supplementary system message before the actual input
-                messages.append(ChatMessage(role: .system, content: extras))
-            }
-        }
-
-        // 4. Actual user input (the raw transcript)
+        // 3. Actual user input (the raw transcript)
         messages.append(ChatMessage(role: .user, content: PromptTemplatesV2.formatUserInput(rawText)))
 
         return messages
@@ -84,12 +79,31 @@ struct CleanupPromptBuilderV2 {
     static func buildMessageParts(
         rawText: String,
         context: CleanupContext,
+        modelId: String? = nil,
         userContext: UserPromptContext? = nil
     ) -> (prefix: [ChatMessage], suffix: ChatMessage) {
-        let all = buildMessages(rawText: rawText, context: context, userContext: userContext)
+        let all = buildMessages(rawText: rawText, context: context, modelId: modelId, userContext: userContext)
         // Split: everything except the last message is the cacheable prefix
         let prefix = Array(all.dropLast())
         let suffix = all.last ?? ChatMessage(role: .user, content: PromptTemplatesV2.formatUserInput(rawText))
         return (prefix, suffix)
+    }
+
+    // MARK: - Private
+
+    /// Resolve model ID to LLMModelSize for dictionary formatting.
+    private static func resolveModelSize(modelId: String?) -> LLMModelSize {
+        guard let id = modelId, let info = LLMModelRegistry.model(for: id) else {
+            return .medium
+        }
+        return info.size
+    }
+
+    /// Build VOCABULARY and REPLACEMENTS block for injection into the system prompt.
+    private static func buildVocabularyBlock(userContext: UserPromptContext?, modelSize: LLMModelSize) -> String {
+        guard let ctx = userContext else { return "" }
+        let dict = ctx.dictionaryBlock(modelSize: modelSize)
+        let style = ctx.editMemoryBlock(modelSize: modelSize)
+        return [dict, style].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 }

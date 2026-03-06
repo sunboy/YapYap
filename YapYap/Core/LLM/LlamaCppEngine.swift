@@ -125,7 +125,7 @@ class LlamaCppEngine: LLMEngine {
         if cleanupContext.useV2Prompts {
             // V2: multi-turn chat-style messages
             let v2Messages = CleanupPromptBuilderV2.buildMessages(
-                rawText: rawText, context: cleanupContext, userContext: userContext
+                rawText: rawText, context: cleanupContext, modelId: promptModelId, userContext: userContext
             )
             prompt = applyChatTemplateMultiTurn(v2Messages)
             NSLog("[LlamaCppEngine] V2 prompt: %d messages", v2Messages.count)
