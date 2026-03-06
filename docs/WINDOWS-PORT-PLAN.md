@@ -107,7 +107,7 @@ This document outlines the plan to port YapYap from a native macOS (Swift + Swif
 | **Device Enumeration** | CoreAudio kAudioHardwarePropertyDevices | IMMDeviceEnumerator (WASAPI) |
 | **VAD** | Energy-based (CPU) | Same algorithm, Rust port (trivial) |
 | **STT Engine** | WhisperKit (CoreML) / whisper.cpp | whisper.cpp only (via `whisper-rs` crate) |
-| **LLM Engine** | MLX Swift / llama.cpp | llama.cpp only (via `llama-cpp-rs` crate) |
+| **LLM Engine** | MLX Swift / llama.cpp | llama.cpp (via `llama-cpp-rs`) + Ollama (HTTP API) |
 | **GPU Acceleration** | Metal (Apple Silicon) | CUDA (NVIDIA) / Vulkan (AMD/Intel) / CPU fallback |
 | **Hotkey** | KeyboardShortcuts package | RegisterHotKey Win32 API |
 | **System Tray** | NSStatusItem | Tauri system tray plugin (wraps Shell_NotifyIcon) |
@@ -279,11 +279,29 @@ GPU acceleration:
 
 Model download: Same HuggingFace Hub URLs. Store in `%APPDATA%\YapYap\models\`.
 
-### 4.4 LLM Engine (llama.cpp)
+### 4.4 LLM Engine (llama.cpp + Ollama)
 
-Use `llama-cpp-rs` crate (Rust bindings to llama.cpp).
+**Primary: llama.cpp (embedded)**
 
-Model format: GGUF (quantized, cross-platform). Same Qwen/Llama/Gemma models.
+Use `llama-cpp-rs` crate (Rust bindings to llama.cpp). Model format: GGUF (quantized, cross-platform). Same Qwen/Llama/Gemma models.
+
+**Secondary: Ollama (external)**
+
+Ollama runs natively on Windows and exposes a local HTTP API at `localhost:11434`. The macOS codebase already has `OllamaEngine.swift` which is pure HTTP/JSON — no platform-specific code at all. The Rust port is trivial: `reqwest` client hitting the same REST endpoints (`/api/generate`, `/api/chat`).
+
+Ollama is a great option for Windows users because:
+- It handles GPU detection and backend selection automatically (CUDA, ROCm, CPU)
+- Users who already have Ollama installed get zero-config LLM support
+- Offloads model memory management to a separate process
+- Supports a much wider range of models than we bundle
+- No build-time dependency on CUDA/Vulkan SDKs
+
+The app should detect if Ollama is running and offer it as an LLM backend option in settings. When Ollama is selected, we skip the embedded llama.cpp engine entirely.
+
+**LLM backend priority:**
+1. Ollama (if installed and running) — easiest, best GPU support
+2. llama.cpp with GPU (CUDA/Vulkan) — embedded, no external dependency
+3. llama.cpp CPU-only — always-works fallback
 
 The prompt building logic (`CleanupPromptBuilder`) is entirely platform-agnostic -- it's just string construction based on app context. This can be ported line-for-line from Swift to Rust.
 
@@ -315,13 +333,17 @@ QueryFullProcessImageNameW(process, 0, &mut path, &mut len);
 
 ### 4.6 Text Injection / Paste Manager
 
-Replace `PasteManager.swift` with two strategies:
+Replace `PasteManager.swift`. **Clipboard + synthetic Ctrl+V is the primary (and likely only) strategy needed.** This is the same approach the macOS version uses (clipboard + synthetic Cmd+V via CGEvent). It's well-proven — AutoHotkey, PowerToys, and most Windows automation tools use the same technique.
 
-**Strategy 1: Clipboard + SendInput (primary)**
+**Primary Strategy: Clipboard + SendInput**
 ```rust
-// 1. Save current clipboard
+// 1. Save current clipboard contents (OpenClipboard + GetClipboardData)
+let saved = clipboard::get_text();
+
 // 2. Set cleaned text to clipboard
-// 3. Simulate Ctrl+V
+clipboard::set_text(&cleaned_text);
+
+// 3. Simulate Ctrl+V via SendInput
 let inputs = [
     INPUT { ki: KEYBDINPUT { wVk: VK_CONTROL, dwFlags: 0 } },
     INPUT { ki: KEYBDINPUT { wVk: 0x56 /* V */, dwFlags: 0 } },
@@ -329,14 +351,25 @@ let inputs = [
     INPUT { ki: KEYBDINPUT { wVk: VK_CONTROL, dwFlags: KEYEVENTF_KEYUP } },
 ];
 SendInput(&inputs);
-// 4. Restore original clipboard after short delay
+
+// 4. After ~150ms delay, restore original clipboard
+tokio::time::sleep(Duration::from_millis(150)).await;
+clipboard::set_text(&saved);
 ```
 
-**Strategy 2: UIAutomation (fallback)**
+This works in virtually every Windows application. The Win32 clipboard API (`OpenClipboard`, `SetClipboardData`, `CloseClipboard`) is rock-solid and has been stable since Windows 95.
+
+**Edge cases to handle:**
+- **Clipboard managers** (e.g., Ditto, ClipClip): They intercept every clipboard change. The save/restore cycle should be fast enough (~150ms) that most clipboard managers either ignore the transient write or the user sees only one entry. Can also use the `clipboard sequence number` (`GetClipboardSequenceNumber`) to detect if a manager modified the clipboard during our operation.
+- **Rich clipboard content**: If the user had an image or rich text on the clipboard, save/restore must handle all formats (CF_UNICODETEXT, CF_BITMAP, CF_HTML, etc.). Use `EnumClipboardFormats` to preserve all formats, or accept the simpler trade-off of only preserving text (document this limitation).
+- **UAC-elevated windows**: SendInput cannot target windows running at a higher integrity level. If the focused window is an admin app, the paste will silently fail. Detect this and show a notification.
+
+**Optional fallback: UIAutomation (not required for v1)**
 ```rust
 // Use IUIAutomation to find focused text element
 // Set value directly via IValueProvider::SetValue
 ```
+UIAutomation can set text directly without the clipboard, but it's slower, async, and doesn't work in all apps. Reserve this for a future enhancement if specific apps need it.
 
 ### 4.7 Global Hotkeys
 
@@ -427,7 +460,8 @@ yapyap-windows/
 │   │   │   └── model_registry.rs       # Available STT models
 │   │   ├── llm/
 │   │   │   ├── mod.rs                  # LLM engine trait + factory
-│   │   │   ├── llama_engine.rs         # llama.cpp wrapper
+│   │   │   ├── llama_engine.rs         # llama.cpp wrapper (embedded)
+│   │   │   ├── ollama_engine.rs        # Ollama HTTP client (external)
 │   │   │   ├── model_registry.rs       # Available LLM models
 │   │   │   ├── prompt_builder.rs       # Context-aware prompt construction
 │   │   │   └── output_formatter.rs     # Deterministic post-processing
@@ -642,7 +676,7 @@ These modules contain pure business logic with no platform dependencies:
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|------------|------------|
 | CPU-only performance too slow | High | Medium | Default to smaller models; offer "skip cleanup" mode |
-| Antivirus blocks SendInput/hotkeys | High | Medium | Code signing; AV vendor outreach; document exceptions |
+| Antivirus blocks SendInput/hotkeys | Medium | Low | Code signing; clipboard-based paste is rarely flagged; document exceptions |
 | WASAPI audio capture issues on some hardware | Medium | Low | cpal handles edge cases; fallback to DirectSound |
 | WebView2 not installed (old Win10) | Medium | Low | Bundle WebView2 bootstrapper in installer |
 | whisper.cpp quality differs from WhisperKit | Medium | Low | Same underlying Whisper models; quality should be identical |
