@@ -548,14 +548,7 @@ class TranscriptionPipeline {
             let sourceApp = appContext.appName
             let container = self.container
             let totalPipelineMs = Date().timeIntervalSince(pipelineStart) * 1000
-            // Capture perf values for the detached task
-            let capturedSttMs = sttMs
-            let capturedLlmMs = llmMs
-            let capturedVadPct = vadReductionPct
-            let capturedLlmSkipped = llmSkipped
-            let capturedUsedStreaming = usedStreaming
-            let capturedPromptCacheHit = promptCacheHit
-            Task.detached { [weak self] in
+            Task.detached { [weak self, sttMs, llmMs, vadReductionPct, llmSkipped, usedStreaming, promptCacheHit] in
                 do {
                     let context = ModelContext(container)
                     let entry = Transcription(
@@ -585,14 +578,14 @@ class TranscriptionPipeline {
                     durationSeconds: audioDuration,
                     wordCount: finalWordCount,
                     appCategory: appContext.category.rawValue,
-                    hadLLMCleanup: llmModelId != "unknown" && !capturedLlmSkipped,
-                    sttMs: capturedSttMs,
-                    llmMs: capturedLlmMs,
+                    hadLLMCleanup: llmModelId != "unknown" && !llmSkipped,
+                    sttMs: sttMs,
+                    llmMs: llmMs,
                     totalPipelineMs: totalPipelineMs,
-                    vadReductionPct: capturedVadPct,
-                    promptCacheHit: capturedPromptCacheHit,
-                    llmSkipped: capturedLlmSkipped,
-                    usedStreaming: capturedUsedStreaming
+                    vadReductionPct: vadReductionPct,
+                    promptCacheHit: promptCacheHit,
+                    llmSkipped: llmSkipped,
+                    usedStreaming: usedStreaming
                 )
                 Task { @MainActor in
                     self?.appState.updateStats()

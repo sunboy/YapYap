@@ -13,6 +13,11 @@ class PasteManager {
     /// Skip saving/restoring clipboard if it exceeds this size (avoids OOM with large images).
     private static let maxPasteboardSaveBytes = 10 * 1024 * 1024 // 10 MB
 
+    /// Cache for `canPostCGEvents()` result — kernel TCC check is expensive on every paste.
+    /// Re-checked after 60s so stale-permission events (rebuild without tccutil reset) are caught quickly.
+    private var cgEventPermissionCache: (result: Bool, checkedAt: Date)?
+    private static let cgEventPermissionCacheTTL: TimeInterval = 60
+
     /// Terminal emulators that silently accept AX writes but never render them.
     /// For these apps, always use clipboard + Cmd+V.
     private let terminalBundleIds: Set<String> = [
@@ -73,9 +78,16 @@ class PasteManager {
     /// Probe whether we can actually post CGEvents by attempting to create an event tap.
     /// `AXIsProcessTrusted()` returns stale `true` after rebuilds when the code signature
     /// changes but the TCC database entry hasn't been refreshed. This is the real check.
+    /// Result is cached for 60s to avoid a kernel TCC call on every paste.
     private func canPostCGEvents() -> Bool {
         // Fast path: if AXIsProcessTrusted is false, we definitely can't
         guard AXIsProcessTrusted() else { return false }
+
+        // Return cached result if still fresh
+        if let cache = cgEventPermissionCache,
+           Date().timeIntervalSince(cache.checkedAt) < Self.cgEventPermissionCacheTTL {
+            return cache.result
+        }
 
         // Real check: try creating a passive event tap — this goes through the kernel
         // TCC check and will fail if the permission is stale
@@ -87,12 +99,16 @@ class PasteManager {
             callback: { _, _, event, _ in Unmanaged.passUnretained(event) },
             userInfo: nil
         )
+        let result: Bool
         if let tap = tap {
             CFMachPortInvalidate(tap)
-            return true
+            result = true
+        } else {
+            NSLog("[PasteManager] ⚠️ CGEvent tap creation failed — accessibility permission is stale. Reset with: tccutil reset Accessibility dev.yapyap.app")
+            result = false
         }
-        NSLog("[PasteManager] ⚠️ CGEvent tap creation failed — accessibility permission is stale. Reset with: tccutil reset Accessibility dev.yapyap.app")
-        return false
+        cgEventPermissionCache = (result: result, checkedAt: Date())
+        return result
     }
 
     // MARK: - Strategy 1: Accessibility API
@@ -109,7 +125,8 @@ class PasteManager {
             return false
         }
 
-        guard let element = focusedElement as? AXUIElement else { return false }
+        guard let rawElement = focusedElement else { return false }
+        let element = rawElement as! AXUIElement
 
         // Check if the element supports setting a value
         var settable: DarwinBoolean = false
@@ -237,7 +254,8 @@ class PasteManager {
     // MARK: - App Activation
 
     private func activateTargetApp(_ targetApp: NSRunningApplication?) {
-        let appToActivate = targetApp ?? NSWorkspace.shared.frontmostApplication
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        let appToActivate = targetApp ?? frontmost
         guard let app = appToActivate else {
             NSLog("[PasteManager] ⚠️ No target app found")
             return
@@ -246,7 +264,7 @@ class PasteManager {
         let isSelf = app.processIdentifier == ProcessInfo.processInfo.processIdentifier
         if isSelf {
             NSLog("[PasteManager] Target is YapYap itself, looking for previous app")
-            if let fallback = NSWorkspace.shared.frontmostApplication,
+            if let fallback = frontmost,
                fallback.processIdentifier != ProcessInfo.processInfo.processIdentifier {
                 NSLog("[PasteManager] Activating fallback app: \(fallback.localizedName ?? "unknown") (pid: \(fallback.processIdentifier))")
                 Self.activateApp(fallback)
