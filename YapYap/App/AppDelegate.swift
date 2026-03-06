@@ -4,17 +4,39 @@ import SwiftUI
 import AVFoundation
 import Sparkle
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate {
     var statusBarController: StatusBarController?
     var appState = AppState()
     var pipeline: TranscriptionPipeline?
     var floatingBarPanel: FloatingBarPanel?
     var onboardingWindow: NSWindow?
-    let updaterController = SPUStandardUpdaterController(
+    lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
-        userDriverDelegate: nil
+        userDriverDelegate: self
     )
+
+    // MARK: - SPUStandardUserDriverDelegate
+
+    /// Required for background (LSUIElement) apps — enables gentle scheduled update reminders
+    /// so Sparkle doesn't silently skip updates for dockless apps.
+    var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate update: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        // Bring app to foreground so the Sparkle update window is visible.
+        // Without this, LSUIElement apps show the window behind other windows.
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func standardUserDriverWillFinishUpdateSession() {
+        // Revert to menu-bar-only (accessory) mode after the update session ends.
+        NSApp.setActivationPolicy(.accessory)
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("[AppDelegate] applicationDidFinishLaunching starting...")
@@ -27,6 +49,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Hide dock icon
         NSApp.setActivationPolicy(.accessory)
         print("[AppDelegate] Set activation policy to accessory")
+
+        // Trigger lazy updaterController so Sparkle starts background update checks
+        _ = updaterController
+        print("[AppDelegate] Sparkle updater started")
 
         // Initialize DataManager first (may fail gracefully now)
         print("[AppDelegate] Initializing DataManager...")
