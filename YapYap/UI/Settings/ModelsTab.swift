@@ -7,7 +7,7 @@ import FluidAudio
 
 struct ModelsTab: View {
     let appState: AppState?
-    @State private var selectedSTT = "whisper-small"
+    @State private var selectedSTT = "parakeet-tdt-v3"
     @State private var selectedLLM = "gemma-3-4b"
     @State private var autoDownload = true
     @State private var gpuAcceleration = true

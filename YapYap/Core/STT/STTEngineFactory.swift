@@ -5,9 +5,8 @@ import Foundation
 struct STTEngineFactory {
     static func create(modelId: String) -> any STTEngine {
         guard let modelInfo = STTModelRegistry.model(for: modelId) else {
-            // Default to first available model
-            let defaultModel = STTModelRegistry.allModels.first!
-            return createEngine(for: defaultModel)
+            // Fall back to recommended model (Parakeet)
+            return createEngine(for: STTModelRegistry.recommendedModel)
         }
         return createEngine(for: modelInfo)
     }

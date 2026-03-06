@@ -78,6 +78,12 @@ final class DataManager {
                 try? context.save()
             }
 
+            // Migrate invalid STT model IDs to recommended default (Parakeet)
+            if STTModelRegistry.model(for: settings.sttModelId) == nil {
+                settings.sttModelId = STTModelRegistry.recommendedModel.id
+                try? context.save()
+            }
+
             // Migrate invalid LLM model IDs to recommended default
             if LLMModelRegistry.model(for: settings.llmModelId) == nil {
                 let newDefault = LLMModelRegistry.recommendedModel.id
