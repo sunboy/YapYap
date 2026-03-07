@@ -1,5 +1,8 @@
 // Permissions.swift
 // YapYap — Permission checking and system settings guidance
+//
+// App Store sandbox compatible: uses CGPreflightPostEventAccess/CGRequestPostEventAccess
+// for paste permission instead of AXIsProcessTrusted (which is blocked in sandbox).
 import AppKit
 import AVFoundation
 
@@ -19,15 +22,19 @@ struct Permissions {
         }
     }
 
-    // MARK: - Accessibility
+    // MARK: - Accessibility (PostEvent permission for synthetic Cmd+V)
 
+    /// Check if we can post synthetic keyboard events (Cmd+V for paste).
+    /// Uses the sandbox-compatible CGPreflightPostEventAccess API which checks
+    /// the PostEvent TCC service (shown as "Accessibility" in System Settings).
     static var hasAccessibilityPermission: Bool {
-        AXIsProcessTrusted()
+        CGPreflightPostEventAccess()
     }
 
+    /// Request permission to post synthetic keyboard events.
+    /// Shows the system TCC dialog prompting the user to grant access.
     static func requestAccessibilityPermission() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
-        AXIsProcessTrustedWithOptions(options)
+        CGRequestPostEventAccess()
     }
 
     // MARK: - Alerts
@@ -56,7 +63,7 @@ struct Permissions {
     static func showAccessibilityPermissionAlert() {
         showPermissionAlert(
             title: "Accessibility Access Required",
-            message: "YapYap needs accessibility access to paste transcribed text into your apps.\n\nIf YapYap is already listed in System Settings → Privacy & Security → Accessibility, toggle it OFF then back ON to refresh the permission.",
+            message: "YapYap needs accessibility access to paste transcribed text into your apps.\n\nPlease enable YapYap in System Settings → Privacy & Security → Accessibility.",
             settingsPath: "Privacy_Accessibility"
         )
     }

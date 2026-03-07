@@ -1,7 +1,10 @@
 // AppContextDetector.swift
 // YapYap — Detect active app and classify for adaptive formatting
+//
+// App Store sandbox compatible: AXUIElement APIs are not available in the sandbox,
+// so context detection relies on bundle ID mapping, app category metadata, and
+// heuristics. Window title and focused field text are not accessible.
 import AppKit
-import ApplicationServices
 
 class AppContextDetector {
 
@@ -83,9 +86,10 @@ class AppContextDetector {
         let appName = frontApp.localizedName ?? "Unknown"
         let pid = frontApp.processIdentifier
 
-        // Fetch AX data once — used for classification AND AppContext construction
-        let windowTitle = getWindowTitle(pid: pid)
-        let focusedText = getFocusedFieldText()
+        // Window title and focused text are not available in the App Sandbox
+        // (AXUIElement APIs are blocked). Classification relies on bundle ID and heuristics.
+        let windowTitle: String? = nil
+        let focusedText: String? = nil
 
         var category: AppCategory
         var fromHardcodedMap = false
@@ -249,40 +253,27 @@ class AppContextDetector {
                title.contains("copilot") || title.contains("ai assistant")
     }
 
-    // MARK: - Accessibility API Helpers
+    // MARK: - Text Access Helpers
+    //
+    // AXUIElement APIs (getWindowTitle, getFocusedFieldText) are not available
+    // in the App Sandbox. These stubs return nil so callers degrade gracefully.
+    // Window title was used for browser tab classification — browsers now
+    // default to .browser category without per-tab refinement.
 
     static func getWindowTitle(pid: pid_t) -> String? {
-        let appElement = AXUIElementCreateApplication(pid)
-        var windowValue: AnyObject?
-        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowValue) == .success else { return nil }
-
-        var titleValue: AnyObject?
-        AXUIElementCopyAttributeValue(windowValue as! AXUIElement, kAXTitleAttribute as CFString, &titleValue)
-        return titleValue as? String
-    }
-
-    static func getFocusedFieldText() -> String? {
-        let systemWide = AXUIElementCreateSystemWide()
-        var focused: AnyObject?
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success else { return nil }
-
-        var textValue: AnyObject?
-        guard AXUIElementCopyAttributeValue(focused as! AXUIElement, kAXValueAttribute as CFString, &textValue) == .success else { return nil }
-
-        if let text = textValue as? String {
-            return String(text.suffix(500))
-        }
+        // Not available in App Sandbox — AXUIElement APIs are blocked
         return nil
     }
 
-    /// Get selected text from active app (for Command Mode)
-    static func getSelectedText() -> String? {
-        let systemWide = AXUIElementCreateSystemWide()
-        var focused: AnyObject?
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success else { return nil }
+    static func getFocusedFieldText() -> String? {
+        // Not available in App Sandbox — AXUIElement APIs are blocked
+        return nil
+    }
 
-        var selectedText: AnyObject?
-        guard AXUIElementCopyAttributeValue(focused as! AXUIElement, kAXSelectedTextAttribute as CFString, &selectedText) == .success else { return nil }
-        return selectedText as? String
+    /// Get selected text from active app (for Command Mode).
+    /// Returns nil in the sandbox — Command Mode falls back to write-only mode.
+    static func getSelectedText() -> String? {
+        // Not available in App Sandbox — AXUIElement APIs are blocked
+        return nil
     }
 }

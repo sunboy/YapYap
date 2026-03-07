@@ -1,4 +1,4 @@
-.PHONY: build run test archive sign sign-dmg notarize staple dmg release clean generate bench-build bench bench-corpus
+.PHONY: build run test archive sign sign-dmg notarize staple dmg release clean generate bench-build bench bench-corpus appstore-archive
 
 VERSION := $(shell /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" YapYap/Info.plist 2>/dev/null || echo "0.1.0")
 APPLE_ID ?= sandeeptnvs@gmail.com
@@ -119,6 +119,28 @@ release: dmg notarize staple
 	echo "  2. Update Distribution/appcast.xml with the release item"; \
 	echo "  3. Sign the appcast entry with: sign_update build/$(DMG_NAME)"; \
 	echo "  4. Push appcast.xml to GitHub (Sparkle reads it from main branch)"; \
+
+# App Store archive: build release archive for App Store submission
+# After archiving, open Xcode Organizer to upload: Window → Organizer → Distribute App
+appstore-archive:
+	@mkdir -p build
+	xcodebuild -project YapYap.xcodeproj -scheme YapYap \
+		-configuration Release archive \
+		-archivePath build/YapYap-AppStore.xcarchive \
+		ARCHS=arm64 EXCLUDED_ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO \
+		CODE_SIGN_IDENTITY="Apple Distribution" \
+		CODE_SIGN_STYLE=Manual
+	@echo ""
+	@echo "✅ App Store archive created: build/YapYap-AppStore.xcarchive"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Open Xcode → Window → Organizer"
+	@echo "  2. Select the archive and click 'Distribute App'"
+	@echo "  3. Choose 'App Store Connect' → Upload"
+	@echo ""
+	@echo "Or use xcodebuild to export:"
+	@echo "  xcodebuild -exportArchive -archivePath build/YapYap-AppStore.xcarchive \\"
+	@echo "    -exportPath build/appstore -exportOptionsPlist ExportOptions-AppStore.plist"
 
 clean:
 	xcodebuild -project YapYap.xcodeproj -scheme YapYap clean

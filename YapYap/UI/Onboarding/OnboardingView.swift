@@ -235,7 +235,7 @@ struct OnboardingView: View {
                 .font(.ypHeadingRounded)
                 .foregroundColor(.ypText1)
 
-            Text("Used to paste transcribed text and detect which app is active.\nClick **Open System Settings** — if YapYap isn't listed, click **+** to add it, then toggle it **ON**.")
+            Text("Used to paste transcribed text directly into your apps.\nA system dialog should appear — click **Allow** to grant access.")
                 .font(.system(size: 13))
                 .foregroundColor(.ypText2)
                 .multilineTextAlignment(.center)
@@ -250,7 +250,7 @@ struct OnboardingView: View {
                     Text("Accessibility")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundColor(.ypText1)
-                    Text(accessibilityGranted ? "Access granted" : "Waiting — add YapYap via + if not listed, then toggle ON")
+                    Text(accessibilityGranted ? "Access granted" : "Waiting for permission — click Allow in the system dialog")
                         .font(.system(size: 12))
                         .foregroundColor(accessibilityGranted ? .ypMint : .ypText3)
                 }
