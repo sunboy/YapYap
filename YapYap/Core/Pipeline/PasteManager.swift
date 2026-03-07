@@ -31,9 +31,9 @@ class PasteManager {
         let appName = resolvedApp?.localizedName ?? "unknown"
         NSLog("[PasteManager] Paste requested: \(text.count) chars → \(appName) (pid: \(resolvedApp?.processIdentifier ?? -1))")
 
-        guard hasPostEventAccess() else {
+        guard Permissions.hasAccessibilityPermission else {
             NSLog("[PasteManager] ❌ PostEvent permission not granted — paste skipped. Requesting permission.")
-            requestPostEventAccess()
+            Permissions.requestAccessibilityPermission()
             // Still put text on clipboard so user can manually Cmd+V
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
@@ -43,19 +43,6 @@ class PasteManager {
         }
 
         pasteViaClipboard(text, targetApp: resolvedApp, keepOnClipboard: keepOnClipboard)
-    }
-
-    // MARK: - Permission Check
-
-    /// Check if we have permission to post CGEvents (synthetic keystrokes).
-    /// Uses the sandbox-compatible CGPreflightPostEventAccess API.
-    private func hasPostEventAccess() -> Bool {
-        return CGPreflightPostEventAccess()
-    }
-
-    /// Request permission to post CGEvents. Shows the system TCC dialog.
-    private func requestPostEventAccess() {
-        CGRequestPostEventAccess()
     }
 
     // MARK: - Clipboard + Cmd+V

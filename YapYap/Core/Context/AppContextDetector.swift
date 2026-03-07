@@ -84,12 +84,11 @@ class AppContextDetector {
 
         let bundleId = frontApp.bundleIdentifier ?? ""
         let appName = frontApp.localizedName ?? "Unknown"
-        let pid = frontApp.processIdentifier
 
         // Window title and focused text are not available in the App Sandbox
         // (AXUIElement APIs are blocked). Classification relies on bundle ID and heuristics.
-        let windowTitle: String? = nil
-        let focusedText: String? = nil
+        // Browser tab classification (Gmail in Chrome → email) is unavailable — browsers
+        // default to .browser category.
 
         var category: AppCategory
         var fromHardcodedMap = false
@@ -97,9 +96,7 @@ class AppContextDetector {
         if let override = settings.appCategoryOverrides[bundleId] {
             category = override
         } else if browserBundleIds.contains(bundleId) {
-            // Browser tab classification must run BEFORE bundleMap fallback
-            // so Gmail/Outlook/Slack in Chrome get the correct category
-            category = classifyBrowserTab(windowTitle: windowTitle)
+            category = .browser
         } else if let mapped = bundleMap[bundleId] {
             category = mapped
             fromHardcodedMap = true
@@ -107,7 +104,6 @@ class AppContextDetector {
             // Layered auto-classification for unknown apps
             category = categoryFromLSApplicationCategoryType(frontApp.bundleURL)
                 ?? categoryFromHeuristics(bundleId: bundleId, appName: appName)
-                ?? categoryFromWindowTitle(windowTitle, focusedText: focusedText)
                 ?? .other
         }
 
@@ -116,13 +112,12 @@ class AppContextDetector {
             recordSeenApp(bundleId: bundleId, appName: appName, category: category)
         }
 
-        let isIDEChat = category == .codeEditor && isAIChatPanel(windowTitle: windowTitle)
         let style = settings.styleFor(category)
 
         return AppContext(
             bundleId: bundleId, appName: appName, category: category,
-            style: style, windowTitle: windowTitle,
-            focusedFieldText: focusedText, isIDEChatPanel: isIDEChat
+            style: style, windowTitle: nil,
+            focusedFieldText: nil, isIDEChatPanel: false
         )
     }
 

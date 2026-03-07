@@ -28,7 +28,7 @@ class HotkeyManager {
         // Check PostEvent permission silently — uses sandbox-compatible API.
         // Onboarding step 2 handles the system prompt on first launch.
         // Post-onboarding, the app works without this (clipboard fallback, user pastes manually).
-        let canPost = CGPreflightPostEventAccess()
+        let canPost = Permissions.hasAccessibilityPermission
         NSLog("[HotkeyManager] PostEvent access: %@", canPost ? "YES" : "NO")
 
         if !canPost {
