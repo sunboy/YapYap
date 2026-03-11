@@ -93,7 +93,8 @@ enum LLMOutputSanitizer {
             "<|endoftext|>", "<|im_end|>", "<|im_start|>",
             "<|eot_id|>", "<|end|>", "</s>", "<s>",
             "<|assistant|>", "<|user|>", "<|system|>",
-            "</output>", "<output>", "<input>", "</input>"
+            "</output>", "<output>", "<input>", "</input>",
+            "<eos>", "<end_of_turn>", "<start_of_turn>"
         ]
 
         let preambleRegexes: [NSRegularExpression]

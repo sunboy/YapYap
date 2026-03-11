@@ -87,15 +87,15 @@ final class AppContextMapperTests: XCTestCase {
 
     // MARK: - Nil Context
 
-    func testNilContextReturnsGeneral() {
-        XCTAssertEqual(AppContextMapper.keyword(from: nil), "General")
+    func testNilContextReturnsSlack() {
+        XCTAssertEqual(AppContextMapper.keyword(from: nil), "Slack")
     }
 
     // MARK: - IDE Priority
 
-    func testIDEChatPanelReturnsIDE() {
+    func testIDEChatPanelReturnsCursor() {
         let ctx = makeContext(appName: "Cursor", category: .codeEditor, isIDEChatPanel: true)
-        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "IDE")
+        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "Cursor")
     }
 
     func testCodeEditorReturnsIDE() {
@@ -156,9 +156,9 @@ final class AppContextMapperTests: XCTestCase {
         XCTAssertEqual(AppContextMapper.keyword(from: ctx), "Email")
     }
 
-    func testBrowserGitHubReturnsIDE() {
+    func testBrowserGitHubReturnsGitHub() {
         let ctx = makeContext(appName: "Chrome", category: .browser, windowTitle: "Issues - GitHub")
-        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "IDE")
+        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "GitHub")
     }
 
     func testBrowserTwitterReturnsTwitter() {
@@ -171,14 +171,14 @@ final class AppContextMapperTests: XCTestCase {
         XCTAssertEqual(AppContextMapper.keyword(from: ctx), "Slack")
     }
 
-    func testBrowserGenericReturnsGeneral() {
+    func testBrowserGenericReturnsSlack() {
         let ctx = makeContext(appName: "Safari", category: .browser, windowTitle: "Google Search")
-        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "General")
+        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "Slack")
     }
 
-    func testBrowserNoTitleReturnsGeneral() {
+    func testBrowserNoTitleReturnsSlack() {
         let ctx = makeContext(appName: "Safari", category: .browser, windowTitle: nil)
-        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "General")
+        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "Slack")
     }
 
     // MARK: - Social
@@ -200,9 +200,9 @@ final class AppContextMapperTests: XCTestCase {
         XCTAssertEqual(AppContextMapper.keyword(from: ctx), "Notes")
     }
 
-    func testObsidianReturnsNotes() {
+    func testObsidianReturnsObsidian() {
         let ctx = makeContext(appName: "Obsidian", category: .notes)
-        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "Notes")
+        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "Obsidian")
     }
 
     // MARK: - Personal Messaging → Slack
@@ -214,9 +214,9 @@ final class AppContextMapperTests: XCTestCase {
 
     // MARK: - AI Chat → IDE
 
-    func testAIChatReturnsIDE() {
+    func testAIChatReturnsAIPrompt() {
         let ctx = makeContext(appName: "ChatGPT", category: .aiChat)
-        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "IDE")
+        XCTAssertEqual(AppContextMapper.keyword(from: ctx), "AI Prompt")
     }
 
     // MARK: - Documents → Email
@@ -414,12 +414,12 @@ final class CleanupPromptBuilderV2Tests: XCTestCase {
         XCTAssertTrue(messages.first!.content.contains("CONTEXT: Email"))
     }
 
-    func testNoAppContextSetsGeneral() {
+    func testNoAppContextSetsSlack() {
         let messages = CleanupPromptBuilderV2.buildMessages(
             rawText: "test",
             context: makeContext(appContext: nil)
         )
-        XCTAssertTrue(messages.first!.content.contains("CONTEXT: General"))
+        XCTAssertTrue(messages.first!.content.contains("CONTEXT: Slack"))
     }
 
     // MARK: - V2 Defaults in PromptOverrides
@@ -427,6 +427,7 @@ final class CleanupPromptBuilderV2Tests: XCTestCase {
     func testDefaultV2SystemPrompt() {
         let prompt = PromptOverrides.defaultV2SystemPrompt()
         XCTAssertTrue(prompt.contains("HARD RULES:"))
+        // Default V2 system prompt uses "General" as placeholder app context
         XCTAssertTrue(prompt.contains("CONTEXT: General"))
     }
 

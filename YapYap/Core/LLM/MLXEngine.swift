@@ -24,6 +24,22 @@ class MLXEngine: LLMEngine {
     /// Joint-encoded prefix slice stored for cache hit validation on the next call.
     private var promptCacheJointPrefixSlice: [Int]?
 
+    // MARK: - V3 Static Prefix Cache
+    //
+    // V3 computes and caches the KV state for the entire static prefix (system prompt +
+    // few-shots) ONCE at model load. This prefix NEVER changes across app switches —
+    // the app context is in the user message, not the system prompt. Only the ~20-token
+    // user message changes per request. Measured: 0.12s vs 1.35s first-token latency.
+
+    /// Pre-computed KV cache from the static prefix, filled once after model load.
+    private var v3PrefixCache: [any KVCache]?
+    /// Number of tokens in the V3 static prefix (the restore point for trimming).
+    private var v3PrefixOffset: Int = 0
+    /// The tokenized prefix template string, for validation.
+    private var v3PrefixTemplateKey: String?
+    /// Cached prefix token IDs to avoid re-encoding.
+    private var v3PrefixTokenIds: [Int]?
+
 
     var isLoaded: Bool { lmContext != nil }
 
@@ -69,6 +85,10 @@ class MLXEngine: LLMEngine {
         promptCachePrefixKey = nil
         prefixTokenCache = nil
         promptCacheJointPrefixSlice = nil
+        v3PrefixCache = nil
+        v3PrefixOffset = 0
+        v3PrefixTemplateKey = nil
+        v3PrefixTokenIds = nil
 
         // Set GPU cache limit to prevent Metal from freeing compute buffers between
         // inference calls. Without this, MLX deallocates Metal buffers after each
@@ -88,6 +108,10 @@ class MLXEngine: LLMEngine {
         promptCachePrefixKey = nil
         prefixTokenCache = nil
         promptCacheJointPrefixSlice = nil
+        v3PrefixCache = nil
+        v3PrefixOffset = 0
+        v3PrefixTemplateKey = nil
+        v3PrefixTokenIds = nil
         lmContext = nil
         modelId = nil
     }
@@ -130,6 +154,11 @@ class MLXEngine: LLMEngine {
     func cleanup(rawText: String, context: CleanupContext) async throws -> String {
         guard let lmContext = lmContext else {
             throw YapYapError.modelNotLoaded
+        }
+
+        // Route to V3 path for DSPy-optimized static prefix caching
+        if context.promptVersion == .v3 {
+            return try await cleanupV3(rawText: rawText, context: context, lmContext: lmContext)
         }
 
         let userContext = UserPromptContextManager.shared.context(
@@ -228,8 +257,152 @@ class MLXEngine: LLMEngine {
 
         NSLog("[MLXEngine] Prompt: \(totalTokenCount) tokens, suffix: \(jointTokens.count - splitPoint) tokens, family: \(family.rawValue)")
 
+        let outputText = try await runGeneration(input: input, cache: cache, family: family, inputTokenCount: inputTokens.count, lmContext: lmContext)
+
+        // Save cache for next call. The cache now contains KV state for
+        // prefix + suffix + generated tokens. On next call, we'll trim it
+        // back to just the prefix if the prefix hasn't changed.
+        // Always save — BPE boundary no longer causes invalid cache state.
+        promptCache = cache
+        promptCachePrefixTokenCount = splitPoint
+        promptCachePrefixKey = templatePrefix
+        promptCacheJointPrefixSlice = jointPrefixSlice
+
+        let result = LLMOutputSanitizer.sanitize(outputText)
+        NSLog("[MLXEngine] Cleanup result (\(result.count) chars): \"\(String(result.prefix(80)))...\"")
+        return result
+    }
+
+    // MARK: - V3 Cleanup (Static Prefix KV Caching)
+
+    /// V3 cleanup path: uses a static prefix (system + few-shots) that is KV-cached once
+    /// and reused across ALL requests regardless of app context changes.
+    /// App context is in the user message: "[Context: Slack] Reformat: ..."
+    private func cleanupV3(rawText: String, context: CleanupContext, lmContext: MLXLMCommon.ModelContext) async throws -> String {
+        let userContext = UserPromptContextManager.shared.context(
+            for: context.appContext?.appName,
+            transcript: rawText
+        )
+
+        let modelInfo = modelId.flatMap { LLMModelRegistry.model(for: $0) }
+        let family = modelInfo?.family ?? .qwen
+
+        // Build the static prefix (system + few-shots) — this is CONSTANT per model
+        let prefixMessages = CleanupPromptBuilderV3.buildPrefixMessages(
+            modelId: modelId, userContext: userContext
+        )
+        let prefixTemplate = formatMultiTurnMessages(prefixMessages, family: family)
+
+        // Build the suffix (just the user message with app context)
+        let parts = CleanupPromptBuilderV3.buildMessageParts(
+            rawText: rawText, context: context, modelId: modelId, userContext: userContext
+        )
+        let suffixTemplate = formatSuffixMessage(parts.suffix, family: family)
+
+        NSLog("[MLXEngine] V3 prompt: %d prefix msgs, suffix: \"%@\"",
+              prefixMessages.count, String(parts.suffix.content.prefix(80)))
+
+        // Ensure V3 prefix cache is initialized
+        let prefixTokenIds: [Int]
+        if let cached = v3PrefixTokenIds, v3PrefixTemplateKey == prefixTemplate {
+            prefixTokenIds = cached
+        } else {
+            prefixTokenIds = lmContext.tokenizer.encode(text: prefixTemplate)
+            v3PrefixTokenIds = prefixTokenIds
+            v3PrefixTemplateKey = prefixTemplate
+        }
+
+        // Joint-encode prefix + suffix for correct BPE boundary handling
+        let jointTokens = lmContext.tokenizer.encode(text: prefixTemplate + suffixTemplate)
+        let splitPoint = min(prefixTokenIds.count, jointTokens.count)
+        let suffixTokens = Array(jointTokens[splitPoint...])
+
+        NSLog("[MLXEngine] V3 encode: %d tokens (prefix: %d, suffix: %d)",
+              jointTokens.count, splitPoint, suffixTokens.count)
+
+        let cache: [any KVCache]
+        let inputTokens: [Int]
+
+        if let existingCache = v3PrefixCache,
+           v3PrefixTemplateKey == prefixTemplate,
+           v3PrefixOffset == splitPoint {
+            // Cache hit — trim back to the prefix offset, then prefill only the suffix
+            var trimmed = true
+            for c in existingCache {
+                if c.isTrimmable {
+                    let tokensToRemove = c.offset - v3PrefixOffset
+                    if tokensToRemove > 0 { c.trim(tokensToRemove) }
+                } else { trimmed = false; break }
+            }
+            if trimmed {
+                cache = existingCache
+                inputTokens = suffixTokens
+                NSLog("[MLXEngine] V3 prefix cache HIT — trimmed to offset %d, prefilling %d suffix tokens",
+                      v3PrefixOffset, suffixTokens.count)
+            } else {
+                // Cache not trimmable (e.g. ArraysCache on some Qwen variants) — full prefill
+                cache = lmContext.model.newCache(parameters: nil)
+                inputTokens = jointTokens
+                NSLog("[MLXEngine] V3 prefix cache not trimmable — full prefill %d tokens", jointTokens.count)
+            }
+        } else {
+            // First call or prefix changed (e.g. vocabulary update) — build new cache
+            let newCache = lmContext.model.newCache(parameters: nil)
+
+            // Prefill the entire prefix to populate the KV cache
+            let prefillInput = LMInput(tokens: MLXArray(Array(jointTokens[0..<splitPoint])))
+            let prefillParams = GenerateParameters(maxTokens: 1)
+            let startTime = Date()
+            let prefillStream: AsyncStream<Generation> = try generate(
+                input: prefillInput,
+                cache: newCache,
+                parameters: prefillParams,
+                context: lmContext
+            )
+            for await _ in prefillStream { break }
+
+            // Trim off the 1 generated token, keeping only the prefix KV state
+            for c in newCache where c.isTrimmable {
+                if c.offset > splitPoint { c.trim(c.offset - splitPoint) }
+            }
+
+            let prefillMs = Date().timeIntervalSince(startTime) * 1000
+            NSLog("[MLXEngine] V3 prefix cache BUILT — %d tokens prefilled in %.0fms (one-time cost)",
+                  splitPoint, prefillMs)
+
+            v3PrefixCache = newCache
+            v3PrefixOffset = splitPoint
+
+            cache = newCache
+            inputTokens = suffixTokens
+        }
+
+        let input = LMInput(tokens: MLXArray(inputTokens))
+        NSLog("[MLXEngine] V3 inference: %d suffix tokens, family: %@", inputTokens.count, family.rawValue)
+
+        let outputText = try await runGeneration(input: input, cache: cache, family: family, inputTokenCount: inputTokens.count, lmContext: lmContext)
+
+        // Cache is preserved — on next call we trim back to v3PrefixOffset
+        v3PrefixCache = cache
+
+        let result = LLMOutputSanitizer.sanitize(outputText)
+        NSLog("[MLXEngine] V3 cleanup result (\(result.count) chars): \"\(String(result.prefix(80)))...\"")
+        return result
+    }
+
+    // MARK: - Shared Generation Loop
+
+    /// Runs the generation loop with stop sequence detection and performance logging.
+    /// Shared between V1/V2 and V3 code paths.
+    private func runGeneration(
+        input: LMInput,
+        cache: [any KVCache],
+        family: LLMModelFamily,
+        inputTokenCount: Int,
+        lmContext: MLXLMCommon.ModelContext
+    ) async throws -> String {
         let parameters = GenerateParameters(
-            maxTokens: nil,
+            maxTokens: 1024,
             temperature: family.temperature,
             topP: family.topP,
             repetitionPenalty: family.repetitionPenalty,
@@ -240,9 +413,7 @@ class MLXEngine: LLMEngine {
         var firstTokenTime: Date?
 
         // Stop tokens that signal end of model response — truncate output here.
-        // Gemma uses <end_of_turn>, others use <|im_end|>, <|eot_id|>, etc.
-        let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>"]
-        // Max stop-sequence length for O(1) tail scanning instead of O(n) full-string search
+        let stopSequences = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>", "<|end|>", "</s>", "</output>", "<eos>"]
         let maxStopLen = stopSequences.map(\.count).max() ?? 0
 
         var outputText = ""
@@ -261,10 +432,10 @@ class MLXEngine: LLMEngine {
                 if firstTokenTime == nil {
                     firstTokenTime = Date()
                     let prefillMs = firstTokenTime!.timeIntervalSince(startTime) * 1000
-                    let prefillTokPerSec = prefillMs > 0 ? Double(inputTokens.count) / (prefillMs / 1000) : 0
+                    let prefillTokPerSec = prefillMs > 0 ? Double(inputTokenCount) / (prefillMs / 1000) : 0
                     let prefillWarning = prefillTokPerSec < 50 ? " ⚠️ SLOW PREFILL" : ""
                     NSLog("[MLXEngine] Prefill: %.0fms (%d tokens, %.0f tok/s)%@",
-                          prefillMs, inputTokens.count, prefillTokPerSec, prefillWarning)
+                          prefillMs, inputTokenCount, prefillTokPerSec, prefillWarning)
                 }
                 outputText += text
                 // Only scan the tail of outputText for stop sequences (O(1) per token)
@@ -272,7 +443,6 @@ class MLXEngine: LLMEngine {
                 let tail = String(outputText[tailStart...])
                 for stop in stopSequences {
                     if let range = tail.range(of: stop) {
-                        // Convert tail range back to outputText range
                         let offset = outputText.distance(from: outputText.startIndex, to: tailStart)
                         let fullStart = outputText.index(outputText.startIndex, offsetBy: offset + tail.distance(from: tail.startIndex, to: range.lowerBound))
                         outputText = String(outputText[..<fullStart])
@@ -293,18 +463,7 @@ class MLXEngine: LLMEngine {
             }
         }
 
-        // Save cache for next call. The cache now contains KV state for
-        // prefix + suffix + generated tokens. On next call, we'll trim it
-        // back to just the prefix if the prefix hasn't changed.
-        // Always save — BPE boundary no longer causes invalid cache state.
-        promptCache = cache
-        promptCachePrefixTokenCount = splitPoint
-        promptCachePrefixKey = templatePrefix
-        promptCacheJointPrefixSlice = jointPrefixSlice
-
-        let result = LLMOutputSanitizer.sanitize(outputText)
-        NSLog("[MLXEngine] Cleanup result (\(result.count) chars): \"\(String(result.prefix(80)))...\"")
-        return result
+        return outputText
     }
 
     // MARK: - Template Formatting
@@ -405,6 +564,59 @@ class MLXEngine: LLMEngine {
         }
         let suffix = "<start_of_turn>user\n\(userContent)<end_of_turn>\n<start_of_turn>model\n"
         return (prefix, suffix)
+    }
+
+    // MARK: - V3 Template Helpers
+
+    /// Formats an array of ChatMessages into a single template string (no suffix split).
+    /// Used for V3 prefix-only rendering.
+    private func formatMultiTurnMessages(_ messages: [ChatMessage], family: LLMModelFamily) -> String {
+        switch family {
+        case .llama:
+            var result = "<|begin_of_text|>"
+            for msg in messages {
+                result += "<|start_header_id|>\(msg.role.rawValue)<|end_header_id|>\n\n\(msg.content)<|eot_id|>"
+            }
+            return result
+        case .qwen:
+            var result = ""
+            for msg in messages {
+                result += "<|im_start|>\(msg.role.rawValue)\n\(msg.content)<|im_end|>\n"
+            }
+            return result
+        case .gemma:
+            var result = ""
+            var systemContent = ""
+            var isFirstUser = true
+            for msg in messages {
+                switch msg.role {
+                case .system:
+                    systemContent += systemContent.isEmpty ? msg.content : "\n\n" + msg.content
+                case .user:
+                    if isFirstUser && !systemContent.isEmpty {
+                        result += "<start_of_turn>user\n\(systemContent)\n\n\(msg.content)<end_of_turn>\n"
+                        isFirstUser = false
+                    } else {
+                        result += "<start_of_turn>user\n\(msg.content)<end_of_turn>\n"
+                    }
+                case .assistant:
+                    result += "<start_of_turn>model\n\(msg.content)<end_of_turn>\n"
+                }
+            }
+            return result
+        }
+    }
+
+    /// Formats the suffix ChatMessage into a template string with generation prompt.
+    private func formatSuffixMessage(_ message: ChatMessage, family: LLMModelFamily) -> String {
+        switch family {
+        case .llama:
+            return "<|start_header_id|>user<|end_header_id|>\n\n\(message.content)<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        case .qwen:
+            return "<|im_start|>user\n\(message.content)<|im_end|>\n<|im_start|>assistant\n"
+        case .gemma:
+            return "<start_of_turn>user\n\(message.content)<end_of_turn>\n<start_of_turn>model\n"
+        }
     }
 
 }

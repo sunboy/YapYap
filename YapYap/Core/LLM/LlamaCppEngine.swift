@@ -122,14 +122,22 @@ class LlamaCppEngine: LLMEngine {
 
         let prompt: String
 
-        if cleanupContext.useV2Prompts {
+        switch cleanupContext.promptVersion {
+        case .v3:
+            // V3: DSPy-optimized with static prefix — llama.cpp uses cache_prompt for prefix reuse
+            let v3Messages = CleanupPromptBuilderV3.buildMessages(
+                rawText: rawText, context: cleanupContext, modelId: promptModelId, userContext: userContext
+            )
+            prompt = applyChatTemplateMultiTurn(v3Messages)
+            NSLog("[LlamaCppEngine] V3 prompt: %d messages", v3Messages.count)
+        case .v2:
             // V2: multi-turn chat-style messages
             let v2Messages = CleanupPromptBuilderV2.buildMessages(
                 rawText: rawText, context: cleanupContext, modelId: promptModelId, userContext: userContext
             )
             prompt = applyChatTemplateMultiTurn(v2Messages)
             NSLog("[LlamaCppEngine] V2 prompt: %d messages", v2Messages.count)
-        } else {
+        case .v1:
             // V1: classic system + user message
             let messages = CleanupPromptBuilder.buildMessages(
                 rawText: rawText, context: cleanupContext,

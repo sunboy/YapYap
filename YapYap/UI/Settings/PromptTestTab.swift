@@ -136,6 +136,7 @@ struct PromptTestTab: View {
             isIDEChatPanel: false
         )
 
+        let resolvedVersion = settings.resolvedPromptVersion
         let context = CleanupContext(
             stylePrompt: settings.stylePrompt,
             formality: CleanupContext.Formality(rawValue: selectedFormality) ?? .neutral,
@@ -144,10 +145,20 @@ struct PromptTestTab: View {
             cleanupLevel: CleanupContext.CleanupLevel(rawValue: selectedLevel) ?? .medium,
             removeFillers: true,
             experimentalPrompts: settings.experimentalPrompts,
-            useV2Prompts: settings.useV2Prompts
+            promptVersion: resolvedVersion
         )
 
-        if settings.useV2Prompts {
+        switch resolvedVersion {
+        case .v3:
+            let v3Messages = CleanupPromptBuilderV3.buildMessages(
+                rawText: inputText, context: context, modelId: settings.llmModelId
+            )
+            systemPrompt = v3Messages.first(where: { $0.role == .system })?.content ?? ""
+            userPrompt = v3Messages
+                .filter { $0.role != .system }
+                .map { "[\($0.role.rawValue)]\n\($0.content)" }
+                .joined(separator: "\n\n")
+        case .v2:
             let v2Messages = CleanupPromptBuilderV2.buildMessages(
                 rawText: inputText, context: context, modelId: settings.llmModelId
             )
@@ -156,7 +167,7 @@ struct PromptTestTab: View {
                 .filter { $0.role != .system }
                 .map { "[\($0.role.rawValue)]\n\($0.content)" }
                 .joined(separator: "\n\n")
-        } else {
+        case .v1:
             let messages = CleanupPromptBuilder.buildMessages(
                 rawText: inputText,
                 context: context,

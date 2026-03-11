@@ -90,7 +90,18 @@ class OllamaEngine: LLMEngine {
 
         var chatMessages: [[String: String]] = []
 
-        if context.useV2Prompts {
+        switch context.promptVersion {
+        case .v3:
+            // V3: DSPy-optimized, model-family-specific with static prefix
+            // Ollama handles prefix caching via keep_alive — same message structure works
+            let v3Messages = CleanupPromptBuilderV3.buildMessages(
+                rawText: rawText, context: context, modelId: promptModelId, userContext: userContext
+            )
+            for msg in v3Messages {
+                chatMessages.append(["role": msg.role.rawValue, "content": msg.content])
+            }
+            NSLog("[OllamaEngine] V3 prompt: %d messages", v3Messages.count)
+        case .v2:
             // V2: multi-turn chat-style messages — Ollama natively supports message arrays
             let v2Messages = CleanupPromptBuilderV2.buildMessages(
                 rawText: rawText, context: context, modelId: promptModelId, userContext: userContext
@@ -99,7 +110,7 @@ class OllamaEngine: LLMEngine {
                 chatMessages.append(["role": msg.role.rawValue, "content": msg.content])
             }
             NSLog("[OllamaEngine] V2 prompt: %d messages", v2Messages.count)
-        } else {
+        case .v1:
             // V1: classic system + user message
             let messages = CleanupPromptBuilder.buildMessages(
                 rawText: rawText, context: context,
@@ -114,12 +125,15 @@ class OllamaEngine: LLMEngine {
             chatMessages.append(["role": "user", "content": messages.user])
         }
 
+        // Disable Qwen reasoning buffer — prevents output going to think token instead of content
+        let isQwen = tag.lowercased().contains("qwen")
         let startTime = Date()
         let result = try await chatCompletion(
             model: tag,
             messages: chatMessages,
-            maxTokens: -1,
-            temperature: 0.0
+            maxTokens: 1024,
+            temperature: 0.0,
+            disableThink: isQwen
         )
         let elapsed = Date().timeIntervalSince(startTime)
         let outputWords = result.split(separator: " ").count
@@ -213,7 +227,8 @@ class OllamaEngine: LLMEngine {
         model: String,
         messages: [[String: String]],
         maxTokens: Int,
-        temperature: Float = 0.0
+        temperature: Float = 0.0,
+        disableThink: Bool = false
     ) async throws -> String {
         guard let url = URL(string: "\(endpoint)/api/chat") else {
             throw OllamaError.invalidEndpoint(endpoint)
@@ -222,7 +237,7 @@ class OllamaEngine: LLMEngine {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "model": model,
             "messages": messages,
             "stream": false,
@@ -233,6 +248,10 @@ class OllamaEngine: LLMEngine {
                 "num_predict": maxTokens
             ]
         ]
+        // Disable Qwen internal reasoning buffer — output goes to content, not thinking
+        if disableThink {
+            body["think"] = false
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await session.data(for: request)
