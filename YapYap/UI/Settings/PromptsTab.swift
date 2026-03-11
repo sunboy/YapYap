@@ -6,7 +6,7 @@ struct PromptsTab: View {
     @State private var overrides = PromptOverrides()
     @State private var didLoad = false
     @State private var saveTask: Task<Void, Never>?
-    @State private var isV2Mode = true
+    @State private var currentPromptVersion: CleanupContext.PromptVersion = .v3
 
     // Section expand state
     @State private var expandedSystemVariant: PromptOverrides.SystemPromptVariant?
@@ -27,17 +27,20 @@ struct PromptsTab: View {
 
                 Spacer()
 
-                Text(isV2Mode ? "V2 Engine" : "Classic (V1)")
+                Text(promptVersionBadge)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(isV2Mode ? .ypMint : .ypText3)
+                    .foregroundColor(currentPromptVersion == .v3 ? .ypMint : currentPromptVersion == .v2 ? .ypMint : .ypText3)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
-                    .background(isV2Mode ? Color.ypMint.opacity(0.12) : Color.white.opacity(0.04))
+                    .background(currentPromptVersion != .v1 ? Color.ypMint.opacity(0.12) : Color.white.opacity(0.04))
                     .cornerRadius(4)
             }
             .padding(.bottom, 20)
 
-            if isV2Mode {
+            if currentPromptVersion == .v3 {
+                // V3: DSPy-optimized — prompts are model-family-specific and not user-editable
+                v3InfoSection
+            } else if currentPromptVersion == .v2 {
                 // V2: unified system prompt + chat-style examples
                 v2SystemPromptSection
 
@@ -65,8 +68,52 @@ struct PromptsTab: View {
         .onAppear {
             guard !didLoad else { return }
             overrides = PromptOverrides.loadFromUserDefaults()
-            isV2Mode = DataManager.shared.fetchSettings().useV2Prompts
+            currentPromptVersion = DataManager.shared.fetchSettings().resolvedPromptVersion
             didLoad = true
+        }
+    }
+
+    private var promptVersionBadge: String {
+        switch currentPromptVersion {
+        case .v3: return "V3 Engine (DSPy)"
+        case .v2: return "V2 Engine"
+        case .v1: return "Classic (V1)"
+        }
+    }
+
+    // MARK: - V3 Info Section
+
+    private var v3InfoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("V3 prompts are optimized by DSPy across 282 test cases and are not user-editable.")
+                .font(.system(size: 12))
+                .foregroundColor(.ypText3)
+
+            VStack(alignment: .leading, spacing: 8) {
+                v3InfoRow(label: "Architecture", value: "Model-family-specific prompts (Gemma, Qwen, Llama)")
+                v3InfoRow(label: "KV Caching", value: "Static prefix cached once — app switches don't invalidate")
+                v3InfoRow(label: "App Context", value: "Embedded in user message: [Context: X] Reformat: ...")
+                v3InfoRow(label: "Few-Shot Examples", value: "4-12 examples per model family (size-adapted)")
+            }
+            .padding(12)
+            .background(Color.ypCard)
+            .cornerRadius(8)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.ypBorder, lineWidth: 1))
+
+            Text("To customize prompts, switch to V2 or V1 in General Settings.")
+                .font(.system(size: 11))
+                .foregroundColor(.ypText3)
+        }
+    }
+
+    private func v3InfoRow(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.ypText2)
+            Text(value)
+                .font(.system(size: 11))
+                .foregroundColor(.ypText3)
         }
     }
 

@@ -12,7 +12,7 @@ struct GeneralTab: View {
     @State private var copyToClipboard = true
     @State private var notifyOnComplete = false
     @State private var experimentalPrompts = false
-    @State private var useV2Prompts = true
+    @State private var promptVersion: CleanupContext.PromptVersion = .v3
     @State private var selectedMic = "Default"
     @State private var floatingBarPosition = "Bottom center"
     @State private var historyLimit = "Last 100"
@@ -51,10 +51,16 @@ struct GeneralTab: View {
                 .padding(.bottom, 8)
 
             toggleRow(label: "Detailed prompts for small models", subtitle: "Use 3B+ model prompts on ≤1B models (may reduce accuracy)", isOn: $experimentalPrompts)
-            toggleRow(label: "Classic prompt engine (V1)", subtitle: "Use the original single-turn prompts instead of the new chat-style engine", isOn: Binding(
-                get: { !useV2Prompts },
-                set: { useV2Prompts = !$0 }
-            ))
+
+            Text("PROMPT ENGINE")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.ypText2)
+                .tracking(0.8)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+
+            promptVersionPicker
+                .padding(.bottom, 8)
 
             divider
 
@@ -102,9 +108,13 @@ struct GeneralTab: View {
             guard didLoadSettings else { return }
             saveSettings { $0.experimentalPrompts = newValue }
         }
-        .onChange(of: useV2Prompts) { _, newValue in
+        .onChange(of: promptVersion) { _, newValue in
             guard didLoadSettings else { return }
-            saveSettings { $0.useV2Prompts = newValue }
+            saveSettings {
+                $0.promptVersion = newValue.rawValue
+                // Keep legacy field in sync for backward compat
+                $0.useV2Prompts = newValue == .v2
+            }
         }
         .onChange(of: crashReportingEnabled) { _, newValue in
             CrashReporter.isEnabled = newValue
@@ -153,7 +163,7 @@ struct GeneralTab: View {
         copyToClipboard = settings.copyToClipboard
         notifyOnComplete = settings.notifyOnComplete
         experimentalPrompts = settings.experimentalPrompts
-        useV2Prompts = settings.useV2Prompts
+        promptVersion = settings.resolvedPromptVersion
         floatingBarPosition = settings.floatingBarPosition
         historyLimit = intToHistoryLimit(settings.historyLimit)
         sttMode = settings.sttMode ?? "batch"
@@ -191,6 +201,34 @@ struct GeneralTab: View {
         case 0: return "Don't save"
         default: return "Last 100"
         }
+    }
+
+    private var promptVersionPicker: some View {
+        HStack(spacing: 8) {
+            promptVersionPill(version: .v3, title: "V3 (DSPy)", subtitle: "Best quality, fastest caching")
+            promptVersionPill(version: .v2, title: "V2", subtitle: "Unified chat-style")
+            promptVersionPill(version: .v1, title: "V1 (Classic)", subtitle: "Single-turn prompts")
+        }
+    }
+
+    private func promptVersionPill(version: CleanupContext.PromptVersion, title: String, subtitle: String) -> some View {
+        let isSelected = promptVersion == version
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                .foregroundColor(isSelected ? .ypLavender : .ypText2)
+            Text(subtitle)
+                .font(.system(size: 10))
+                .foregroundColor(isSelected ? .ypLavender.opacity(0.8) : .ypText3)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSelected ? Color.ypPillLavender : Color.ypCard)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1))
+        .cornerRadius(8)
+        .contentShape(Rectangle())
+        .onTapGesture { promptVersion = version }
     }
 
     private var sttModePicker: some View {
