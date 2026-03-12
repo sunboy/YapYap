@@ -29,7 +29,7 @@ struct PromptsTab: View {
 
                 Text(promptVersionBadge)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(currentPromptVersion == .v3 ? .ypMint : currentPromptVersion == .v2 ? .ypMint : .ypText3)
+                    .foregroundColor(currentPromptVersion != .v1 ? .ypMint : .ypText3)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(currentPromptVersion != .v1 ? Color.ypMint.opacity(0.12) : Color.white.opacity(0.04))
