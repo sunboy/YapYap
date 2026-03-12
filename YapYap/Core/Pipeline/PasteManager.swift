@@ -1,14 +1,23 @@
 // PasteManager.swift
-// YapYap — Paste text into active app via clipboard + synthetic Cmd+V
+// YapYap — Paste text into active app via cascading injection strategies
 //
-// App Store sandbox compatible: uses CGEvent.post() which requires the PostEvent
-// TCC privilege (shown as "Accessibility" in System Settings). This is separate from
-// full Accessibility API access and works within App Sandbox.
-// See: https://developer.apple.com/forums/thread/789896
+// Two distribution modes:
+//  - DIRECT_DISTRIBUTION (Debug/Release DMG): full cascading paste strategies:
+//    1. Accessibility API setValue (cleanest, no clipboard pollution)
+//    2. Clipboard + synthetic Cmd+V (fallback)
+//  - App Store (AppStore config): clipboard + synthetic Cmd+V only.
+//    CGEvent.post() requires PostEvent TCC privilege (shown as "Accessibility"
+//    in System Settings); this works within the App Sandbox.
 import AppKit
 import Carbon.HIToolbox
 
 class PasteManager {
+
+    /// Set by TranscriptionPipeline after init. Used to report paste failures to the UI.
+    weak var appState: AppState?
+
+    /// Cancellable clipboard-restore work item. Cancelled if paste fails so text stays on clipboard.
+    private var pendingRestoreWorkItem: DispatchWorkItem?
 
     /// Pasteboard markers per nspasteboard.org convention — tells clipboard managers
     /// (Maccy, Paste.app, etc.) not to record this temporary write.
@@ -18,7 +27,38 @@ class PasteManager {
     /// Skip saving/restoring clipboard if it exceeds this size (avoids OOM with large images).
     private static let maxPasteboardSaveBytes = 10 * 1024 * 1024 // 10 MB
 
-    /// Paste text into the target app via clipboard + synthetic Cmd+V.
+    #if DIRECT_DISTRIBUTION
+    /// Cache for `canPostCGEvents()` result — kernel TCC check is expensive on every paste.
+    /// Re-checked after 60s so stale-permission events (rebuild without tccutil reset) are caught quickly.
+    private var cgEventPermissionCache: (result: Bool, checkedAt: Date)?
+    private static let cgEventPermissionCacheTTL: TimeInterval = 60
+
+    /// Force re-check of CGEvent permission on next paste.
+    /// Called on wake-from-sleep because macOS can silently revoke the accessibility
+    /// grant during sleep (tccd hiccup, background security update, HID corruption).
+    func invalidatePermissionCache() {
+        cgEventPermissionCache = nil
+        NSLog("[PasteManager] Permission cache invalidated (wake from sleep)")
+    }
+
+    /// Terminal emulators that silently accept AX writes but never render them.
+    /// For these apps, always use clipboard + Cmd+V.
+    private let terminalBundleIds: Set<String> = [
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+        "dev.warp.Warp-Stable", "dev.warp.Warp",
+        "com.github.alacritty",
+        "io.alacritty",
+        "net.kovidgoyal.kitty",
+        "co.zeit.hyper",
+        "com.panic.Prompt",
+    ]
+    #endif
+
+    /// Paste text into the target app.
+    ///
+    /// - Direct distribution: tries Accessibility API first, then clipboard + Cmd+V.
+    /// - App Store: clipboard + synthetic Cmd+V only (AX APIs not available in sandbox).
     ///
     /// - Parameters:
     ///   - text: The text to paste.
@@ -26,24 +66,169 @@ class PasteManager {
     ///   - keepOnClipboard: When true (copyToClipboard setting), the clipboard keeps the
     ///     transcription after paste instead of being restored. Also omits the transient marker
     ///     so clipboard managers record the text.
-    func paste(_ text: String, targetApp: NSRunningApplication? = nil, keepOnClipboard: Bool = false) {
+    @discardableResult
+    func paste(_ text: String, targetApp: NSRunningApplication? = nil, keepOnClipboard: Bool = false) -> Bool {
         let resolvedApp = targetApp ?? NSWorkspace.shared.frontmostApplication
         let appName = resolvedApp?.localizedName ?? "unknown"
         NSLog("[PasteManager] Paste requested: \(text.count) chars → \(appName) (pid: \(resolvedApp?.processIdentifier ?? -1))")
 
+        #if DIRECT_DISTRIBUTION
+        guard canPostCGEvents() else {
+            NSLog("[PasteManager] ❌ CGEvent permission check failed — paste skipped. Text placed on clipboard.")
+            // Put text on clipboard so user can manually Cmd+V
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            DispatchQueue.main.async { [weak self] in
+                self?.appState?.pasteFailureMessage = "Paste failed — accessibility permission needed. Text copied to clipboard, press ⌘V to paste."
+            }
+            return false
+        }
+
+        // Strategy 1: Accessibility API setValue (no clipboard pollution)
+        // Skip for terminal apps — they accept AX writes silently but don't render them
+        let bundleId = resolvedApp?.bundleIdentifier ?? ""
+        let isTerminal = terminalBundleIds.contains(bundleId)
+        if !isTerminal, tryAccessibilitySetValue(text, targetApp: resolvedApp) {
+            NSLog("[PasteManager] Pasted via Accessibility API")
+            if keepOnClipboard {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(text, forType: .string)
+            }
+            return true
+        }
+        if isTerminal {
+            NSLog("[PasteManager] Terminal app detected (\(bundleId)), skipping AX paste")
+        }
+
+        // Strategy 2: Clipboard + synthetic Cmd+V (most compatible)
+        NSLog("[PasteManager] Accessibility API failed, falling back to clipboard paste")
+        pasteViaClipboard(text, targetApp: resolvedApp, keepOnClipboard: keepOnClipboard)
+        return true
+        #else
         guard Permissions.hasAccessibilityPermission else {
-            NSLog("[PasteManager] ❌ PostEvent permission not granted — paste skipped. Requesting permission.")
+            NSLog("[PasteManager] ❌ PostEvent permission not granted — paste skipped.")
             Permissions.requestAccessibilityPermission()
-            // Still put text on clipboard so user can manually Cmd+V
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(text, forType: .string)
             NSLog("[PasteManager] Text placed on clipboard — user can paste manually with Cmd+V")
-            return
+            DispatchQueue.main.async { [weak self] in
+                self?.appState?.pasteFailureMessage = "Paste failed — accessibility permission needed. Text copied to clipboard, press ⌘V to paste."
+            }
+            return false
         }
 
         pasteViaClipboard(text, targetApp: resolvedApp, keepOnClipboard: keepOnClipboard)
+        return true
+        #endif
     }
+
+    // MARK: - Permission Check (Direct Distribution only)
+
+    #if DIRECT_DISTRIBUTION
+    /// Probe whether we can actually post CGEvents by attempting to create an event tap.
+    /// `AXIsProcessTrusted()` returns stale `true` after rebuilds when the code signature
+    /// changes but the TCC database entry hasn't been refreshed. This is the real check.
+    /// Result is cached for 60s to avoid a kernel TCC call on every paste.
+    private func canPostCGEvents() -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+
+        if let cache = cgEventPermissionCache,
+           Date().timeIntervalSince(cache.checkedAt) < Self.cgEventPermissionCacheTTL {
+            return cache.result
+        }
+
+        let tap = CGEvent.tapCreate(
+            tap: .cghidEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+            callback: { _, _, event, _ in Unmanaged.passUnretained(event) },
+            userInfo: nil
+        )
+        let result: Bool
+        if let tap = tap {
+            CFMachPortInvalidate(tap)
+            result = true
+        } else {
+            NSLog("[PasteManager] ⚠️ CGEvent tap creation failed — AXIsProcessTrusted()=%d, accessibility may have been revoked by macOS. Reset with: tccutil reset Accessibility dev.yapyap.app", AXIsProcessTrusted())
+            result = false
+        }
+        cgEventPermissionCache = (result: result, checkedAt: Date())
+        return result
+    }
+
+    // MARK: - Strategy 1: Accessibility API
+
+    /// Try to set text directly via AXUIElement on the focused text field.
+    /// Works in most native macOS text fields without touching the clipboard.
+    private func tryAccessibilitySetValue(_ text: String, targetApp: NSRunningApplication?) -> Bool {
+        guard let pid = targetApp?.processIdentifier else { return false }
+
+        let app = AXUIElementCreateApplication(pid)
+        var focusedElement: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success else {
+            NSLog("[PasteManager] AX: could not get focused element from pid \(pid)")
+            return false
+        }
+
+        guard let rawElement = focusedElement else { return false }
+        let element = rawElement as! AXUIElement
+
+        var settable: DarwinBoolean = false
+        guard AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success,
+              settable.boolValue else {
+            NSLog("[PasteManager] AX: focused element is not settable")
+            return false
+        }
+
+        var role: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role) == .success,
+           let roleStr = role as? String,
+           roleStr != "AXTextArea" && roleStr != "AXTextField" {
+            NSLog("[PasteManager] AX: element role is '\(roleStr)', not a text field — skipping AX paste")
+            return false
+        }
+
+        var selectedRange: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selectedRange) == .success {
+            let setResult = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFTypeRef)
+            if setResult == .success {
+                var readBack: CFTypeRef?
+                if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &readBack) == .success,
+                   let readStr = readBack as? String, readStr.isEmpty {
+                    return true
+                }
+                var fullValue: CFTypeRef?
+                if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &fullValue) == .success,
+                   let fullStr = fullValue as? String, fullStr.contains(text) {
+                    return true
+                }
+                NSLog("[PasteManager] AX: selectedText set returned success but text not found in field — falling through to clipboard")
+                return false
+            }
+        }
+
+        var currentValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentValue) == .success {
+            if let current = currentValue as? String, current.count < 500 {
+                let result = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, text as CFTypeRef)
+                if result == .success {
+                    var afterValue: CFTypeRef?
+                    if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &afterValue) == .success,
+                       let afterStr = afterValue as? String, afterStr.contains(text) {
+                        return true
+                    }
+                    NSLog("[PasteManager] AX setValue returned success but verification failed")
+                }
+            }
+        }
+
+        return false
+    }
+    #endif
 
     // MARK: - Clipboard + Cmd+V
 
@@ -96,10 +281,12 @@ class PasteManager {
                 // Only restore when keepOnClipboard is false — otherwise the user wants
                 // the transcription to stay on the clipboard.
                 if let savedItems = savedItems, !savedItems.isEmpty {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        self.restorePasteboard(pasteboard, from: savedItems)
+                    let restoreWork = DispatchWorkItem { [weak self] in
+                        self?.restorePasteboard(pasteboard, from: savedItems)
                         NSLog("[PasteManager] Clipboard restored (all types)")
                     }
+                    self.pendingRestoreWorkItem = restoreWork
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: restoreWork)
                 }
             }
         }
@@ -198,7 +385,13 @@ class PasteManager {
 
         // Key code for 'V' is 0x09
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: UInt16(kVK_ANSI_V), keyDown: true) else {
-            NSLog("[PasteManager] ❌ Failed to create CGEvent keyDown")
+            NSLog("[PasteManager] ❌ Failed to create CGEvent keyDown — cancelling clipboard restore so text stays available")
+            pendingRestoreWorkItem?.cancel()
+            pendingRestoreWorkItem = nil
+            DispatchQueue.main.async { [weak self] in
+                self?.appState?.pasteFailureMessage = "Paste failed — text copied to clipboard, press ⌘V to paste."
+                SoundManager.shared.playError()
+            }
             return
         }
         // Set only Cmd — overwrites any inherited modifier flags (e.g. Option from hotkey)
