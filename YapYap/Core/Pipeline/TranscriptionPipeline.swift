@@ -147,9 +147,16 @@ class TranscriptionPipeline {
         )
         let activeLLM = await executor.activeLLMModelId
         let activeSTT = await executor.sttModelId
+        let requestedLLM = settings.llmModelId
         await MainActor.run { [weak self] in
             self?.appState.activeLLMModelId = activeLLM
             self?.appState.activeSTTModelId = activeSTT
+            // Track load failure so ModelsTab can show a "Load Failed" badge
+            if activeLLM == nil && !llmAlreadyLoaded {
+                self?.appState.lastLLMLoadErrorModelId = requestedLLM
+            } else {
+                self?.appState.lastLLMLoadErrorModelId = nil
+            }
             // Clear LLM loading state — load is complete (success or failure)
             self?.appState.llmLoadingModelId = nil
             self?.appState.llmDownloadProgress = nil

@@ -31,6 +31,9 @@ final class AppState {
     var llmDownloadProgress: Double? = nil
     /// The LLM model ID currently being loaded (downloading or initializing). Nil when idle.
     var llmLoadingModelId: String? = nil
+    /// Last LLM model load failure — shown as a badge in ModelsTab so the user knows
+    /// a "Downloaded" model is actually broken. Cleared on next successful load.
+    var lastLLMLoadErrorModelId: String? = nil
 
     // Quick stats for popover
     var todayCount: Int = 0
