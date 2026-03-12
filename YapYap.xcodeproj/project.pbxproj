@@ -143,6 +143,7 @@
 		AEC34FB22E6B78AC099AC883 /* VADConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BF404197047F870703C6CB0 /* VADConfig.swift */; };
 		AF21A1E4666DD905FD03ED9A /* YapYapError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D469BE3EAC26808CE9249D /* YapYapError.swift */; };
 		B0AEA54FEBC0A45E06F7C5CB /* AppContextMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA2659D5A9C77F9334B61E2A /* AppContextMapper.swift */; };
+		B5E6AC5BAEC36173D6EE3BA6 /* MemoryPressureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87A2256A8580BBEFF01C4A94 /* MemoryPressureTests.swift */; };
 		BADA6332BEAB6D82F9D4641A /* LlamaCppEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CA96105D4824A69FCA4C26C /* LlamaCppEngineTests.swift */; };
 		BB0B70D0136A849537ADB320 /* STTEngineFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA7B275E01079F8B546E428B /* STTEngineFactory.swift */; };
 		BD304DF5AA9AF3A368FD4DF9 /* StyleTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83272763718A929330D6D7B1 /* StyleTab.swift */; };
@@ -286,6 +287,7 @@
 		7D3CA0202F52BB293D5D3977 /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = Localizable.strings; sourceTree = "<group>"; };
 		80A3D963F22D03A9AE9B19A1 /* CorpusCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorpusCommand.swift; sourceTree = "<group>"; };
 		83272763718A929330D6D7B1 /* StyleTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleTab.swift; sourceTree = "<group>"; };
+		87A2256A8580BBEFF01C4A94 /* MemoryPressureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryPressureTests.swift; sourceTree = "<group>"; };
 		87B28CEC987D82699CC177D8 /* AppCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCategory.swift; sourceTree = "<group>"; };
 		88662C0CA3054E3FB2DA55A2 /* AudioRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecoveryTests.swift; sourceTree = "<group>"; };
 		89154B426EB916B13CF07962 /* OllamaEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaEngineTests.swift; sourceTree = "<group>"; };
@@ -323,6 +325,7 @@
 		C6D469BE3EAC26808CE9249D /* YapYapError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YapYapError.swift; sourceTree = "<group>"; };
 		C80B8954F71B298D6318D8B1 /* YapYapBench.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YapYapBench.swift; sourceTree = "<group>"; };
 		CA2659D5A9C77F9334B61E2A /* AppContextMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContextMapper.swift; sourceTree = "<group>"; };
+		CAC52136293468021BE4D66F /* YapYap-DirectDist.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "YapYap-DirectDist.entitlements"; sourceTree = "<group>"; };
 		CB68E105C803B17AC0FED012 /* TranscriptionPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionPipelineTests.swift; sourceTree = "<group>"; };
 		CDB51103ED70B4B985A743BD /* GlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassComponents.swift; sourceTree = "<group>"; };
 		CE612E65BDE9C5175B687345 /* DataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataManager.swift; sourceTree = "<group>"; };
@@ -533,6 +536,7 @@
 			isa = PBXGroup;
 			children = (
 				2AF496DD576082593F281091 /* Info.plist */,
+				CAC52136293468021BE4D66F /* YapYap-DirectDist.entitlements */,
 				25A262D60BF6A46BB4021178 /* YapYap.entitlements */,
 				0780881EAAF1FC629BB7D952 /* App */,
 				BAD75681BDA88DEDAE41F502 /* Core */,
@@ -674,6 +678,7 @@
 				6E62849877725E323BC44343 /* InferenceFrameworkTests.swift */,
 				6CA96105D4824A69FCA4C26C /* LlamaCppEngineTests.swift */,
 				62E245C101EE341237F29842 /* MachineProfileTests.swift */,
+				87A2256A8580BBEFF01C4A94 /* MemoryPressureTests.swift */,
 				D388B781023AA9CF80B6AD11 /* MLXEngineCacheTests.swift */,
 				277BA9A86C8F446F56E37260 /* ModelRegistryTests.swift */,
 				89154B426EB916B13CF07962 /* OllamaEngineTests.swift */,
@@ -805,15 +810,12 @@
 				TargetAttributes = {
 					1C5724157EFE78E16BA8C4E0 = {
 						DevelopmentTeam = SRB6ZCP58T;
-						ProvisioningStyle = Manual;
 					};
 					B437016EE3782504800D0781 = {
 						DevelopmentTeam = SRB6ZCP58T;
-						ProvisioningStyle = Manual;
 					};
 					EC71E203280C463181FBDEE4 = {
 						DevelopmentTeam = SRB6ZCP58T;
-						ProvisioningStyle = Manual;
 					};
 				};
 			};
@@ -883,6 +885,7 @@
 				BADA6332BEAB6D82F9D4641A /* LlamaCppEngineTests.swift in Sources */,
 				BFD76FE476272CFB43E8823B /* MLXEngineCacheTests.swift in Sources */,
 				7401CC772537758CFBBC1823 /* MachineProfileTests.swift in Sources */,
+				B5E6AC5BAEC36173D6EE3BA6 /* MemoryPressureTests.swift in Sources */,
 				68933ED2DE3C6DF5DE26C703 /* ModelRegistryTests.swift in Sources */,
 				470DBF6AAC5D3DE94CFEEB06 /* OllamaEngineTests.swift in Sources */,
 				15FBA67EA3FCA4B5C11C87F9 /* OutputFormatterTests.swift in Sources */,
@@ -1067,17 +1070,79 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		30F21B65156E33461D77986D /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = SRB6ZCP58T;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				EXCLUDED_ARCHS = x86_64;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = AppStore;
+		};
 		4635EE1A86AF576BF44FD928 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = YapYap/YapYap.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "YapYap/YapYap-DirectDist.entitlements";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = YapYap/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yapyap.app;
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG DIRECT_DISTRIBUTION";
 			};
 			name = Debug;
 		};
@@ -1108,6 +1173,24 @@
 				SDKROOT = macosx;
 			};
 			name = Debug;
+		};
+		9EC563A90595A157F98A233E /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = YapYap/YapYap.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = YapYap/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				OTHER_CODE_SIGN_FLAGS = "--timestamp";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yapyap.app;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+			};
+			name = AppStore;
 		};
 		B2A7DC671C2D4904851F4AA5 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1143,8 +1226,6 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "Developer ID Application";
-				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = SRB6ZCP58T;
@@ -1204,8 +1285,6 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = SRB6ZCP58T;
@@ -1259,7 +1338,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = YapYap/YapYap.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "YapYap/YapYap-DirectDist.entitlements";
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = YapYap/Info.plist;
@@ -1267,8 +1348,26 @@
 				OTHER_CODE_SIGN_FLAGS = "--timestamp";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.yapyap.app;
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DIRECT_DISTRIBUTION;
 			};
 			name = Release;
+		};
+		EC99E856EFB83705B3ADD0D1 /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yapyap.app.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/YapYap.app/Contents/MacOS/YapYap";
+			};
+			name = AppStore;
 		};
 		F949155C5C2E29DAB88CAD4E /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1287,44 +1386,62 @@
 			};
 			name = Release;
 		};
+		FBDA5844285FCC0F16C82BA6 /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yapyap.bench;
+				SDKROOT = macosx;
+			};
+			name = AppStore;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		011D248676F64D8286CF6D24 /* Build configuration list for PBXNativeTarget "YapYap" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
+				9EC563A90595A157F98A233E /* AppStore */,
 				4635EE1A86AF576BF44FD928 /* Debug */,
 				E0D0C8EEDDDB81D5A41F9455 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
+			defaultConfigurationName = AppStore;
 		};
 		5BC0183ABAB312286A49F766 /* Build configuration list for PBXProject "YapYap" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
+				30F21B65156E33461D77986D /* AppStore */,
 				B6EF34BF11299C13860922A7 /* Debug */,
 				B2A7DC671C2D4904851F4AA5 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
+			defaultConfigurationName = AppStore;
 		};
 		8AF0240F7E0AF6DF5A479550 /* Build configuration list for PBXNativeTarget "YapYapTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
+				EC99E856EFB83705B3ADD0D1 /* AppStore */,
 				B736081404C9B3AEAEBE13E0 /* Debug */,
 				F949155C5C2E29DAB88CAD4E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
+			defaultConfigurationName = AppStore;
 		};
 		B31EF96063BBEA2CF0ECE251 /* Build configuration list for PBXNativeTarget "YapYapBench" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
+				FBDA5844285FCC0F16C82BA6 /* AppStore */,
 				9B9C4352E21F5B2AC63F22B8 /* Debug */,
 				6FC413B9953672D876120451 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
+			defaultConfigurationName = AppStore;
 		};
 /* End XCConfigurationList section */
 
