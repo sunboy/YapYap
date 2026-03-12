@@ -80,6 +80,14 @@ struct FloatingBarView: View {
                     .frame(width: 5, height: 5)
                     .opacity(dotPulse ? 1.0 : 0.25)
                     .transition(.opacity)
+            } else if appState.pasteFailureMessage != nil {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.ypRed)
+                Text("⌘V to paste")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.ypRed)
+                    .transition(.opacity)
             }
         }
         .padding(.horizontal, 6)
@@ -97,6 +105,7 @@ struct FloatingBarView: View {
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: appState.isProcessing)
         .animation(.easeInOut(duration: 0.3), value: appState.isLoadingModels)
         .animation(.easeInOut(duration: 0.2), value: appState.partialTranscription != nil)
+        .animation(.easeInOut(duration: 0.3), value: appState.pasteFailureMessage != nil)
         .onChange(of: appState.isRecording) { _, isRecording in
             if isRecording {
                 startTimer()

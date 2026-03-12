@@ -108,6 +108,7 @@ class HotkeyManager {
 
     private func showError(_ message: String) {
         DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
             alert.messageText = "Hotkey Error"
             alert.informativeText = message

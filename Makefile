@@ -120,16 +120,15 @@ release: dmg notarize staple
 	echo "  3. Sign the appcast entry with: sign_update build/$(DMG_NAME)"; \
 	echo "  4. Push appcast.xml to GitHub (Sparkle reads it from main branch)"; \
 
-# App Store archive: build release archive for App Store submission
+# App Store archive: build sandboxed release archive for Mac App Store submission
+# Uses the AppStore configuration (sandboxed, Apple Distribution signing).
 # After archiving, open Xcode Organizer to upload: Window → Organizer → Distribute App
 appstore-archive:
 	@mkdir -p build
 	xcodebuild -project YapYap.xcodeproj -scheme YapYap \
-		-configuration Release archive \
+		-configuration AppStore archive \
 		-archivePath build/YapYap-AppStore.xcarchive \
-		ARCHS=arm64 EXCLUDED_ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO \
-		CODE_SIGN_IDENTITY="Apple Distribution" \
-		CODE_SIGN_STYLE=Manual
+		ARCHS=arm64 EXCLUDED_ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO
 	@echo ""
 	@echo "✅ App Store archive created: build/YapYap-AppStore.xcarchive"
 	@echo ""

@@ -1,6 +1,17 @@
 import SwiftUI
+#if DIRECT_DISTRIBUTION
+import Sparkle
+#endif
 
 struct AboutTab: View {
+    #if DIRECT_DISTRIBUTION
+    /// Computed at tap-time to avoid capturing nil when the view struct is initialized
+    /// before NSApp.delegate is set (the root cause of the previous 3 failed fix attempts).
+    private var updaterController: SPUStandardUpdaterController? {
+        (NSApp.delegate as? AppDelegate)?.updaterController
+    }
+    #endif
+
     var body: some View {
         VStack(spacing: 0) {
             Spacer().frame(height: 16)
@@ -43,6 +54,20 @@ struct AboutTab: View {
 
             // Buttons
             HStack(spacing: 10) {
+                #if DIRECT_DISTRIBUTION
+                Button(action: {
+                    updaterController?.checkForUpdates(nil)
+                }) {
+                    Text("Check for Updates")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundColor(.ypText2)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 7)
+                        .background(Capsule().fill(.white.opacity(0.06)))
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                #endif
                 linkButton("Website")
             }
             .padding(.bottom, 20)
