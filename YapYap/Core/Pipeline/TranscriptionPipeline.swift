@@ -60,6 +60,7 @@ class TranscriptionPipeline {
         self.container = container
         self.audioCapture = AudioCaptureManager()
         self.pasteManager = PasteManager()
+        self.pasteManager.appState = appState
     }
 
     // MARK: - Model Loading
@@ -214,6 +215,7 @@ class TranscriptionPipeline {
         self.isCommandMode = isCommandMode
         appState.creatureState = .recording
         appState.isRecording = true
+        appState.pasteFailureMessage = nil
         NSLog("[TranscriptionPipeline] Recording state set to true, creature: \(appState.creatureState)")
         print("[TranscriptionPipeline] Recording state set to true")
 
@@ -315,9 +317,15 @@ class TranscriptionPipeline {
         var sttMs: Double = 0
         var llmMs: Double = 0
         var vadReductionPct: Double = 0
+        var vadMs: Double = 0
         var llmSkipped = false
         var usedStreaming = false
         var promptCacheHit = false
+        var pasteMs: Double = 0
+        var pasteSuccess = true
+        var llmMetrics: LLMCleanupMetrics?
+        var inferenceFramework: LLMInferenceFramework = .mlx
+        let availableMemoryMB = MachineProfile.availableMemoryMB()
 
         do {
             var rawText: String = ""
@@ -407,6 +415,7 @@ class TranscriptionPipeline {
                         sttBuffer = audioBuffer
                     }
                 }
+                vadMs = Date().timeIntervalSince(stageStart) * 1000
 
                 stageStart = Date()
                 let transcription = try await executor.transcribe(audioBuffer: sttBuffer, language: settings.language)
@@ -488,6 +497,10 @@ class TranscriptionPipeline {
                 if isLLMLoaded {
                     cleanedText = try await executor.cleanup(rawText: correctedText, context: context)
                     llmMs = Date().timeIntervalSince(stageStart) * 1000
+                    let snapshot = await executor.cleanupSnapshot()
+                    llmMetrics = snapshot.metrics
+                    inferenceFramework = snapshot.framework
+                    promptCacheHit = llmMetrics?.promptCacheHit ?? false
                     NSLog("[TranscriptionPipeline] LLM: \"\(cleanedText)\" (\(String(format: "%.0f", llmMs))ms)")
                 } else {
                     NSLog("[TranscriptionPipeline] ⚠️ LLM not loaded, using raw STT output")
@@ -518,8 +531,13 @@ class TranscriptionPipeline {
             cleanedText = FillerFilter.removeFillers(from: cleanedText, aggressive: settings.cleanupLevel == "heavy")
 
             // Paste and/or copy
+            let pasteStart = Date()
             if settings.autoPaste {
-                pasteManager.paste(cleanedText, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
+                let pasteOk = pasteManager.paste(cleanedText, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
+                pasteSuccess = pasteOk
+                if !pasteOk {
+                    SoundManager.shared.playError()
+                }
             } else {
                 NSLog("[TranscriptionPipeline] autoPaste is OFF — skipping paste")
                 if settings.copyToClipboard {
@@ -527,6 +545,7 @@ class TranscriptionPipeline {
                     NSPasteboard.general.setString(cleanedText, forType: .string)
                 }
             }
+            pasteMs = Date().timeIntervalSince(pasteStart) * 1000
 
             // Update state immediately — text is already pasted
             appState.creatureState = .sleeping
@@ -545,10 +564,11 @@ class TranscriptionPipeline {
             let finalWordCount = cleanedText.split(separator: " ").count
             let sttModelId = await executor.sttModelId ?? "unknown"
             let llmModelId = await executor.llmModelId ?? "unknown"
+            let sttRtf = audioDuration > 0 ? sttMs / (audioDuration * 1000) : 0
             let sourceApp = appContext.appName
             let container = self.container
             let totalPipelineMs = Date().timeIntervalSince(pipelineStart) * 1000
-            Task.detached { [weak self, sttMs, llmMs, vadReductionPct, llmSkipped, usedStreaming, promptCacheHit] in
+            Task.detached { [weak self, sttMs, llmMs, vadMs, vadReductionPct, llmSkipped, usedStreaming, promptCacheHit, pasteMs, pasteSuccess, availableMemoryMB, sttRtf, inferenceFramework, llmMetrics] in
                 do {
                     let context = ModelContext(container)
                     let entry = Transcription(
@@ -583,9 +603,21 @@ class TranscriptionPipeline {
                     llmMs: llmMs,
                     totalPipelineMs: totalPipelineMs,
                     vadReductionPct: vadReductionPct,
+                    llmTokensPerSec: llmMetrics?.genTokPerSec ?? 0,
                     promptCacheHit: promptCacheHit,
                     llmSkipped: llmSkipped,
-                    usedStreaming: usedStreaming
+                    usedStreaming: usedStreaming,
+                    llmPrefillMs: llmMetrics?.prefillMs ?? 0,
+                    llmPrefillTokPerSec: llmMetrics?.prefillTokPerSec ?? 0,
+                    llmGenTokens: llmMetrics?.genTokenCount ?? 0,
+                    llmInputTokens: llmMetrics?.inputTokenCount ?? 0,
+                    vadMs: Int(vadMs),
+                    availableMemoryMB: availableMemoryMB,
+                    memoryPressure: llmMetrics?.memoryPressure ?? .unknown,
+                    llmInferenceFramework: inferenceFramework.rawValue,
+                    sttRtf: sttRtf,
+                    pasteMs: Int(pasteMs),
+                    pasteSuccess: pasteSuccess
                 )
                 Task { @MainActor in
                     self?.appState.updateStats()
@@ -667,7 +699,10 @@ class TranscriptionPipeline {
             useV2Prompts: settings.useV2Prompts
         ))
 
-        pasteManager.paste(result, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
+        let pasteOk = pasteManager.paste(result, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
+        if !pasteOk {
+            SoundManager.shared.playError()
+        }
         appState.creatureState = .sleeping
         appState.isProcessing = false
         appState.partialTranscription = nil
@@ -679,7 +714,10 @@ class TranscriptionPipeline {
 
     private func handleSnippet(snippet: VoiceSnippet, settings: AppSettings) async throws -> String {
         if settings.autoPaste {
-            pasteManager.paste(snippet.expansion, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
+            let pasteOk = pasteManager.paste(snippet.expansion, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)
+            if !pasteOk {
+                SoundManager.shared.playError()
+            }
         } else if settings.copyToClipboard {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(snippet.expansion, forType: .string)

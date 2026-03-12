@@ -85,7 +85,18 @@ struct Analytics {
         llmTokensPerSec: Double = 0,
         promptCacheHit: Bool = false,
         llmSkipped: Bool = false,
-        usedStreaming: Bool = false
+        usedStreaming: Bool = false,
+        llmPrefillMs: Int = 0,
+        llmPrefillTokPerSec: Double = 0,
+        llmGenTokens: Int = 0,
+        llmInputTokens: Int = 0,
+        vadMs: Int = 0,
+        availableMemoryMB: Int = 0,
+        memoryPressure: MemoryPressureLevel = .unknown,
+        llmInferenceFramework: String = "unknown",
+        sttRtf: Double = 0,
+        pasteMs: Int = 0,
+        pasteSuccess: Bool = true
     ) {
         capture("transcription_completed", properties: [
             "stt_model": sttModel,
@@ -99,10 +110,24 @@ struct Analytics {
             "llm_ms": Int(llmMs),
             "total_pipeline_ms": Int(totalPipelineMs),
             "vad_reduction_pct": Int(vadReductionPct),
-            "llm_tokens_per_sec": Int(llmTokensPerSec),
+            "llm_tokens_per_sec": llmTokensPerSec,
             "prompt_cache_hit": promptCacheHit,
             "llm_skipped": llmSkipped,
-            "used_streaming": usedStreaming
+            "used_streaming": usedStreaming,
+            // Detailed LLM metrics
+            "llm_prefill_ms": llmPrefillMs,
+            "llm_prefill_tok_per_sec": Int(llmPrefillTokPerSec),
+            "llm_gen_tokens": llmGenTokens,
+            "llm_input_tokens": llmInputTokens,
+            // Pipeline stage timing
+            "vad_ms": vadMs,
+            "paste_ms": pasteMs,
+            "paste_success": pasteSuccess,
+            // Memory & environment
+            "available_memory_mb": availableMemoryMB,
+            "memory_pressure": memoryPressure.rawValue,
+            "llm_inference_framework": llmInferenceFramework,
+            "stt_rtf": sttRtf
         ])
     }
 

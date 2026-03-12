@@ -1,6 +1,7 @@
 // MachineProfile.swift
 // YapYap — Detects hardware capabilities and recommends model defaults
 import Foundation
+import Darwin
 
 /// Hardware capability tier used to select appropriate default models.
 enum MachineTier: String, Codable {
@@ -19,6 +20,22 @@ struct MachineProfile {
 
     /// Cached profile — hardware never changes during the app's lifetime.
     static let current = detect()
+
+    /// Approximate free + inactive memory in MB via vm_statistics64.
+    /// Single Mach host call, <0.01ms overhead.
+    static func availableMemoryMB() -> Int {
+        var stats = vm_statistics64()
+        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &stats) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return 0 }
+        let pageSize = UInt64(vm_kernel_page_size)
+        let freeBytes = (UInt64(stats.free_count) + UInt64(stats.inactive_count)) * pageSize
+        return Int(freeBytes / (1024 * 1024))
+    }
 
     /// Detect current machine capabilities
     static func detect() -> MachineProfile {
