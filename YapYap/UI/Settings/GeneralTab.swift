@@ -205,42 +205,21 @@ struct GeneralTab: View {
 
     private var promptVersionPicker: some View {
         HStack(spacing: 8) {
-            promptVersionPill(version: .v3, title: "V3 (DSPy)", subtitle: "Best quality, fastest caching")
-            promptVersionPill(version: .v2, title: "V2", subtitle: "Unified chat-style")
-            promptVersionPill(version: .v1, title: "V1 (Classic)", subtitle: "Single-turn prompts")
+            selectionPill(isSelected: promptVersion == .v3, title: "V3 (DSPy)", subtitle: "Best quality, fastest caching") { promptVersion = .v3 }
+            selectionPill(isSelected: promptVersion == .v2, title: "V2", subtitle: "Unified chat-style") { promptVersion = .v2 }
+            selectionPill(isSelected: promptVersion == .v1, title: "V1 (Classic)", subtitle: "Single-turn prompts") { promptVersion = .v1 }
         }
-    }
-
-    private func promptVersionPill(version: CleanupContext.PromptVersion, title: String, subtitle: String) -> some View {
-        let isSelected = promptVersion == version
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
-                .foregroundColor(isSelected ? .ypLavender : .ypText2)
-            Text(subtitle)
-                .font(.system(size: 10))
-                .foregroundColor(isSelected ? .ypLavender.opacity(0.8) : .ypText3)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? Color.ypPillLavender : Color.ypCard)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1))
-        .cornerRadius(8)
-        .contentShape(Rectangle())
-        .onTapGesture { promptVersion = version }
     }
 
     private var sttModePicker: some View {
         HStack(spacing: 8) {
-            sttModePill(mode: "streaming", title: "Streaming", subtitle: "Live preview while recording")
-            sttModePill(mode: "batch",     title: "Batch",     subtitle: "Fastest — no live preview")
+            selectionPill(isSelected: sttMode == "streaming", title: "Streaming", subtitle: "Live preview while recording") { sttMode = "streaming" }
+            selectionPill(isSelected: sttMode == "batch", title: "Batch", subtitle: "Fastest — no live preview") { sttMode = "batch" }
         }
     }
 
-    private func sttModePill(mode: String, title: String, subtitle: String) -> some View {
-        let isSelected = sttMode == mode
-        return VStack(alignment: .leading, spacing: 2) {
+    private func selectionPill(isSelected: Bool, title: String, subtitle: String, onTap: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
                 .foregroundColor(isSelected ? .ypLavender : .ypText2)
@@ -255,7 +234,7 @@ struct GeneralTab: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1))
         .cornerRadius(8)
         .contentShape(Rectangle())
-        .onTapGesture { sttMode = mode }
+        .onTapGesture(perform: onTap)
     }
 
     private func toggleRow(label: String, subtitle: String, isOn: Binding<Bool>) -> some View {

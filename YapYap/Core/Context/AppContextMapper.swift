@@ -82,7 +82,7 @@ enum AppContextMapper {
         let focused = ctx.focusedFieldText?.lowercased() ?? ""
 
         // SSH detection: window title often shows "user@host" or "ssh"
-        if title.contains("ssh") || title.contains("@") && title.contains(":") { return "SSH" }
+        if title.contains("ssh") || (title.contains("@") && title.contains(":")) { return "SSH" }
 
         // Python REPL detection
         if title.contains("python") || title.contains("ipython") || title.contains("jupyter") { return "Python" }

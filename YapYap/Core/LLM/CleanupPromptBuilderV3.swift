@@ -43,7 +43,7 @@ struct CleanupPromptBuilderV3 {
         let examples: [(user: String, assistant: String)]
         if let customExamples = overrides.effectiveExamples() {
             examples = customExamples.map { (
-                user: "[Context: IDE] Reformat: \($0.input)",
+                user: PromptTemplatesV3.formatUserInput($0.input, appContext: "IDE"),
                 assistant: $0.output
             ) }
         } else {
@@ -84,36 +84,23 @@ struct CleanupPromptBuilderV3 {
     /// Returns just the static prefix messages (system + few-shots) for pre-caching at startup.
     /// This is used by MLXEngine to compute and cache the KV state once at model load time,
     /// before any user request arrives.
+    ///
+    /// Delegates to `buildMessages` with a dummy input and drops the final user message,
+    /// guaranteeing the prefix is always identical to what `buildMessageParts` returns.
     static func buildPrefixMessages(
         modelId: String? = nil,
         userContext: UserPromptContext? = nil
     ) -> [ChatMessage] {
-        let (family, size) = resolveModelInfo(modelId: modelId)
-        let overrides = PromptOverrides.loadFromUserDefaults()
-
-        var messages: [ChatMessage] = []
-
-        let vocabularyBlock = buildVocabularyBlock(userContext: userContext, modelSize: size)
-        let systemText = overrides.effectiveSystemPrompt(variant: .unified)
-            ?? PromptTemplatesV3.systemPrompt(family: family, size: size, vocabularyBlock: vocabularyBlock)
-        messages.append(ChatMessage(role: .system, content: systemText))
-
-        let examples: [(user: String, assistant: String)]
-        if let customExamples = overrides.effectiveExamples() {
-            examples = customExamples.map { (
-                user: "[Context: IDE] Reformat: \($0.input)",
-                assistant: $0.output
-            ) }
-        } else {
-            examples = PromptTemplatesV3.fewShots(family: family, size: size)
-        }
-
-        for example in examples {
-            messages.append(ChatMessage(role: .user, content: example.user))
-            messages.append(ChatMessage(role: .assistant, content: example.assistant))
-        }
-
-        return messages
+        // Use a dummy context — only the prefix (system + few-shots) is kept,
+        // so the app context and raw text don't matter.
+        let dummyContext = CleanupContext(
+            stylePrompt: "", formality: .neutral, language: "en",
+            appContext: nil, cleanupLevel: .medium,
+            removeFillers: true, experimentalPrompts: false,
+            promptVersion: .v3
+        )
+        let all = buildMessages(rawText: "", context: dummyContext, modelId: modelId, userContext: userContext)
+        return Array(all.dropLast())
     }
 
     // MARK: - Private

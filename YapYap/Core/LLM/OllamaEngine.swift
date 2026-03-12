@@ -92,26 +92,18 @@ class OllamaEngine: LLMEngine {
 
         switch context.promptVersion {
         case .v3:
-            // V3: DSPy-optimized, model-family-specific with static prefix
-            // Ollama handles prefix caching via keep_alive — same message structure works
             let v3Messages = CleanupPromptBuilderV3.buildMessages(
                 rawText: rawText, context: context, modelId: promptModelId, userContext: userContext
             )
-            for msg in v3Messages {
-                chatMessages.append(["role": msg.role.rawValue, "content": msg.content])
-            }
+            chatMessages = v3Messages.map { ["role": $0.role.rawValue, "content": $0.content] }
             NSLog("[OllamaEngine] V3 prompt: %d messages", v3Messages.count)
         case .v2:
-            // V2: multi-turn chat-style messages — Ollama natively supports message arrays
             let v2Messages = CleanupPromptBuilderV2.buildMessages(
                 rawText: rawText, context: context, modelId: promptModelId, userContext: userContext
             )
-            for msg in v2Messages {
-                chatMessages.append(["role": msg.role.rawValue, "content": msg.content])
-            }
+            chatMessages = v2Messages.map { ["role": $0.role.rawValue, "content": $0.content] }
             NSLog("[OllamaEngine] V2 prompt: %d messages", v2Messages.count)
         case .v1:
-            // V1: classic system + user message
             let messages = CleanupPromptBuilder.buildMessages(
                 rawText: rawText, context: context,
                 modelId: promptModelId, userContext: userContext
