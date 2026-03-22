@@ -26,6 +26,7 @@ struct ModelsTab: View {
     @State private var ollamaModelName = "qwen2.5:1.5b"
     @State private var ollamaStatus: OllamaConnectionStatus = .unknown
     @State private var selectedGGUF = GGUFModelRegistry.recommendedModel.id
+    @State private var sttMode: String = "batch"
 
     // All models live under ~/Library/Application Support/YapYap/models/.
     // Application Support is never iCloud-synced, preventing eviction of large
@@ -56,6 +57,17 @@ struct ModelsTab: View {
                     .padding(.bottom, 20)
 
                 sttModelGrid
+
+                // Transcription mode — batch vs streaming
+                Text("TRANSCRIPTION MODE")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.ypText2)
+                    .tracking(0.8)
+                    .padding(.top, 16)
+                    .padding(.bottom, 8)
+
+                sttModePicker
+                    .padding(.bottom, 8)
 
                 divider
 
@@ -133,6 +145,10 @@ struct ModelsTab: View {
         .onChange(of: selectedGGUF) { _, newValue in
             guard didLoadSettings, !isRefreshingSettings else { return }
             saveSettings { $0.llamacppModelId = newValue }
+        }
+        .onChange(of: sttMode) { _, newValue in
+            guard didLoadSettings, !isRefreshingSettings else { return }
+            saveSettings { $0.sttMode = newValue }
         }
         .alert("Delete Model", isPresented: $showDeleteConfirm) {
             Button("Cancel", role: .cancel) { modelToDelete = nil }
@@ -1160,6 +1176,7 @@ struct ModelsTab: View {
         ollamaEndpoint = settings.ollamaEndpoint
         ollamaModelName = settings.ollamaModelName
         selectedGGUF = settings.llamacppModelId
+        sttMode = settings.sttMode ?? "batch"
         didLoadSettings = true
         if inferenceFramework == .ollama { checkOllamaConnection() }
     }
@@ -1345,6 +1362,32 @@ struct ModelsTab: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.ypBorderLight).frame(height: 1)
         }
+    }
+
+    private var sttModePicker: some View {
+        HStack(spacing: 8) {
+            selectionPill(isSelected: sttMode == "streaming", title: "Streaming", subtitle: "Live preview while recording") { sttMode = "streaming" }
+            selectionPill(isSelected: sttMode == "batch", title: "Batch", subtitle: "Fastest — no live preview") { sttMode = "batch" }
+        }
+    }
+
+    private func selectionPill(isSelected: Bool, title: String, subtitle: String, onTap: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                .foregroundColor(isSelected ? .ypLavender : .ypText2)
+            Text(subtitle)
+                .font(.system(size: 10))
+                .foregroundColor(isSelected ? .ypLavender.opacity(0.8) : .ypText3)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSelected ? Color.ypPillLavender : Color.ypCard)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1))
+        .cornerRadius(8)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
     }
 }
 

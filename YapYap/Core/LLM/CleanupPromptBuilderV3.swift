@@ -55,9 +55,16 @@ struct CleanupPromptBuilderV3 {
             messages.append(ChatMessage(role: .assistant, content: example.assistant))
         }
 
-        // 3. Actual user input with app context embedded in the message
+        // 3. Actual user input with app context + user settings embedded in the message
         let appKeyword = AppContextMapper.keyword(from: context.appContext)
-        let userContent = PromptTemplatesV3.formatUserInput(rawText, appContext: appKeyword)
+        let userContent = PromptTemplatesV3.formatUserInput(
+            rawText,
+            appContext: appKeyword,
+            formality: context.formality,
+            cleanupLevel: context.cleanupLevel,
+            stylePrompt: context.stylePrompt,
+            language: context.language
+        )
         messages.append(ChatMessage(role: .user, content: userContent))
 
         return messages

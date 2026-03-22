@@ -454,7 +454,7 @@ final class CleanupPromptBuilderV2Tests: XCTestCase {
             cleanupLevel: cleanupLevel,
             removeFillers: true,
             experimentalPrompts: false,
-            useV2Prompts: true
+            promptVersion: .v2
         )
     }
 

@@ -42,6 +42,20 @@ final class PromptTemplatesV3Tests: XCTestCase {
         XCTAssertTrue(prompt.contains("HARD RULES"))
     }
 
+    func testAllSystemPromptsContainSettingsTagInstruction() {
+        // Every system prompt should tell the LLM about Style/Cleanup/Voice/Lang tags
+        let families: [(LLMModelFamily, LLMModelSize)] = [
+            (.gemma, .medium), (.gemma, .small), (.qwen, .small), (.llama, .large)
+        ]
+        for (family, size) in families {
+            let prompt = PromptTemplatesV3.systemPrompt(family: family, size: size)
+            XCTAssertTrue(
+                prompt.contains("Style: casual") || prompt.contains("[Style: casual]"),
+                "\(family)/\(size) system prompt missing settings tag instruction"
+            )
+        }
+    }
+
     func testVocabularyBlockAppended() {
         let prompt = PromptTemplatesV3.systemPrompt(
             family: .qwen, size: .small,
@@ -53,9 +67,9 @@ final class PromptTemplatesV3Tests: XCTestCase {
 
     // MARK: - Few-Shot Selection
 
-    func testGemma4BHas12FewShots() {
+    func testGemma4BHas14FewShots() {
         let shots = PromptTemplatesV3.fewShots(family: .gemma, size: .medium)
-        XCTAssertEqual(shots.count, 12)
+        XCTAssertEqual(shots.count, 14)
     }
 
     func testGemma1BHas4FewShots() {
@@ -63,14 +77,14 @@ final class PromptTemplatesV3Tests: XCTestCase {
         XCTAssertEqual(shots.count, 4)
     }
 
-    func testQwenHas7FewShots() {
+    func testQwenHas8FewShots() {
         let shots = PromptTemplatesV3.fewShots(family: .qwen, size: .small)
-        XCTAssertEqual(shots.count, 7)
+        XCTAssertEqual(shots.count, 8)
     }
 
-    func testLlamaHas7FewShots() {
+    func testLlamaHas8FewShots() {
         let shots = PromptTemplatesV3.fewShots(family: .llama, size: .large)
-        XCTAssertEqual(shots.count, 7)
+        XCTAssertEqual(shots.count, 8)
     }
 
     // MARK: - Few-Shot Format
@@ -110,6 +124,102 @@ final class PromptTemplatesV3Tests: XCTestCase {
     func testFormatUserInputWithTerminal() {
         let result = PromptTemplatesV3.formatUserInput("git status", appContext: "Terminal")
         XCTAssertEqual(result, "[Context: Terminal] Reformat: git status")
+    }
+
+    // MARK: - User Settings Tags
+
+    func testFormatUserInputDefaultsOmitsTags() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Slack",
+            formality: .neutral, cleanupLevel: .medium, stylePrompt: "", language: "en"
+        )
+        XCTAssertEqual(result, "[Context: Slack] Reformat: hello")
+    }
+
+    func testFormatUserInputCasualFormality() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Slack", formality: .casual
+        )
+        XCTAssertTrue(result.contains("Style: casual"))
+        XCTAssertTrue(result.hasPrefix("[Context: Slack | Style: casual]"))
+    }
+
+    func testFormatUserInputFormalFormality() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Email", formality: .formal
+        )
+        XCTAssertTrue(result.contains("Style: formal"))
+    }
+
+    func testFormatUserInputLightCleanup() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Slack", cleanupLevel: .light
+        )
+        XCTAssertTrue(result.contains("Cleanup: light"))
+    }
+
+    func testFormatUserInputHeavyCleanup() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Email", cleanupLevel: .heavy
+        )
+        XCTAssertTrue(result.contains("Cleanup: heavy"))
+    }
+
+    func testFormatUserInputStylePrompt() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Slack", stylePrompt: "Write like a pirate"
+        )
+        XCTAssertTrue(result.contains("Voice: Write like a pirate"))
+    }
+
+    func testFormatUserInputStylePromptTruncated() {
+        let longStyle = String(repeating: "x", count: 300)
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Slack", stylePrompt: longStyle
+        )
+        // Voice should be truncated to 200 chars
+        XCTAssertTrue(result.contains("Voice:"))
+        XCTAssertFalse(result.contains(longStyle))
+    }
+
+    func testFormatUserInputNonEnglishLanguage() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hola mundo", appContext: "Slack", language: "es"
+        )
+        XCTAssertTrue(result.contains("Lang: es"))
+    }
+
+    func testFormatUserInputEnglishOmitsLangTag() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Slack", language: "en"
+        )
+        XCTAssertFalse(result.contains("Lang:"))
+    }
+
+    func testFormatUserInputAllSettings() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "test input", appContext: "Email",
+            formality: .formal, cleanupLevel: .heavy,
+            stylePrompt: "Be concise", language: "fr"
+        )
+        XCTAssertEqual(
+            result,
+            "[Context: Email | Style: formal | Cleanup: heavy | Voice: Be concise | Lang: fr] Reformat: test input"
+        )
+    }
+
+    func testFormatUserInputMediumCleanupOmitted() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Slack", cleanupLevel: .medium
+        )
+        XCTAssertFalse(result.contains("Cleanup:"), "Medium cleanup is default and should be omitted")
+    }
+
+    func testFormatUserInputNeutralFormalityOmitted() {
+        let result = PromptTemplatesV3.formatUserInput(
+            "hello", appContext: "Slack", formality: .neutral
+        )
+        XCTAssertFalse(result.contains("Style:"), "Neutral formality is default and should be omitted")
     }
 }
 
@@ -264,6 +374,63 @@ final class CleanupPromptBuilderV3Tests: XCTestCase {
             XCTAssertEqual(p.role, pp.role)
             XCTAssertEqual(p.content, pp.content)
         }
+    }
+
+    // MARK: - Prefix Stability (KV Cache Invariant)
+
+    func testPrefixIsIdenticalRegardlessOfUserSettings() {
+        // This is critical: formality/cleanup/style must NOT affect the prefix (system + few-shots)
+        // because the prefix is KV-cached once at startup.
+        let neutralCtx = makeCleanupContext()
+        let formalCtx = CleanupContext(
+            stylePrompt: "Write like a senior engineer",
+            formality: .formal,
+            language: "fr",
+            appContext: neutralCtx.appContext,
+            cleanupLevel: .heavy,
+            removeFillers: true,
+            experimentalPrompts: false,
+            promptVersion: .v3
+        )
+
+        let neutralParts = CleanupPromptBuilderV3.buildMessageParts(
+            rawText: "test", context: neutralCtx, modelId: "gemma-3-4b"
+        )
+        let formalParts = CleanupPromptBuilderV3.buildMessageParts(
+            rawText: "test", context: formalCtx, modelId: "gemma-3-4b"
+        )
+
+        // Prefixes must be identical
+        XCTAssertEqual(neutralParts.prefix.count, formalParts.prefix.count)
+        for (n, f) in zip(neutralParts.prefix, formalParts.prefix) {
+            XCTAssertEqual(n.role, f.role)
+            XCTAssertEqual(n.content, f.content, "Prefix must not change with user settings")
+        }
+
+        // But suffixes must differ (settings tags are in the suffix)
+        XCTAssertNotEqual(neutralParts.suffix.content, formalParts.suffix.content)
+        XCTAssertTrue(formalParts.suffix.content.contains("Style: formal"))
+        XCTAssertTrue(formalParts.suffix.content.contains("Cleanup: heavy"))
+        XCTAssertTrue(formalParts.suffix.content.contains("Voice: Write like a senior engineer"))
+        XCTAssertTrue(formalParts.suffix.content.contains("Lang: fr"))
+    }
+
+    func testSuffixContainsUserSettings() {
+        let ctx = CleanupContext(
+            stylePrompt: "",
+            formality: .casual,
+            language: "en",
+            appContext: makeAppContext(appName: "Slack", category: .workMessaging),
+            cleanupLevel: .light,
+            removeFillers: true,
+            experimentalPrompts: false,
+            promptVersion: .v3
+        )
+        let parts = CleanupPromptBuilderV3.buildMessageParts(
+            rawText: "check the logs", context: ctx, modelId: "qwen-2.5-1.5b"
+        )
+        XCTAssertTrue(parts.suffix.content.contains("Style: casual"))
+        XCTAssertTrue(parts.suffix.content.contains("Cleanup: light"))
     }
 
     // MARK: - PromptVersion Enum

@@ -30,6 +30,7 @@ enum PromptTemplatesV3 {
     - When speaker enumerates (one/two/three, first/second/third): use numbered lists.
     - Self-correction ("scratch that", "actually", "never mind", "I take that back"): output only the FINAL intended content.
     - If the speaker says "write/build/create a script", output it as a request sentence — do NOT generate code.
+    - The user message may include tags like [Style: casual], [Style: formal], [Cleanup: light], [Cleanup: heavy], [Voice: ...], [Lang: es]. Adapt output accordingly: casual = lowercase, no trailing periods, relaxed tone; formal = polished, complete sentences; light cleanup = minimal changes, keep original wording; heavy = full rewrite; Voice = follow the custom instruction; Lang = output in that language.
     """
 
     /// Qwen 2.5 1.5B — 92.9% pass rate on MLX (best pass rate + fastest on-device)
@@ -57,6 +58,7 @@ enum PromptTemplatesV3 {
     11. Self-correction ("scratch that", "never mind", "I take that back"): output only FINAL intent.
     12. Preserve hashtags exactly (#newjob stays #newjob).
     13. Keep questions as questions, commands as commands.
+    14. The user message may include tags like [Style: casual], [Style: formal], [Cleanup: light], [Cleanup: heavy], [Voice: ...], [Lang: es]. Adapt output accordingly: casual = lowercase, no trailing periods, relaxed tone; formal = polished, complete sentences; light cleanup = minimal changes, keep original wording; heavy = full rewrite; Voice = follow the custom instruction; Lang = output in that language.
     """
 
     /// Llama 3.1 8B (92.2%) and Llama 3.2 3B (89.0%)
@@ -86,6 +88,7 @@ enum PromptTemplatesV3 {
     10. Self-correction ("scratch that", "never mind", "I take that back"): output only FINAL intent.
     11. Preserve hashtags exactly (#newjob stays #newjob).
     12. Do NOT generate code, scripts, or new content of any kind.
+    13. The user message may include tags like [Style: casual], [Style: formal], [Cleanup: light], [Cleanup: heavy], [Voice: ...], [Lang: es]. Adapt output accordingly: casual = lowercase, no trailing periods, relaxed tone; formal = polished, complete sentences; light cleanup = minimal changes, keep original wording; heavy = full rewrite; Voice = follow the custom instruction; Lang = output in that language.
     """
 
     /// Gemma 3 1B — minimal prompt to avoid overwhelming the small model (72-79% pass rate)
@@ -97,6 +100,7 @@ enum PromptTemplatesV3 {
     - Terminal: keep commands exactly as spoken. IDE: add @ to file names (e.g. main.py → @main.py).
     - Self-correction ("scratch that", "never mind"): output only the final intent.
     - If speaker says "write/build/create", keep it as a sentence. Do NOT generate code.
+    - Tags like [Style: casual], [Cleanup: light], [Voice: ...], [Lang: es] in user message: adapt output style/language accordingly.
     """
 
     // ═══════════════════════════════════════════════════════════════════
@@ -181,6 +185,14 @@ enum PromptTemplatesV3 {
             user: "[Context: Slack] Reformat: hey i was doing a one on one claude code session with sean zadig today and now two things i had for you i still have access to paranoids sandbox in databricks i probably shouldnt have access to that sean zadig had access to nothing which meant when i went to show him how he can now access a bunch of cool data he couldnt for number one obviously just cut off data but for number two i suggest collect all of the different sorts of datasets you guys have available into a nice menu of sorts offer it up proactively to sean saying hey heres all the data you could now have at your finger tips with the help of claude code what would you like for us to enable so you can start tapping into it",
             assistant: "Hey!\n\nI was doing a 1:1 Claude Code session with Sean Zadig today, and two things I had for you:\n\n1. I still have access to Paranoids sandbox in Databricks — I probably shouldn't have access to that.\n2. Sean Zadig had access to nothing, which meant when I went to show him how he can now access a bunch of cool data, he couldn't.\n\nFor #1, obviously just cut off access. For #2, I suggest:\n\n- Collect all of the different sorts of datasets you guys have available into a nice menu of sorts.\n- Offer it up proactively to Sean saying, \"Hey, here's all the data you could now have at your fingertips with the help of Claude Code — what would you like for us to enable so you can start tapping into it?\""
         ),
+        (
+            user: "[Context: Slack | Style: casual] Reformat: hey can you check the deployment logs when you get a chance",
+            assistant: "hey can you check the deployment logs when you get a chance"
+        ),
+        (
+            user: "[Context: Email | Style: formal | Cleanup: heavy] Reformat: so basically the project is going well and we should be done by friday",
+            assistant: "I'm pleased to report that the project is progressing well. We are on track for completion by Friday."
+        ),
     ]
 
     /// Qwen 1.5B — 8 pairs (smaller model, fewer examples to avoid confusion)
@@ -213,6 +225,10 @@ enum PromptTemplatesV3 {
             user: "[Context: AI Prompt] Reformat: act as a senior python developer review the following code for performance bottlenecks and suggest optimizations",
             assistant: "Act as a senior Python developer. Review the following code for performance bottlenecks and suggest optimizations."
         ),
+        (
+            user: "[Context: Email | Style: formal] Reformat: hey just wanted to let you know the servers are back up",
+            assistant: "I wanted to inform you that the servers have been restored and are fully operational."
+        ),
     ]
 
     /// Llama 8B/3B — 7 pairs
@@ -244,6 +260,10 @@ enum PromptTemplatesV3 {
         (
             user: "[Context: Notion] Reformat: action items one sarah fix the auth service by eod two mike sync the staging db three priya update the sprint board",
             assistant: "Action items:\n1. Sarah — fix the auth service by EOD.\n2. Mike — sync the staging DB.\n3. Priya — update the sprint board."
+        ),
+        (
+            user: "[Context: Slack | Style: casual] Reformat: the build is broken again can someone look at it",
+            assistant: "the build is broken again, can someone look at it"
         ),
     ]
 
@@ -283,10 +303,39 @@ enum PromptTemplatesV3 {
     // MARK: - User Input Format
     // ═══════════════════════════════════════════════════════════════════
 
-    /// Wraps raw transcription text with context prefix for V3 format.
-    /// The context is in the user message, NOT the system prompt — this is the key
-    /// architectural difference that enables static prefix KV caching.
-    static func formatUserInput(_ rawText: String, appContext: String) -> String {
-        "[Context: \(appContext)] Reformat: \(rawText)"
+    /// Wraps raw transcription text with context and settings tags for V3 format.
+    /// The context and settings are in the user message, NOT the system prompt — this is
+    /// the key architectural difference that enables static prefix KV caching.
+    ///
+    /// Format: `[Context: Slack | Style: casual | Cleanup: light | Voice: ...] Reformat: ...`
+    /// Only non-default values are included to keep the suffix minimal.
+    /// Defaults: Style=neutral, Cleanup=medium, Lang=en (omitted when matching).
+    static func formatUserInput(
+        _ rawText: String,
+        appContext: String,
+        formality: CleanupContext.Formality = .neutral,
+        cleanupLevel: CleanupContext.CleanupLevel = .medium,
+        stylePrompt: String = "",
+        language: String = "en"
+    ) -> String {
+        var tags = "Context: \(appContext)"
+
+        // Only add non-default settings to avoid noise
+        if formality != .neutral {
+            tags += " | Style: \(formality.rawValue)"
+        }
+        if cleanupLevel != .medium {
+            tags += " | Cleanup: \(cleanupLevel.rawValue)"
+        }
+        if !stylePrompt.isEmpty {
+            // Truncate very long style prompts to avoid overwhelming the suffix
+            let trimmed = String(stylePrompt.prefix(200))
+            tags += " | Voice: \(trimmed)"
+        }
+        if language != "en" {
+            tags += " | Lang: \(language)"
+        }
+
+        return "[\(tags)] Reformat: \(rawText)"
     }
 }

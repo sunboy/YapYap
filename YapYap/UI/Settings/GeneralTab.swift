@@ -12,13 +12,11 @@ struct GeneralTab: View {
     @State private var copyToClipboard = true
     @State private var notifyOnComplete = false
     @State private var experimentalPrompts = false
-    @State private var promptVersion: CleanupContext.PromptVersion = .v3
     @State private var selectedMic = "Default"
     @State private var floatingBarPosition = "Bottom center"
     @State private var historyLimit = "Last 100"
     @State private var micOptions: [String] = ["Default"]
     @State private var didLoadSettings = false
-    @State private var sttMode: String = "batch"
 
     private let positions = ["Bottom center", "Bottom left", "Bottom right", "Top center"]
     private let historyOptions = ["Last 50", "Last 100", "Last 500", "Keep all", "Don't save"]
@@ -51,27 +49,6 @@ struct GeneralTab: View {
                 .padding(.bottom, 8)
 
             toggleRow(label: "Detailed prompts for small models", subtitle: "Use 3B+ model prompts on ≤1B models (may reduce accuracy)", isOn: $experimentalPrompts)
-
-            Text("PROMPT ENGINE")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.ypText2)
-                .tracking(0.8)
-                .padding(.top, 8)
-                .padding(.bottom, 8)
-
-            promptVersionPicker
-                .padding(.bottom, 8)
-
-            divider
-
-            Text("TRANSCRIPTION MODE")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.ypText2)
-                .tracking(0.8)
-                .padding(.bottom, 8)
-
-            sttModePicker
-                .padding(.bottom, 16)
 
             divider
 
@@ -108,14 +85,6 @@ struct GeneralTab: View {
             guard didLoadSettings else { return }
             saveSettings { $0.experimentalPrompts = newValue }
         }
-        .onChange(of: promptVersion) { _, newValue in
-            guard didLoadSettings else { return }
-            saveSettings {
-                $0.promptVersion = newValue.rawValue
-                // Keep legacy field in sync for backward compat
-                $0.useV2Prompts = newValue == .v2
-            }
-        }
         .onChange(of: crashReportingEnabled) { _, newValue in
             CrashReporter.isEnabled = newValue
         }
@@ -134,10 +103,6 @@ struct GeneralTab: View {
             guard didLoadSettings else { return }
             let micId = newValue == "Default" ? nil : newValue
             saveSettings { $0.microphoneId = micId }
-        }
-        .onChange(of: sttMode) { _, newValue in
-            guard didLoadSettings else { return }
-            saveSettings { $0.sttMode = newValue }
         }
     }
 
@@ -163,10 +128,8 @@ struct GeneralTab: View {
         copyToClipboard = settings.copyToClipboard
         notifyOnComplete = settings.notifyOnComplete
         experimentalPrompts = settings.experimentalPrompts
-        promptVersion = settings.resolvedPromptVersion
         floatingBarPosition = settings.floatingBarPosition
         historyLimit = intToHistoryLimit(settings.historyLimit)
-        sttMode = settings.sttMode ?? "batch"
 
         // Load saved mic selection
         if let micId = settings.microphoneId, micOptions.contains(micId) {
@@ -201,40 +164,6 @@ struct GeneralTab: View {
         case 0: return "Don't save"
         default: return "Last 100"
         }
-    }
-
-    private var promptVersionPicker: some View {
-        HStack(spacing: 8) {
-            selectionPill(isSelected: promptVersion == .v3, title: "V3 (DSPy)", subtitle: "Best quality, fastest caching") { promptVersion = .v3 }
-            selectionPill(isSelected: promptVersion == .v2, title: "V2", subtitle: "Unified chat-style") { promptVersion = .v2 }
-            selectionPill(isSelected: promptVersion == .v1, title: "V1 (Classic)", subtitle: "Single-turn prompts") { promptVersion = .v1 }
-        }
-    }
-
-    private var sttModePicker: some View {
-        HStack(spacing: 8) {
-            selectionPill(isSelected: sttMode == "streaming", title: "Streaming", subtitle: "Live preview while recording") { sttMode = "streaming" }
-            selectionPill(isSelected: sttMode == "batch", title: "Batch", subtitle: "Fastest — no live preview") { sttMode = "batch" }
-        }
-    }
-
-    private func selectionPill(isSelected: Bool, title: String, subtitle: String, onTap: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
-                .foregroundColor(isSelected ? .ypLavender : .ypText2)
-            Text(subtitle)
-                .font(.system(size: 10))
-                .foregroundColor(isSelected ? .ypLavender.opacity(0.8) : .ypText3)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? Color.ypPillLavender : Color.ypCard)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1))
-        .cornerRadius(8)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
     }
 
     private func toggleRow(label: String, subtitle: String, isOn: Binding<Bool>) -> some View {

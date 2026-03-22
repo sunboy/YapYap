@@ -12,6 +12,7 @@
 		03DDEA1A2570D9C8D070EB6B /* SnippetManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8CB78B6993791FE05AB3842 /* SnippetManager.swift */; };
 		0532930BE92642C3168F6CD3 /* MLXEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34E2164FBAB0EB03FB27EAA /* MLXEngine.swift */; };
 		058B0127DFB5B7CD4F174F59 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE2A96BB651E7C76AB81E6CE /* HotkeyManager.swift */; };
+		06AED313C7EEB6BD6F476B79 /* CleanupPromptBuilderV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F1B60194C1C557F74EE07A6 /* CleanupPromptBuilderV3.swift */; };
 		0814CEE64BD9521E7DD6AE2B /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 41B4A9E1B69D7990735CECE6 /* ArgumentParser */; };
 		0875D077867FCD92E4091F40 /* LLMEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351AA57A2113A29E8DEBE453 /* LLMEngine.swift */; };
 		0924001E352CCD8F1239A598 /* TranscriptionPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5820E3AB4E46240FD73C41DB /* TranscriptionPipeline.swift */; };
@@ -76,6 +77,7 @@
 		5679154CBF44469556F06F14 /* TranscriptionPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB68E105C803B17AC0FED012 /* TranscriptionPipelineTests.swift */; };
 		5A45DC19E016148CCF6C5F60 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300188F77A7E41A27E044A79 /* WaveformView.swift */; };
 		5AB34B549EA1E9DD2947EF4C /* DictionaryTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B99E72BA7E5665842A0EBE3 /* DictionaryTab.swift */; };
+		5C78CE222EFDB71C06692A4B /* V3PromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FD424516A94BEC40DCD617 /* V3PromptTests.swift */; };
 		5C8E8FB874659E6136BACEBD /* FillerFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1FA28B90EEED15270C0B4D7 /* FillerFilter.swift */; };
 		5DE2EA4B1E8877889C68FB05 /* WhisperCppEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D83B52713A7B8D89E413A1A4 /* WhisperCppEngine.swift */; };
 		60BBA7874F9BC53EEB86ACED /* VocabularyBooster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67012EDAFFDEE4F4463DFFFD /* VocabularyBooster.swift */; };
@@ -108,6 +110,7 @@
 		7EF18C8D66954622E757CFE1 /* WhisperKitEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17D51DC4EA4BAD23FC8725BF /* WhisperKitEngine.swift */; };
 		7F7048C27447F4E2053B388D /* YapYapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4100E239E1B82A3CD6C65A89 /* YapYapApp.swift */; };
 		7F7E3C6CAF326F56857F225B /* FluidAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A355C4B4AD9FE347C78BA5 /* FluidAudioEngine.swift */; };
+		81EFE1DE1D452BE700995FBB /* CleanupPromptBuilderV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F1B60194C1C557F74EE07A6 /* CleanupPromptBuilderV3.swift */; };
 		8299E3700A31CD081956511B /* RunCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F4EC82F252D3D16C5B2838 /* RunCommand.swift */; };
 		83478B122CDCBBAB3A7C29EF /* MediaPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024CCF9853D8925D86A49FFE /* MediaPlaybackController.swift */; };
 		852C03F7CDCA61FDD73CBF97 /* CommandMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B7480505B9D1DFE32F0B0B5 /* CommandMode.swift */; };
@@ -153,6 +156,7 @@
 		C352811C2C9B03EC41D719BE /* LlamaSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C59764C005E273A4F23A65FB /* LlamaSwift */; };
 		C5C5F420B41EB572BB747582 /* ListCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED8C96BD5F49747FC3F870F2 /* ListCommand.swift */; };
 		C68294B1BFCC7CBF2CC020D2 /* WritingStyleTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45964BF91DC2B34D1B82D702 /* WritingStyleTab.swift */; };
+		CB10154E74124DEEF3C81F61 /* PromptTemplatesV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747ED55E86D98824FD207E23 /* PromptTemplatesV3.swift */; };
 		CB232CAFD7EF32AA15DD4237 /* InferenceFrameworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E62849877725E323BC44343 /* InferenceFrameworkTests.swift */; };
 		CDB9AFECAF65640AD09DDAE9 /* VADConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE1EF445E5E84BD82C48FB4 /* VADConfigTests.swift */; };
 		D11A5E7793D7F9CF05D8452E /* TestCorpus.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52D488DF14F35BFD8C36B3E /* TestCorpus.swift */; };
@@ -165,6 +169,7 @@
 		D6D49986A3A60CFBE75B455D /* CleanupPromptBuilderV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA41DA27C4B3966B93F2BBA7 /* CleanupPromptBuilderV2.swift */; };
 		D6DE986DCB7E2ABAE6E8CB9D /* ModelDownloadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B78FA4B86C2BA590EF1613D5 /* ModelDownloadService.swift */; };
 		D6EDD68DDC2F20A3206F45B6 /* CorpusCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A3D963F22D03A9AE9B19A1 /* CorpusCommand.swift */; };
+		D7B07C0F504C6360D77369B1 /* PromptTemplatesV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747ED55E86D98824FD207E23 /* PromptTemplatesV3.swift */; };
 		D89E5C03254A27B0C3C92477 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E3EE15439E73348CB02353 /* AppSettings.swift */; };
 		D9F0C578C16E6453A058752A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 540FB8F336CF88447F434A96 /* PrivacyInfo.xcprivacy */; };
 		DA6A376135A184FFE88E20FC /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = EBB60F04577F0CBE50CAC447 /* MLXLLM */; };
@@ -220,6 +225,7 @@
 		0DE4D05F5812414AE886D564 /* AppContextDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContextDetector.swift; sourceTree = "<group>"; };
 		1002EF645C868B697F7E3782 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
 		12F773176AF934344A7037C4 /* BenchmarkLLMRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkLLMRunner.swift; sourceTree = "<group>"; };
+		14FD424516A94BEC40DCD617 /* V3PromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V3PromptTests.swift; sourceTree = "<group>"; };
 		155C4F42885C561CABABA06E /* AnalyticsTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsTracker.swift; sourceTree = "<group>"; };
 		17D51DC4EA4BAD23FC8725BF /* WhisperKitEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitEngine.swift; sourceTree = "<group>"; };
 		198BF592E0889D938A5CBBEF /* SpeechAnalyzerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechAnalyzerEngine.swift; sourceTree = "<group>"; };
@@ -242,6 +248,7 @@
 		2CF46A2BC6B8E1D81CCFC91B /* Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Permissions.swift; sourceTree = "<group>"; };
 		2EF01629B801DC36CBBF042A /* BatchCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchCommand.swift; sourceTree = "<group>"; };
 		2EF96A6052FF52A3A7DA1B06 /* STTEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = STTEngine.swift; sourceTree = "<group>"; };
+		2F1B60194C1C557F74EE07A6 /* CleanupPromptBuilderV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupPromptBuilderV3.swift; sourceTree = "<group>"; };
 		300188F77A7E41A27E044A79 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
 		306F76FCFC9C33DC28812775 /* UserPromptContextManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPromptContextManager.swift; sourceTree = "<group>"; };
 		33711F42A312F8D5CC1F2FFB /* PromptTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTemplates.swift; sourceTree = "<group>"; };
@@ -277,6 +284,7 @@
 		6CCAECC44EFFDFAC924CCAE1 /* AudioSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSegment.swift; sourceTree = "<group>"; };
 		6E62849877725E323BC44343 /* InferenceFrameworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferenceFrameworkTests.swift; sourceTree = "<group>"; };
 		717CA0503E596DF45364966C /* WAVRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WAVRecorder.swift; sourceTree = "<group>"; };
+		747ED55E86D98824FD207E23 /* PromptTemplatesV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptTemplatesV3.swift; sourceTree = "<group>"; };
 		74D34F58FEE12B895D619023 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		74F4EC82F252D3D16C5B2838 /* RunCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunCommand.swift; sourceTree = "<group>"; };
 		76201BC701D88CBA08488D08 /* ActivityTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityTab.swift; sourceTree = "<group>"; };
@@ -568,6 +576,7 @@
 			children = (
 				D88A57EAAD5580BDF5F5385D /* CleanupPromptBuilder.swift */,
 				BA41DA27C4B3966B93F2BBA7 /* CleanupPromptBuilderV2.swift */,
+				2F1B60194C1C557F74EE07A6 /* CleanupPromptBuilderV3.swift */,
 				9ACEE9E82615164602ADA56A /* GGUFModelRegistry.swift */,
 				D53015D96F0C3348CC50F59F /* LlamaCppEngine.swift */,
 				351AA57A2113A29E8DEBE453 /* LLMEngine.swift */,
@@ -580,6 +589,7 @@
 				975A02B4F9F53994C7902532 /* PromptOverrides.swift */,
 				33711F42A312F8D5CC1F2FFB /* PromptTemplates.swift */,
 				241FCE84672C6EB7DA2FBB94 /* PromptTemplatesV2.swift */,
+				747ED55E86D98824FD207E23 /* PromptTemplatesV3.swift */,
 				936BD453DD8ED54AE7FB1BA3 /* UserPromptContext.swift */,
 				306F76FCFC9C33DC28812775 /* UserPromptContextManager.swift */,
 			);
@@ -686,6 +696,7 @@
 				CB68E105C803B17AC0FED012 /* TranscriptionPipelineTests.swift */,
 				3A8299649DCA500CB264FD79 /* UserPromptContextTests.swift */,
 				F65FE636DD28DF06EDFA406E /* V2PromptTests.swift */,
+				14FD424516A94BEC40DCD617 /* V3PromptTests.swift */,
 				9DE1EF445E5E84BD82C48FB4 /* VADConfigTests.swift */,
 				95818D9E5700BEFF8A063BBC /* YapYapErrorTests.swift */,
 			);
@@ -894,6 +905,7 @@
 				5679154CBF44469556F06F14 /* TranscriptionPipelineTests.swift in Sources */,
 				3526FD38E674B0ED6ADF24F9 /* UserPromptContextTests.swift in Sources */,
 				3D9C4D0F819C347A5F16BF5D /* V2PromptTests.swift in Sources */,
+				5C78CE222EFDB71C06692A4B /* V3PromptTests.swift in Sources */,
 				CDB9AFECAF65640AD09DDAE9 /* VADConfigTests.swift in Sources */,
 				FCFD02B54D5FFCB40F877EAE /* YapYapErrorTests.swift in Sources */,
 			);
@@ -914,6 +926,7 @@
 				330DD3733D57F268765BB4B7 /* BenchmarkRunner.swift in Sources */,
 				2CF3B1CA54412057A8423B26 /* CleanupPromptBuilder.swift in Sources */,
 				C27F3257EDC13DAF7075754A /* CleanupPromptBuilderV2.swift in Sources */,
+				06AED313C7EEB6BD6F476B79 /* CleanupPromptBuilderV3.swift in Sources */,
 				852C03F7CDCA61FDD73CBF97 /* CommandMode.swift in Sources */,
 				EFFF6865D4E37DF73E85789D /* ComparisonReporter.swift in Sources */,
 				529D3E41119D6F59955F7C6A /* ContextFactory.swift in Sources */,
@@ -935,6 +948,7 @@
 				EE6D2E7F9B92C23DC8BB5EBD /* PromptOverrides.swift in Sources */,
 				A8C83FC6DB572107F0C9DE77 /* PromptTemplates.swift in Sources */,
 				F2E286E8605D483087A754BA /* PromptTemplatesV2.swift in Sources */,
+				CB10154E74124DEEF3C81F61 /* PromptTemplatesV3.swift in Sources */,
 				09412F4A1E9632F363F1F8CE /* QualityScorer.swift in Sources */,
 				F1F1B1DA420CDE56405E4D99 /* RecordCommand.swift in Sources */,
 				8299E3700A31CD081956511B /* RunCommand.swift in Sources */,
@@ -980,6 +994,7 @@
 				504469E64EE7C742EAA9387F /* AudioSegment.swift in Sources */,
 				8E62711B01B71C06EF670AD2 /* CleanupPromptBuilder.swift in Sources */,
 				D6D49986A3A60CFBE75B455D /* CleanupPromptBuilderV2.swift in Sources */,
+				81EFE1DE1D452BE700995FBB /* CleanupPromptBuilderV3.swift in Sources */,
 				159B35B764FD536B0094C832 /* CommandMode.swift in Sources */,
 				FE1C97CBE4DC9490C3228308 /* CorrectionDiffer.swift in Sources */,
 				8C7E66F123DE6EC4B34B2ED9 /* CrashReporter.swift in Sources */,
@@ -1024,6 +1039,7 @@
 				1B457E241ADDF57829885F89 /* PromptOverrides.swift in Sources */,
 				DCDAEE1069874F8DB90B6467 /* PromptTemplates.swift in Sources */,
 				291694132EAC492F15539721 /* PromptTemplatesV2.swift in Sources */,
+				D7B07C0F504C6360D77369B1 /* PromptTemplatesV3.swift in Sources */,
 				76656617951807826122E635 /* PromptTestTab.swift in Sources */,
 				AE84163A6BFD9DBD88FB6D8A /* PromptsTab.swift in Sources */,
 				8E0122D5D31B47EE9C53EBF1 /* STTEngine.swift in Sources */,
