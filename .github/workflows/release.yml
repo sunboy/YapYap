@@ -140,11 +140,12 @@ jobs:
           done
 
           # Finally sign the app bundle itself with entitlements
+          # Use DirectDist entitlements (non-sandboxed) for the DMG release build
           codesign --force --sign "$ID" \
             --keychain "$KEYCHAIN_PATH" \
             --options runtime \
             --timestamp \
-            --entitlements YapYap/YapYap.entitlements \
+            --entitlements YapYap/YapYap-DirectDist.entitlements \
             "$APP"
 
       - name: Verify signature

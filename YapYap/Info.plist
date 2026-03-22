@@ -16,8 +16,6 @@
 	<string>0.2.9</string>
 	<key>CFBundleVersion</key>
 	<string>0.2.9</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
@@ -30,6 +28,8 @@
 	<string>YapYap needs microphone access to transcribe your voice into text.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>YapYap uses on-device speech recognition to transcribe your voice into text. All processing happens locally.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/sunboy/yapyap/main/Distribution/appcast.xml</string>
 	<key>SUPublicEDKey</key>

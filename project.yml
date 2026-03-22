@@ -7,6 +7,11 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
+configs:
+  Debug: debug
+  Release: release
+  AppStore: release
+
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -16,17 +21,6 @@ settings:
     # Apple Silicon only — x86_64 not supported (MLX, FluidAudio, CoreML ANE require arm64)
     ARCHS: "arm64"
     EXCLUDED_ARCHS: "x86_64"
-  configs:
-    Debug:
-      # Ad-hoc signing for local development builds — fast, no certificate needed
-      CODE_SIGN_IDENTITY: "-"
-      CODE_SIGN_STYLE: Manual
-    Release:
-      # Automatic signing with Developer ID Application for distribution
-      # Requires "Developer ID Application" certificate in Keychain
-      # Create at: https://developer.apple.com/account/resources/certificates/add
-      CODE_SIGN_IDENTITY: "Developer ID Application"
-      CODE_SIGN_STYLE: Manual
 
 packages:
   WhisperKit:
@@ -78,13 +72,31 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.yapyap.app
         INFOPLIST_FILE: YapYap/Info.plist
-        CODE_SIGN_ENTITLEMENTS: YapYap/YapYap.entitlements
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
         ENABLE_HARDENED_RUNTIME: true
       configs:
+        Debug:
+          # Non-sandboxed: ad-hoc signed, full AX APIs for context detection and paste
+          CODE_SIGN_IDENTITY: "-"
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_ENTITLEMENTS: YapYap/YapYap-DirectDist.entitlements
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG DIRECT_DISTRIBUTION"
         Release:
+          # Non-sandboxed: Developer ID signed, full AX APIs for context detection and paste
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_ENTITLEMENTS: YapYap/YapYap-DirectDist.entitlements
           ENABLE_HARDENED_RUNTIME: true
           OTHER_CODE_SIGN_FLAGS: "--timestamp"
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DIRECT_DISTRIBUTION"
+        AppStore:
+          # Sandboxed: Apple Distribution signed for Mac App Store
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_ENTITLEMENTS: YapYap/YapYap.entitlements
+          ENABLE_HARDENED_RUNTIME: true
+          OTHER_CODE_SIGN_FLAGS: "--timestamp"
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: ""
     dependencies:
       - package: WhisperKit
       - package: FluidAudio
@@ -104,15 +116,6 @@ targets:
         product: PostHog
       - package: llama-swift
         product: LlamaSwift
-    entitlements:
-      path: YapYap/YapYap.entitlements
-      properties:
-        # Microphone access for speech-to-text
-        com.apple.security.device.audio-input: true
-        # Accessibility API: read selected text, synthetic key events for paste
-        com.apple.security.automation.apple-events: true
-        # Disable sandbox: required for CGEvent (synthetic keystrokes) and AXUIElement
-        com.apple.security.app-sandbox: false
 
   YapYapTests:
     type: bundle.unit-test

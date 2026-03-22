@@ -1,5 +1,9 @@
 // Permissions.swift
 // YapYap — Permission checking and system settings guidance
+//
+// Two distribution modes:
+//  - DIRECT_DISTRIBUTION: uses AXIsProcessTrusted() — full Accessibility API access.
+//  - App Store: uses CGPreflightPostEventAccess() — sandbox-compatible PostEvent check.
 import AppKit
 import AVFoundation
 
@@ -21,18 +25,36 @@ struct Permissions {
 
     // MARK: - Accessibility
 
+    /// Check if we have the required permission for paste.
+    /// - Direct distribution: checks full Accessibility (AXIsProcessTrusted) — needed for
+    ///   AX-based paste strategy and CGEvent posting.
+    /// - App Store: checks PostEvent TCC service (CGPreflightPostEventAccess) — the
+    ///   sandbox-compatible check for synthetic Cmd+V.
     static var hasAccessibilityPermission: Bool {
+        #if DIRECT_DISTRIBUTION
         AXIsProcessTrusted()
+        #else
+        CGPreflightPostEventAccess()
+        #endif
     }
 
+    /// Request the appropriate accessibility permission.
     static func requestAccessibilityPermission() {
+        #if DIRECT_DISTRIBUTION
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
+        #else
+        CGRequestPostEventAccess()
+        #endif
     }
 
     // MARK: - Alerts
 
     static func showPermissionAlert(title: String, message: String, settingsPath: String) {
+        // Bring app to foreground so the alert is visible — LSUIElement apps
+        // show alerts behind other windows without this.
+        NSApp.activate(ignoringOtherApps: true)
+
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
@@ -54,9 +76,14 @@ struct Permissions {
     }
 
     static func showAccessibilityPermissionAlert() {
+        #if DIRECT_DISTRIBUTION
+        let message = "YapYap needs accessibility access to paste transcribed text into your apps.\n\nIf YapYap is already listed in System Settings → Privacy & Security → Accessibility, toggle it OFF then back ON to refresh the permission."
+        #else
+        let message = "YapYap needs accessibility access to paste transcribed text into your apps.\n\nPlease enable YapYap in System Settings → Privacy & Security → Accessibility."
+        #endif
         showPermissionAlert(
             title: "Accessibility Access Required",
-            message: "YapYap needs accessibility access to paste transcribed text into your apps.\n\nIf YapYap is already listed in System Settings → Privacy & Security → Accessibility, toggle it OFF then back ON to refresh the permission.",
+            message: message,
             settingsPath: "Privacy_Accessibility"
         )
     }

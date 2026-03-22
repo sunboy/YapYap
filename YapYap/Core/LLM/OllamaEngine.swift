@@ -9,6 +9,7 @@ class OllamaEngine: LLMEngine {
     private let session: URLSession
     private(set) var modelId: String?
     private var _isLoaded: Bool = false
+    private(set) var lastCleanupMetrics: LLMCleanupMetrics?
 
     /// MLX model registry ID used for prompt selection. When set, the prompt builder
     /// uses the same family/size tier as the MLX model, ensuring identical prompts
@@ -66,7 +67,7 @@ class OllamaEngine: LLMEngine {
         guard let tag = modelId, _isLoaded else { return }
         do {
             let startTime = Date()
-            _ = try await chatCompletion(
+            let _ = try await chatCompletion(
                 model: tag,
                 messages: [["role": "user", "content": "Hi"]],
                 maxTokens: 1
@@ -120,7 +121,7 @@ class OllamaEngine: LLMEngine {
         // Disable Qwen reasoning buffer — prevents output going to think token instead of content
         let isQwen = tag.lowercased().contains("qwen")
         let startTime = Date()
-        let result = try await chatCompletion(
+        let response = try await chatCompletion(
             model: tag,
             messages: chatMessages,
             maxTokens: 1024,
@@ -128,11 +129,25 @@ class OllamaEngine: LLMEngine {
             disableThink: isQwen
         )
         let elapsed = Date().timeIntervalSince(startTime)
-        let outputWords = result.split(separator: " ").count
+        let outputWords = response.content.split(separator: " ").count
         NSLog("[OllamaEngine] Cleanup completed in %.1fs (~%d words, %.0f ms/word)",
               elapsed, outputWords, outputWords > 0 ? elapsed * 1000 / Double(outputWords) : 0)
 
-        let sanitized = LLMOutputSanitizer.sanitize(result)
+        let prefillMs = response.promptEvalDurationNs / 1_000_000
+        let genDurationMs = response.evalDurationNs / 1_000_000
+        let prefillTokPerSec = prefillMs > 0 ? Double(response.promptEvalCount) / (Double(prefillMs) / 1000) : 0
+        let genTokPerSec = genDurationMs > 0 ? Double(response.evalCount) / (Double(genDurationMs) / 1000) : 0
+        self.lastCleanupMetrics = LLMCleanupMetrics(
+            prefillMs: prefillMs,
+            prefillTokPerSec: prefillTokPerSec,
+            genTokPerSec: genTokPerSec,
+            genTokenCount: response.evalCount,
+            inputTokenCount: response.promptEvalCount,
+            promptCacheHit: false,
+            memoryPressure: .from(genTokPerSec: genTokPerSec)
+        )
+
+        let sanitized = LLMOutputSanitizer.sanitize(response.content)
         NSLog("[OllamaEngine] Cleanup result (\(sanitized.count) chars): \"\(String(sanitized.prefix(80)))...\"")
         return sanitized
     }
@@ -214,6 +229,15 @@ class OllamaEngine: LLMEngine {
         _ = try await sendGenerateRequest(model: model, prompt: "", keepAlive: nil)
     }
 
+    /// Parsed Ollama chat response with timing metadata
+    private struct OllamaChatResponse {
+        let content: String
+        let promptEvalCount: Int       // prompt tokens
+        let evalCount: Int             // generated tokens
+        let promptEvalDurationNs: Int  // prefill time in nanoseconds
+        let evalDurationNs: Int        // generation time in nanoseconds
+    }
+
     /// Send a chat completion request to Ollama
     private func chatCompletion(
         model: String,
@@ -221,7 +245,7 @@ class OllamaEngine: LLMEngine {
         maxTokens: Int,
         temperature: Float = 0.0,
         disableThink: Bool = false
-    ) async throws -> String {
+    ) async throws -> OllamaChatResponse {
         guard let url = URL(string: "\(endpoint)/api/chat") else {
             throw OllamaError.invalidEndpoint(endpoint)
         }
@@ -262,7 +286,13 @@ class OllamaEngine: LLMEngine {
             throw OllamaError.invalidResponse
         }
 
-        return content
+        return OllamaChatResponse(
+            content: content,
+            promptEvalCount: json["prompt_eval_count"] as? Int ?? 0,
+            evalCount: json["eval_count"] as? Int ?? 0,
+            promptEvalDurationNs: json["prompt_eval_duration"] as? Int ?? 0,
+            evalDurationNs: json["eval_duration"] as? Int ?? 0
+        )
     }
 
     /// Low-level generate request (used for preload and unload)

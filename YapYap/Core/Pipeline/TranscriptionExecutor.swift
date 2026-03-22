@@ -19,6 +19,20 @@ actor TranscriptionExecutor {
         sttEngine as? (any StreamingSTTEngine)
     }
 
+    var lastCleanupMetrics: LLMCleanupMetrics? { llmEngine?.lastCleanupMetrics }
+
+    var currentLLMFramework: LLMInferenceFramework? {
+        if llmEngine is MLXEngine { return .mlx }
+        if llmEngine is LlamaCppEngine { return .llamacpp }
+        if llmEngine is OllamaEngine { return .ollama }
+        return nil
+    }
+
+    /// Single actor hop to read all post-cleanup analytics data.
+    func cleanupSnapshot() -> (metrics: LLMCleanupMetrics?, framework: LLMInferenceFramework) {
+        (llmEngine?.lastCleanupMetrics, currentLLMFramework ?? .mlx)
+    }
+
     // MARK: - Model Loading
 
     func ensureModelsLoaded(
@@ -76,13 +90,7 @@ actor TranscriptionExecutor {
         case .ollama:   effectiveLLMId = ollamaModelName
         }
 
-        let currentFramework: LLMInferenceFramework? = {
-            if llmEngine is MLXEngine { return .mlx }
-            if llmEngine is LlamaCppEngine { return .llamacpp }
-            if llmEngine is OllamaEngine { return .ollama }
-            return nil
-        }()
-        let frameworkChanged = currentFramework != framework
+        let frameworkChanged = currentLLMFramework != framework
         let needsLLMReload = llmEngine == nil || !llmEngine!.isLoaded
             || llmEngine!.modelId != effectiveLLMId || frameworkChanged
 

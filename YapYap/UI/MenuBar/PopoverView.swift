@@ -173,6 +173,34 @@ struct PopoverView: View {
                 }
             }
 
+            if let failureMsg = appState.pasteFailureMessage {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.ypRed)
+                        Text(failureMsg)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.ypRed)
+                            .lineLimit(2)
+                        Spacer()
+                    }
+                    if failureMsg.contains("permission") {
+                        Button(action: {
+                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+                        }) {
+                            Text("Open System Settings")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.ypLavender)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(8)
+                .background(Color.ypPillRed)
+                .cornerRadius(6)
+            }
+
             if isEditingTranscription {
                 // Editing mode
                 VStack(alignment: .leading, spacing: 8) {

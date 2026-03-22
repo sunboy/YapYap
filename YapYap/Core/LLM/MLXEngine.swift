@@ -11,6 +11,7 @@ class MLXEngine: LLMEngine {
     // Use explicit module qualification to avoid SwiftData.ModelContext collision
     private var lmContext: MLXLMCommon.ModelContext?
     private(set) var modelId: String?
+    private(set) var lastCleanupMetrics: LLMCleanupMetrics?
 
     /// Prompt cache: reuses KV state from the static prefix (system prompt + examples)
     /// across inference calls. Only the dynamic suffix (raw transcript) needs new prefill.
@@ -223,6 +224,7 @@ class MLXEngine: LLMEngine {
 
         let cache: [any KVCache]
         let inputTokens: [Int]
+        var cacheHit = false
 
         if let existingCache = promptCache,
            promptCachePrefixKey == templatePrefix,
@@ -239,6 +241,7 @@ class MLXEngine: LLMEngine {
             if trimmed {
                 cache = existingCache
                 inputTokens = Array(jointTokens[splitPoint...])
+                cacheHit = true
                 NSLog("[MLXEngine] Prompt cache HIT — skipping %d prefix tokens, prefilling %d suffix tokens",
                       splitPoint, inputTokens.count)
             } else {
@@ -257,7 +260,11 @@ class MLXEngine: LLMEngine {
 
         NSLog("[MLXEngine] Prompt: \(totalTokenCount) tokens, suffix: \(jointTokens.count - splitPoint) tokens, family: \(family.rawValue)")
 
-        let outputText = try await runGeneration(input: input, cache: cache, family: family, inputTokenCount: inputTokens.count, lmContext: lmContext)
+        let outputText = try await runGeneration(
+            input: input, cache: cache, family: family,
+            inputTokenCount: inputTokens.count, totalInputTokenCount: totalTokenCount,
+            promptCacheHit: cacheHit, lmContext: lmContext
+        )
 
         // Save cache for next call. The cache now contains KV state for
         // prefix + suffix + generated tokens. On next call, we'll trim it
@@ -322,6 +329,7 @@ class MLXEngine: LLMEngine {
 
         let cache: [any KVCache]
         let inputTokens: [Int]
+        var v3CacheHit = false
 
         if let existingCache = v3PrefixCache,
            v3PrefixTemplateKey == prefixTemplate,
@@ -337,6 +345,7 @@ class MLXEngine: LLMEngine {
             if trimmed {
                 cache = existingCache
                 inputTokens = suffixTokens
+                v3CacheHit = true
                 NSLog("[MLXEngine] V3 prefix cache HIT — trimmed to offset %d, prefilling %d suffix tokens",
                       v3PrefixOffset, suffixTokens.count)
             } else {
@@ -380,7 +389,11 @@ class MLXEngine: LLMEngine {
         let input = LMInput(tokens: MLXArray(inputTokens))
         NSLog("[MLXEngine] V3 inference: %d suffix tokens, family: %@", inputTokens.count, family.rawValue)
 
-        let outputText = try await runGeneration(input: input, cache: cache, family: family, inputTokenCount: inputTokens.count, lmContext: lmContext)
+        let outputText = try await runGeneration(
+            input: input, cache: cache, family: family,
+            inputTokenCount: inputTokens.count, totalInputTokenCount: jointTokens.count,
+            promptCacheHit: v3CacheHit, lmContext: lmContext
+        )
 
         // Cache is preserved — on next call we trim back to v3PrefixOffset
         v3PrefixCache = cache
@@ -399,6 +412,8 @@ class MLXEngine: LLMEngine {
         cache: [any KVCache],
         family: LLMModelFamily,
         inputTokenCount: Int,
+        totalInputTokenCount: Int,
+        promptCacheHit: Bool,
         lmContext: MLXLMCommon.ModelContext
     ) async throws -> String {
         let parameters = GenerateParameters(
@@ -418,6 +433,10 @@ class MLXEngine: LLMEngine {
 
         var outputText = ""
         var stopped = false
+        var metricsGenTokPerSec: Double = 0
+        var metricsGenTokenCount: Int = 0
+        var metricsPrefillMs: Int = 0
+        var metricsPrefillTokPerSec: Double = 0
         let stream: AsyncStream<Generation> = try generate(
             input: input,
             cache: cache,
@@ -433,6 +452,8 @@ class MLXEngine: LLMEngine {
                     firstTokenTime = Date()
                     let prefillMs = firstTokenTime!.timeIntervalSince(startTime) * 1000
                     let prefillTokPerSec = prefillMs > 0 ? Double(inputTokenCount) / (prefillMs / 1000) : 0
+                    metricsPrefillMs = Int(prefillMs)
+                    metricsPrefillTokPerSec = prefillTokPerSec
                     let prefillWarning = prefillTokPerSec < 50 ? " ⚠️ SLOW PREFILL" : ""
                     NSLog("[MLXEngine] Prefill: %.0fms (%d tokens, %.0f tok/s)%@",
                           prefillMs, inputTokenCount, prefillTokPerSec, prefillWarning)
@@ -454,6 +475,8 @@ class MLXEngine: LLMEngine {
                 let elapsed = Date().timeIntervalSince(startTime)
                 let genMs = firstTokenTime.map { Date().timeIntervalSince($0) * 1000 } ?? 0
                 let genTokPerSec = info.tokensPerSecond
+                metricsGenTokPerSec = genTokPerSec
+                metricsGenTokenCount = info.generationTokenCount
                 let memWarning = genTokPerSec < 5 ? " ⚠️ MEMORY PRESSURE — model likely swapped to disk" :
                                  genTokPerSec < 20 ? " ⚠️ SLOW — possible memory pressure" : ""
                 NSLog("[MLXEngine] Generation: %d tokens in %.0fms (%.0f tok/s), total %.1fs%@",
@@ -462,6 +485,16 @@ class MLXEngine: LLMEngine {
                 break
             }
         }
+
+        self.lastCleanupMetrics = LLMCleanupMetrics(
+            prefillMs: metricsPrefillMs,
+            prefillTokPerSec: metricsPrefillTokPerSec,
+            genTokPerSec: metricsGenTokPerSec,
+            genTokenCount: metricsGenTokenCount,
+            inputTokenCount: totalInputTokenCount,
+            promptCacheHit: promptCacheHit,
+            memoryPressure: .from(genTokPerSec: metricsGenTokPerSec)
+        )
 
         return outputText
     }

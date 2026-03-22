@@ -1,7 +1,15 @@
 // AppContextDetector.swift
 // YapYap — Detect active app and classify for adaptive formatting
+//
+// Two distribution modes:
+//  - DIRECT_DISTRIBUTION (Debug/Release DMG): full AXUIElement APIs for context detection,
+//    browser tab classification, and window title classification.
+//  - App Store (AppStore config): sandboxed, AX APIs unavailable; classification uses
+//    bundle ID mapping, LSApplicationCategoryType, and heuristics only.
 import AppKit
+#if DIRECT_DISTRIBUTION
 import ApplicationServices
+#endif
 
 class AppContextDetector {
 
@@ -83,9 +91,16 @@ class AppContextDetector {
         let appName = frontApp.localizedName ?? "Unknown"
         let pid = frontApp.processIdentifier
 
+        #if DIRECT_DISTRIBUTION
         // Fetch AX data once — used for classification AND AppContext construction
         let windowTitle = getWindowTitle(pid: pid)
         let focusedText = getFocusedFieldText()
+        #else
+        // AXUIElement APIs blocked in App Store sandbox — use bundle ID and heuristics only
+        let windowTitle: String? = nil
+        let focusedText: String? = nil
+        _ = pid
+        #endif
 
         var category: AppCategory
         var fromHardcodedMap = false
@@ -93,18 +108,27 @@ class AppContextDetector {
         if let override = settings.appCategoryOverrides[bundleId] {
             category = override
         } else if browserBundleIds.contains(bundleId) {
-            // Browser tab classification must run BEFORE bundleMap fallback
-            // so Gmail/Outlook/Slack in Chrome get the correct category
+            #if DIRECT_DISTRIBUTION
+            // Browser tab classification via window title (Gmail in Chrome → email, etc.)
             category = classifyBrowserTab(windowTitle: windowTitle)
+            #else
+            // Sandbox: window title unavailable, default to .browser
+            category = .browser
+            #endif
         } else if let mapped = bundleMap[bundleId] {
             category = mapped
             fromHardcodedMap = true
         } else {
             // Layered auto-classification for unknown apps
-            category = categoryFromLSApplicationCategoryType(frontApp.bundleURL)
+            let baseCategory = categoryFromLSApplicationCategoryType(frontApp.bundleURL)
                 ?? categoryFromHeuristics(bundleId: bundleId, appName: appName)
+            #if DIRECT_DISTRIBUTION
+            category = baseCategory
                 ?? categoryFromWindowTitle(windowTitle, focusedText: focusedText)
                 ?? .other
+            #else
+            category = baseCategory ?? .other
+            #endif
         }
 
         // Record seen apps for overrides UI (skip known apps and user overrides)
@@ -112,7 +136,11 @@ class AppContextDetector {
             recordSeenApp(bundleId: bundleId, appName: appName, category: category)
         }
 
+        #if DIRECT_DISTRIBUTION
         let isIDEChat = category == .codeEditor && isAIChatPanel(windowTitle: windowTitle)
+        #else
+        let isIDEChat = false
+        #endif
         let style = settings.styleFor(category)
 
         return AppContext(
@@ -249,9 +277,13 @@ class AppContextDetector {
                title.contains("copilot") || title.contains("ai assistant")
     }
 
-    // MARK: - Accessibility API Helpers
+    // MARK: - Text Access Helpers
+    //
+    // Full implementations are compiled in for DIRECT_DISTRIBUTION (Debug/Release DMG).
+    // App Store sandbox blocks AXUIElement — stubs return nil so callers degrade gracefully.
 
     static func getWindowTitle(pid: pid_t) -> String? {
+        #if DIRECT_DISTRIBUTION
         let appElement = AXUIElementCreateApplication(pid)
         var windowValue: AnyObject?
         guard AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowValue) == .success else { return nil }
@@ -259,9 +291,13 @@ class AppContextDetector {
         var titleValue: AnyObject?
         AXUIElementCopyAttributeValue(windowValue as! AXUIElement, kAXTitleAttribute as CFString, &titleValue)
         return titleValue as? String
+        #else
+        return nil
+        #endif
     }
 
     static func getFocusedFieldText() -> String? {
+        #if DIRECT_DISTRIBUTION
         let systemWide = AXUIElementCreateSystemWide()
         var focused: AnyObject?
         guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success else { return nil }
@@ -273,10 +309,15 @@ class AppContextDetector {
             return String(text.suffix(500))
         }
         return nil
+        #else
+        return nil
+        #endif
     }
 
-    /// Get selected text from active app (for Command Mode)
+    /// Get selected text from active app (for Command Mode).
+    /// Returns nil in the App Store sandbox — Command Mode falls back to write-only mode.
     static func getSelectedText() -> String? {
+        #if DIRECT_DISTRIBUTION
         let systemWide = AXUIElementCreateSystemWide()
         var focused: AnyObject?
         guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success else { return nil }
@@ -284,5 +325,8 @@ class AppContextDetector {
         var selectedText: AnyObject?
         guard AXUIElementCopyAttributeValue(focused as! AXUIElement, kAXSelectedTextAttribute as CFString, &selectedText) == .success else { return nil }
         return selectedText as? String
+        #else
+        return nil
+        #endif
     }
 }

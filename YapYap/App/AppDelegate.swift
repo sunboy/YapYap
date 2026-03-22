@@ -2,41 +2,23 @@ import AppKit
 import SwiftData
 import SwiftUI
 import AVFoundation
+#if DIRECT_DISTRIBUTION
 import Sparkle
+#endif
 
-class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate {
     var statusBarController: StatusBarController?
     var appState = AppState()
     var pipeline: TranscriptionPipeline?
     var floatingBarPanel: FloatingBarPanel?
     var onboardingWindow: NSWindow?
+    #if DIRECT_DISTRIBUTION
     lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
         userDriverDelegate: self
     )
-
-    // MARK: - SPUStandardUserDriverDelegate
-
-    /// Required for background (LSUIElement) apps — enables gentle scheduled update reminders
-    /// so Sparkle doesn't silently skip updates for dockless apps.
-    var supportsGentleScheduledUpdateReminders: Bool { true }
-
-    func standardUserDriverWillHandleShowingUpdate(
-        _ handleShowingUpdate: Bool,
-        forUpdate update: SUAppcastItem,
-        state: SPUUserUpdateState
-    ) {
-        // Bring app to foreground so the Sparkle update window is visible.
-        // Without this, LSUIElement apps show the window behind other windows.
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    func standardUserDriverWillFinishUpdateSession() {
-        // Revert to menu-bar-only (accessory) mode after the update session ends.
-        NSApp.setActivationPolicy(.accessory)
-    }
+    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("[AppDelegate] applicationDidFinishLaunching starting...")
@@ -50,9 +32,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
         NSApp.setActivationPolicy(.accessory)
         print("[AppDelegate] Set activation policy to accessory")
 
+        #if DIRECT_DISTRIBUTION
         // Trigger lazy updaterController so Sparkle starts background update checks
         _ = updaterController
         print("[AppDelegate] Sparkle updater started")
+        #endif
 
         // Initialize DataManager first (may fail gracefully now)
         print("[AppDelegate] Initializing DataManager...")
@@ -164,6 +148,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
 
     @objc private func handleWakeFromSleep() {
         print("[AppDelegate] System woke from sleep")
+        // Invalidate CGEvent permission cache — macOS can silently revoke
+        // the accessibility grant during sleep (tccd hiccup, security update)
+        #if DIRECT_DISTRIBUTION
+        pipeline?.pasteManager.invalidatePermissionCache()
+        #endif
         // If models aren't ready (loading was interrupted by sleep), retry
         if !appState.modelsReady && !appState.isLoadingModels {
             print("[AppDelegate] Models not ready after wake — retrying load")
@@ -328,3 +317,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
         }
     }
 }
+
+#if DIRECT_DISTRIBUTION
+extension AppDelegate: SPUStandardUserDriverDelegate {
+    /// Required for background (LSUIElement) apps — enables gentle scheduled update reminders
+    /// so Sparkle doesn't silently skip updates for dockless apps.
+    var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate update: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        // Bring app to foreground so the Sparkle update window is visible.
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func standardUserDriverWillFinishUpdateSession() {
+        // Revert to menu-bar-only (accessory) mode after the update session ends.
+        NSApp.setActivationPolicy(.accessory)
+    }
+}
+#endif

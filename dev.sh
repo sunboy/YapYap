@@ -20,7 +20,8 @@ _kill() {
 
 _reset_accessibility() {
     tccutil reset Accessibility "$BUNDLE_ID"
-    echo "✓ Accessibility grant reset"
+    tccutil reset PostEvent "$BUNDLE_ID"
+    echo "✓ Accessibility + PostEvent grants reset"
 }
 
 _launch() {

@@ -12,6 +12,7 @@ class LlamaCppEngine: LLMEngine {
     /// corrupt the KV cache and trigger ggml_abort.
     private let inferenceLock = NSLock()
     private(set) var modelId: String?
+    private(set) var lastCleanupMetrics: LLMCleanupMetrics?
 
     /// MLX model registry ID used for prompt selection. Maps the GGUF model
     /// to the corresponding MLX family/size tier so CleanupPromptBuilder
@@ -240,10 +241,21 @@ class LlamaCppEngine: LLMEngine {
         let elapsed = Date().timeIntervalSince(startTime)
         let genMs = Date().timeIntervalSince(prefillTime) * 1000
         let tokPerSec = outputTokens.count > 0 ? Double(outputTokens.count) / (genMs / 1000) : 0
+        let prefillTokPerSec = prefillMs > 0 ? Double(tokens.count) / (prefillMs / 1000) : 0
         let memWarning = tokPerSec < 5 ? " ⚠️ MEMORY PRESSURE — model likely swapped to disk" :
                          tokPerSec < 20 ? " ⚠️ SLOW — possible memory pressure" : ""
         NSLog("[LlamaCppEngine] Generation: %d tokens in %.0fms (%.0f tok/s), total %.1fs%@",
               outputTokens.count, genMs, tokPerSec, elapsed, memWarning)
+
+        self.lastCleanupMetrics = LLMCleanupMetrics(
+            prefillMs: Int(prefillMs),
+            prefillTokPerSec: prefillTokPerSec,
+            genTokPerSec: tokPerSec,
+            genTokenCount: outputTokens.count,
+            inputTokenCount: tokens.count,
+            promptCacheHit: false,  // llama.cpp clears KV cache each call
+            memoryPressure: .from(genTokPerSec: tokPerSec)
+        )
 
         let result = LLMOutputSanitizer.sanitize(outputText)
         NSLog("[LlamaCppEngine] Cleanup result (\(result.count) chars): \"\(String(result.prefix(80)))...\"")

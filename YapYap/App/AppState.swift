@@ -16,6 +16,9 @@ final class AppState {
     /// Raw STT output shown as preview while LLM processes
     var partialTranscription: String?
 
+    /// Non-nil when the last paste failed. Shown in popover and floating bar. Cleared on next recording start.
+    var pasteFailureMessage: String? = nil
+
     // Model loading state
     var isLoadingModels: Bool = false
     var modelLoadingProgress: Double = 0.0

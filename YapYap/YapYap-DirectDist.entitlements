@@ -2,13 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Direct distribution (DMG/Homebrew): NOT sandboxed -->
+	<!-- Full Accessibility API access for context detection and paste strategies -->
 	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<false/>
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
-	<key>com.apple.security.network.client</key>
-	<true/>
-	<key>com.apple.security.files.user-selected.read-write</key>
+	<!-- Apple Events: required for AXUIElement APIs (context detection, paste) -->
+	<key>com.apple.security.automation.apple-events</key>
 	<true/>
 </dict>
 </plist>

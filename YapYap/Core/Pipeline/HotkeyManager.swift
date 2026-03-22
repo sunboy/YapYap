@@ -25,16 +25,14 @@ class HotkeyManager {
         self.pipeline = pipeline
         self.appState = appState
 
-        // Check accessibility permission silently — never show a dialog here.
+        // Check PostEvent permission silently — uses sandbox-compatible API.
         // Onboarding step 2 handles the system prompt on first launch.
-        // Post-onboarding, the app works without accessibility (clipboard fallback).
-        let trusted = AXIsProcessTrusted()
-        NSLog("[HotkeyManager] Accessibility trusted: %@", trusted ? "YES" : "NO")
+        // Post-onboarding, the app works without this (clipboard fallback, user pastes manually).
+        let canPost = Permissions.hasAccessibilityPermission
+        NSLog("[HotkeyManager] PostEvent access: %@", canPost ? "YES" : "NO")
 
-        if !trusted {
-            NSLog("[HotkeyManager] ⚠️ Accessibility NOT trusted — user must grant in System Settings → Accessibility")
-            NSLog("[HotkeyManager] If YapYap doesn't appear, click '+' and add: %@",
-                  Bundle.main.bundlePath)
+        if !canPost {
+            NSLog("[HotkeyManager] ⚠️ PostEvent NOT granted — paste will require manual Cmd+V")
         }
 
         registerHotkeys()
@@ -110,6 +108,7 @@ class HotkeyManager {
 
     private func showError(_ message: String) {
         DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
             alert.messageText = "Hotkey Error"
             alert.informativeText = message
