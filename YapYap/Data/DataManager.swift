@@ -111,6 +111,17 @@ final class DataManager {
         }
     }
 
+    /// Removes a model ID from the downloaded list (e.g. after deletion).
+    func unmarkModelDownloaded(_ modelId: String) {
+        let settings = fetchSettings()
+        var ids = settings.downloadedModelIds.flatMap { $0.isEmpty ? nil : $0.components(separatedBy: ",") } ?? []
+        if let idx = ids.firstIndex(of: modelId) {
+            ids.remove(at: idx)
+            settings.downloadedModelIds = ids.isEmpty ? nil : ids.joined(separator: ",")
+            saveSettings()
+        }
+    }
+
     /// Returns the set of model IDs that have been successfully downloaded.
     func downloadedModelIds() -> Set<String> {
         let settings = fetchSettings()

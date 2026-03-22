@@ -113,10 +113,6 @@ struct StyleTab: View {
 
     private func categoryRow(category: AppCategory) -> some View {
         HStack(spacing: 12) {
-            Text(category.emoji)
-                .font(.system(size: 16))
-                .frame(width: 24)
-
             VStack(alignment: .leading, spacing: 2) {
                 Text(category.displayName)
                     .font(.system(size: 13))
@@ -128,18 +124,47 @@ struct StyleTab: View {
 
             Spacer()
 
-            Picker("", selection: binding(for: category)) {
-                ForEach(category.availableStyles) { style in
-                    Text(style.displayName).tag(style)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(width: 130)
+            styleMenu(for: category)
         }
         .padding(.vertical, 8)
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.ypBorderLight).frame(height: 1)
         }
+    }
+
+    private func styleMenu(for category: AppCategory) -> some View {
+        let current = styleSettings.style(for: category)
+        return Menu {
+            ForEach(category.availableStyles) { style in
+                Button {
+                    styleSettings.setStyle(style, for: category)
+                } label: {
+                    if style == current {
+                        Label(style.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(style.displayName)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Spacer()
+                Text(current.displayName)
+                    .font(.system(size: 13))
+                    .foregroundColor(.ypText2)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9))
+                    .foregroundColor(.ypText3)
+            }
+            .frame(width: 120)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .background(Color.ypCard)
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.ypBorder, lineWidth: 1))
+            .cornerRadius(6)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     private func binding(for category: AppCategory) -> Binding<OutputStyle> {

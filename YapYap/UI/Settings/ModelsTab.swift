@@ -14,6 +14,7 @@ struct ModelsTab: View {
     @State private var downloadedModels: Set<String> = []
     @State private var downloadingModel: String?
     @State private var downloadProgress: Double = 0
+    @State private var downloadTask: Task<Void, Never>?
     @State private var modelToDelete: String?
     @State private var showDeleteConfirm = false
     @State private var modelSizes: [String: String] = [:]
@@ -25,6 +26,7 @@ struct ModelsTab: View {
     @State private var ollamaModelName = "qwen2.5:1.5b"
     @State private var ollamaStatus: OllamaConnectionStatus = .unknown
     @State private var selectedGGUF = GGUFModelRegistry.recommendedModel.id
+    @State private var sttMode: String = "batch"
 
     // All models live under ~/Library/Application Support/YapYap/models/.
     // Application Support is never iCloud-synced, preventing eviction of large
@@ -55,6 +57,17 @@ struct ModelsTab: View {
                     .padding(.bottom, 20)
 
                 sttModelGrid
+
+                // Transcription mode — batch vs streaming
+                Text("TRANSCRIPTION MODE")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.ypText2)
+                    .tracking(0.8)
+                    .padding(.top, 16)
+                    .padding(.bottom, 8)
+
+                sttModePicker
+                    .padding(.bottom, 8)
 
                 divider
 
@@ -113,6 +126,10 @@ struct ModelsTab: View {
         }
         .onChange(of: inferenceFramework) { _, newValue in
             guard didLoadSettings, !isRefreshingSettings else { return }
+            // Cancel any LLM download in progress — the old framework's model is irrelevant now
+            if downloadingModel != nil, LLMModelRegistry.model(for: downloadingModel!) != nil || GGUFModelRegistry.model(for: downloadingModel!) != nil {
+                cancelDownload()
+            }
             saveSettings { $0.llmInferenceFramework = newValue.rawValue }
             NotificationCenter.default.post(name: .yapSettingsChanged, object: nil)
             if newValue == .ollama { checkOllamaConnection() }
@@ -128,6 +145,10 @@ struct ModelsTab: View {
         .onChange(of: selectedGGUF) { _, newValue in
             guard didLoadSettings, !isRefreshingSettings else { return }
             saveSettings { $0.llamacppModelId = newValue }
+        }
+        .onChange(of: sttMode) { _, newValue in
+            guard didLoadSettings, !isRefreshingSettings else { return }
+            saveSettings { $0.sttMode = newValue }
         }
         .alert("Delete Model", isPresented: $showDeleteConfirm) {
             Button("Cancel", role: .cancel) { modelToDelete = nil }
@@ -233,7 +254,7 @@ struct ModelsTab: View {
                             .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
-                        .disabled(downloadingModel != nil)
+                        .disabled(downloadingModel != nil || appState?.llmLoadingModelId != nil)
                     }
 
                     Spacer()
@@ -367,6 +388,7 @@ struct ModelsTab: View {
                                 .cornerRadius(4)
                             }
                             .buttonStyle(.plain)
+                            .disabled(downloadingModel != nil || appState?.llmLoadingModelId != nil)
                         }
                     } else if isDownloaded {
                         Button(action: { selectLLMModel(model.id) }) {
@@ -395,6 +417,7 @@ struct ModelsTab: View {
                             .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
+                        .disabled(downloadingModel != nil || appState?.llmLoadingModelId != nil)
                     }
 
                     Spacer()
@@ -437,6 +460,7 @@ struct ModelsTab: View {
         // A model is "downloading" if either a manual download is in progress from this tab,
         // or if the startup/hotkey pipeline is loading it (appState.llmLoadingModelId).
         let isDownloadingNow = downloadingModel == modelId || appState?.llmLoadingModelId == modelId
+        let hasLoadError = appState?.lastLLMLoadErrorModelId == modelId
         return Group {
             if isComingSoon {
                 Text("Coming soon")
@@ -453,6 +477,14 @@ struct ModelsTab: View {
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(Color.ypPillLavender)
+                    .cornerRadius(4)
+            } else if hasLoadError {
+                Text("Load Failed")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundColor(.red.opacity(0.8))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.red.opacity(0.1))
                     .cornerRadius(4)
             } else if isDownloaded {
                 Text("Downloaded")
@@ -627,6 +659,7 @@ struct ModelsTab: View {
                             .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
+                        .disabled(downloadingModel != nil)
                     } else if isDownloaded {
                         Button(action: { selectGGUFModel(model.id) }) {
                             Text("Select")
@@ -653,6 +686,7 @@ struct ModelsTab: View {
                             .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
+                        .disabled(downloadingModel != nil)
                     }
 
                     Spacer()
@@ -845,6 +879,14 @@ struct ModelsTab: View {
 
     // MARK: - Actions
 
+    /// Cancels any in-progress manual model download.
+    private func cancelDownload() {
+        downloadTask?.cancel()
+        downloadTask = nil
+        downloadingModel = nil
+        downloadProgress = 0
+    }
+
     private func selectSTTModel(_ id: String) {
         let oldId = selectedSTT
         selectedSTT = id
@@ -874,13 +916,14 @@ struct ModelsTab: View {
         downloadingModel = model.id
         downloadProgress = 0
 
-        Task {
+        downloadTask = Task {
             do {
                 let ggufDir = GGUFModelRegistry.ggufModelsDir
                 try? FileManager.default.createDirectory(at: ggufDir, withIntermediateDirectories: true)
 
                 let destination = GGUFModelRegistry.localPath(for: model)
                 let (tempURL, response) = try await URLSession.shared.download(from: model.downloadURL)
+                try Task.checkCancellation()
 
                 guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                     throw LlamaCppError.downloadFailed(model.downloadURL.absoluteString)
@@ -895,6 +938,7 @@ struct ModelsTab: View {
                     downloadedModels.insert(model.id)
                     downloadingModel = nil
                     downloadProgress = 0
+                    downloadTask = nil
                     selectGGUFModel(model.id)
                 }
                 Analytics.trackModelDownloaded(modelId: model.id, modelType: "llm_gguf")
@@ -911,11 +955,14 @@ struct ModelsTab: View {
                         }
                     }
                 }
+            } catch is CancellationError {
+                NSLog("[ModelsTab] GGUF download cancelled for \(model.id)")
             } catch {
                 NSLog("[ModelsTab] GGUF download failed for \(model.id): \(error)")
                 await MainActor.run {
                     downloadingModel = nil
                     downloadProgress = 0
+                    downloadTask = nil
                     downloadError = "Failed to download \(model.name): \(error.localizedDescription)"
                 }
             }
@@ -927,16 +974,18 @@ struct ModelsTab: View {
         downloadingModel = model.id
         downloadProgress = 0
 
-        Task {
+        downloadTask = Task {
             do {
                 try await ModelDownloadService.shared.download(modelId: model.id) { p in
                     Task { @MainActor in downloadProgress = p }
                 }
+                try Task.checkCancellation()
 
                 await MainActor.run {
                     downloadedModels.insert(model.id)
                     downloadingModel = nil
                     downloadProgress = 0
+                    downloadTask = nil
                     selectSTTModel(model.id)
                 }
                 Analytics.trackModelDownloaded(modelId: model.id, modelType: "stt")
@@ -961,11 +1010,14 @@ struct ModelsTab: View {
                         DispatchQueue.main.async { self.modelSizes[modelId] = formatted }
                     }
                 }
+            } catch is CancellationError {
+                NSLog("[ModelsTab] STT download cancelled for \(model.id)")
             } catch {
                 NSLog("[ModelsTab] STT download failed for \(model.id): \(error)")
                 await MainActor.run {
                     downloadingModel = nil
                     downloadProgress = 0
+                    downloadTask = nil
                     downloadError = "Failed to download \(model.name): \(error.localizedDescription)"
                 }
             }
@@ -977,11 +1029,11 @@ struct ModelsTab: View {
     }
 
     private func downloadLLMModel(_ model: LLMModelInfo, selectAfterDownload: Bool = false) {
-        guard downloadingModel == nil else { return }
+        guard downloadingModel == nil, appState?.llmLoadingModelId == nil else { return }
         downloadingModel = model.id
         downloadProgress = 0
 
-        Task {
+        downloadTask = Task {
             do {
                 let config = ModelConfiguration(id: model.huggingFaceId)
                 let factory = LLMModelFactory.shared
@@ -995,11 +1047,13 @@ struct ModelsTab: View {
                         downloadProgress = progress.fractionCompleted
                     }
                 }
+                try Task.checkCancellation()
 
                 await MainActor.run {
                     downloadedModels.insert(model.id)
                     downloadingModel = nil
                     downloadProgress = 0
+                    downloadTask = nil
                     if selectAfterDownload {
                         selectLLMModel(model.id)
                     }
@@ -1020,11 +1074,14 @@ struct ModelsTab: View {
                         }
                     }
                 }
+            } catch is CancellationError {
+                NSLog("[ModelsTab] LLM download cancelled for \(model.id)")
             } catch {
                 NSLog("[ModelsTab] Download failed for \(model.id): \(error)")
                 await MainActor.run {
                     downloadingModel = nil
                     downloadProgress = 0
+                    downloadTask = nil
                     downloadError = "Failed to download \(model.name): \(error.localizedDescription)"
                 }
             }
@@ -1032,6 +1089,11 @@ struct ModelsTab: View {
     }
 
     private func deleteModel(_ id: String) {
+        // Don't delete a model that's currently being downloaded or loaded
+        guard downloadingModel != id && appState?.llmLoadingModelId != id else {
+            downloadError = "Cannot delete a model while it's downloading or loading."
+            return
+        }
         let llmCache = llmCacheDir
         let whisperCache = whisperCacheDir
         Task.detached(priority: .utility) {
@@ -1093,7 +1155,9 @@ struct ModelsTab: View {
                 }
             }
 
+            // Remove stale DB entry so checkDownloadedModels() won't resurrect it
             await MainActor.run {
+                DataManager.shared.unmarkModelDownloaded(id)
                 self.downloadedModels.remove(id)
                 self.modelSizes.removeValue(forKey: id)
             }
@@ -1112,6 +1176,7 @@ struct ModelsTab: View {
         ollamaEndpoint = settings.ollamaEndpoint
         ollamaModelName = settings.ollamaModelName
         selectedGGUF = settings.llamacppModelId
+        sttMode = settings.sttMode ?? "batch"
         didLoadSettings = true
         if inferenceFramework == .ollama { checkOllamaConnection() }
     }
@@ -1297,6 +1362,32 @@ struct ModelsTab: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.ypBorderLight).frame(height: 1)
         }
+    }
+
+    private var sttModePicker: some View {
+        HStack(spacing: 8) {
+            selectionPill(isSelected: sttMode == "streaming", title: "Streaming", subtitle: "Live preview while recording") { sttMode = "streaming" }
+            selectionPill(isSelected: sttMode == "batch", title: "Batch", subtitle: "Fastest — no live preview") { sttMode = "batch" }
+        }
+    }
+
+    private func selectionPill(isSelected: Bool, title: String, subtitle: String, onTap: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                .foregroundColor(isSelected ? .ypLavender : .ypText2)
+            Text(subtitle)
+                .font(.system(size: 10))
+                .foregroundColor(isSelected ? .ypLavender.opacity(0.8) : .ypText3)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSelected ? Color.ypPillLavender : Color.ypCard)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1))
+        .cornerRadius(8)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
     }
 }
 

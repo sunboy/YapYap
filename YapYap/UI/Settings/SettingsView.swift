@@ -49,7 +49,7 @@ struct SettingsView: View {
                 tabContent
             }
         }
-        .frame(width: 860, height: 580)
+        .frame(minWidth: 760, idealWidth: 860, minHeight: 500, idealHeight: 620)
         .animation(.easeInOut(duration: 0.5), value: selectedTab)
     }
 

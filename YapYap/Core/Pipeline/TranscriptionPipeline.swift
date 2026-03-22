@@ -147,9 +147,16 @@ class TranscriptionPipeline {
         )
         let activeLLM = await executor.activeLLMModelId
         let activeSTT = await executor.sttModelId
+        let requestedLLM = settings.llmModelId
         await MainActor.run { [weak self] in
             self?.appState.activeLLMModelId = activeLLM
             self?.appState.activeSTTModelId = activeSTT
+            // Track load failure so ModelsTab can show a "Load Failed" badge
+            if activeLLM == nil && !llmAlreadyLoaded {
+                self?.appState.lastLLMLoadErrorModelId = requestedLLM
+            } else {
+                self?.appState.lastLLMLoadErrorModelId = nil
+            }
             // Clear LLM loading state — load is complete (success or failure)
             self?.appState.llmLoadingModelId = nil
             self?.appState.llmDownloadProgress = nil
@@ -340,8 +347,11 @@ class TranscriptionPipeline {
                 if let streamingResult = try? await executor.stopStreaming() {
                     let streamingText = Self.stripWhisperArtifacts(streamingResult.text.trimmingCharacters(in: .whitespacesAndNewlines))
                     let wordCount = streamingText.split(separator: " ").count
-                    if wordCount >= 3 {
-                        // Streaming result is substantive — use it and skip batch STT entirely.
+                    if wordCount >= 1 {
+                        // Streaming result has content — use it and skip batch STT entirely.
+                        // Previously required >= 3 words, but that discarded valid 1-2 word
+                        // utterances and fell back to batch, which often failed with
+                        // invalidAudioData on short VAD-trimmed audio.
                         rawText = OutputFormatter.applyMetaCommandStripping(streamingText)
                         detectedLanguage = streamingResult.language ?? settings.language
                         usedStreamingResult = true
@@ -400,8 +410,16 @@ class TranscriptionPipeline {
                         sttBuffer = audioBuffer
                     } else if let concatenated = AudioSegment.concatenate(speechSegments) {
                         let filteredDuration = Double(concatenated.frameLength) / audioCapture.sampleRate
-                        NSLog("[TranscriptionPipeline] VAD: \(speechSegments.count) speech segments, \(String(format: "%.1f", filteredDuration))s (\(String(format: "%.0f", reductionRatio * 100))%% reduction, \(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
-                        sttBuffer = concatenated
+                        if filteredDuration < 1.0 {
+                            // VAD-trimmed audio is too short for Parakeet batch mode.
+                            // Parakeet/FluidAudio throws invalidAudioData on buffers under ~1s.
+                            // Use the full buffer instead — STT can handle surrounding silence.
+                            NSLog("[TranscriptionPipeline] VAD: trimmed to \(String(format: "%.1f", filteredDuration))s (too short for STT), using full buffer (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+                            sttBuffer = audioBuffer
+                        } else {
+                            NSLog("[TranscriptionPipeline] VAD: \(speechSegments.count) speech segments, \(String(format: "%.1f", filteredDuration))s (\(String(format: "%.0f", reductionRatio * 100))%% reduction, \(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
+                            sttBuffer = concatenated
+                        }
                     } else {
                         NSLog("[TranscriptionPipeline] VAD: concatenation failed, using full buffer (\(String(format: "%.0f", Date().timeIntervalSince(stageStart) * 1000))ms)")
                         sttBuffer = audioBuffer
@@ -481,7 +499,7 @@ class TranscriptionPipeline {
                     cleanupLevel: CleanupContext.CleanupLevel(rawValue: settings.cleanupLevel) ?? .medium,
                     removeFillers: true,
                     experimentalPrompts: settings.experimentalPrompts,
-                    useV2Prompts: settings.useV2Prompts
+                    promptVersion: settings.resolvedPromptVersion
                 )
 
                 let isLLMLoaded = await executor.isLLMLoaded
@@ -664,7 +682,7 @@ class TranscriptionPipeline {
             cleanupLevel: .medium,
             removeFillers: false,
             experimentalPrompts: settings.experimentalPrompts,
-            useV2Prompts: settings.useV2Prompts
+            promptVersion: settings.resolvedPromptVersion
         ))
 
         pasteManager.paste(result, targetApp: self.targetApp, keepOnClipboard: settings.copyToClipboard)

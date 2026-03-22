@@ -12,13 +12,11 @@ struct GeneralTab: View {
     @State private var copyToClipboard = true
     @State private var notifyOnComplete = false
     @State private var experimentalPrompts = false
-    @State private var useV2Prompts = true
     @State private var selectedMic = "Default"
     @State private var floatingBarPosition = "Bottom center"
     @State private var historyLimit = "Last 100"
     @State private var micOptions: [String] = ["Default"]
     @State private var didLoadSettings = false
-    @State private var sttMode: String = "batch"
 
     private let positions = ["Bottom center", "Bottom left", "Bottom right", "Top center"]
     private let historyOptions = ["Last 50", "Last 100", "Last 500", "Keep all", "Don't save"]
@@ -51,21 +49,6 @@ struct GeneralTab: View {
                 .padding(.bottom, 8)
 
             toggleRow(label: "Detailed prompts for small models", subtitle: "Use 3B+ model prompts on ≤1B models (may reduce accuracy)", isOn: $experimentalPrompts)
-            toggleRow(label: "Classic prompt engine (V1)", subtitle: "Use the original single-turn prompts instead of the new chat-style engine", isOn: Binding(
-                get: { !useV2Prompts },
-                set: { useV2Prompts = !$0 }
-            ))
-
-            divider
-
-            Text("TRANSCRIPTION MODE")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.ypText2)
-                .tracking(0.8)
-                .padding(.bottom, 8)
-
-            sttModePicker
-                .padding(.bottom, 16)
 
             divider
 
@@ -102,10 +85,6 @@ struct GeneralTab: View {
             guard didLoadSettings else { return }
             saveSettings { $0.experimentalPrompts = newValue }
         }
-        .onChange(of: useV2Prompts) { _, newValue in
-            guard didLoadSettings else { return }
-            saveSettings { $0.useV2Prompts = newValue }
-        }
         .onChange(of: crashReportingEnabled) { _, newValue in
             CrashReporter.isEnabled = newValue
         }
@@ -124,10 +103,6 @@ struct GeneralTab: View {
             guard didLoadSettings else { return }
             let micId = newValue == "Default" ? nil : newValue
             saveSettings { $0.microphoneId = micId }
-        }
-        .onChange(of: sttMode) { _, newValue in
-            guard didLoadSettings else { return }
-            saveSettings { $0.sttMode = newValue }
         }
     }
 
@@ -153,10 +128,8 @@ struct GeneralTab: View {
         copyToClipboard = settings.copyToClipboard
         notifyOnComplete = settings.notifyOnComplete
         experimentalPrompts = settings.experimentalPrompts
-        useV2Prompts = settings.useV2Prompts
         floatingBarPosition = settings.floatingBarPosition
         historyLimit = intToHistoryLimit(settings.historyLimit)
-        sttMode = settings.sttMode ?? "batch"
 
         // Load saved mic selection
         if let micId = settings.microphoneId, micOptions.contains(micId) {
@@ -191,33 +164,6 @@ struct GeneralTab: View {
         case 0: return "Don't save"
         default: return "Last 100"
         }
-    }
-
-    private var sttModePicker: some View {
-        HStack(spacing: 8) {
-            sttModePill(mode: "streaming", title: "Streaming", subtitle: "Live preview while recording")
-            sttModePill(mode: "batch",     title: "Batch",     subtitle: "Fastest — no live preview")
-        }
-    }
-
-    private func sttModePill(mode: String, title: String, subtitle: String) -> some View {
-        let isSelected = sttMode == mode
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
-                .foregroundColor(isSelected ? .ypLavender : .ypText2)
-            Text(subtitle)
-                .font(.system(size: 10))
-                .foregroundColor(isSelected ? .ypLavender.opacity(0.8) : .ypText3)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? Color.ypPillLavender : Color.ypCard)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.ypLavender : Color.ypBorder, lineWidth: 1))
-        .cornerRadius(8)
-        .contentShape(Rectangle())
-        .onTapGesture { sttMode = mode }
     }
 
     private func toggleRow(label: String, subtitle: String, isOn: Binding<Bool>) -> some View {

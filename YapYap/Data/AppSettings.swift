@@ -44,7 +44,11 @@ final class AppSettings {
     var sttMode: String?
     /// Prompt engine version: true = V2 (new unified prompt), false = V1 (classic multi-tier).
     /// Defaults to true. Power users can switch to V1 for compatibility.
+    /// Deprecated: use promptVersion instead. Kept for SwiftData migration compatibility.
     var useV2Prompts: Bool
+    /// Prompt engine version: "v1", "v2", or "v3". Defaults to "v3" (DSPy-optimized).
+    /// V3 uses model-family-specific prompts with static prefix KV caching.
+    var promptVersion: String?
 
     init(
         sttModelId: String = "parakeet-tdt-v3",
@@ -77,7 +81,8 @@ final class AppSettings {
         llamacppModelId: String = GGUFModelRegistry.recommendedModel.id,
         llmSkipWordThreshold: Int = 20,
         sttMode: String? = "streaming",
-        useV2Prompts: Bool = true
+        useV2Prompts: Bool = true,
+        promptVersion: String? = CleanupContext.PromptVersion.v3.rawValue
     ) {
         self.sttModelId = sttModelId
         self.llmModelId = llmModelId
@@ -110,6 +115,17 @@ final class AppSettings {
         self.llmSkipWordThreshold = llmSkipWordThreshold
         self.sttMode = sttMode
         self.useV2Prompts = useV2Prompts
+        self.promptVersion = promptVersion
+    }
+
+    /// Resolved prompt version, falling back through promptVersion → useV2Prompts → v3.
+    /// Handles migration from the old boolean useV2Prompts to the new versioned field.
+    var resolvedPromptVersion: CleanupContext.PromptVersion {
+        if let version = promptVersion, let v = CleanupContext.PromptVersion(rawValue: version) {
+            return v
+        }
+        // Migration: old useV2Prompts boolean → map to v2 or v1
+        return useV2Prompts ? .v2 : .v1
     }
 
     static func defaults() -> AppSettings {

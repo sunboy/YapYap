@@ -29,23 +29,6 @@ struct WritingTab: View {
 
                 StyleTab()
             }
-
-            SettingsSectionDivider()
-
-            // Section 3: Per-Category Prompt Rules
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Image(systemName: "text.badge.xmark")
-                        .font(.system(size: 14))
-                        .foregroundColor(.ypLavender)
-                    Text("Prompt Rules")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.ypText1)
-                }
-                .padding(.bottom, 4)
-
-                PromptsTab()
-            }
         }
     }
 
